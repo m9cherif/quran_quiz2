@@ -1,0 +1,334 @@
+# Architecture — Quran Quiz Platform
+
+Audit date: 2026-08-10 · Base: QuizCast frontend (fork, repo `quran-quiz2`)
+
+This document captures the **current** state of the codebase, the **actual** Supabase schema it must eventually serve, and the **proposed** architecture. It is the source of truth for the phased implementation plan.
+
+---
+
+## 1. Executive summary
+
+The repo is the **QuizCast Frontend** (package `quizcast-website`): a working, but demo-grade, single-page host-vs-participant live quiz app. It builds cleanly (`npm run build` passes) and has no tests, no lint, no TypeScript, no CI.
+
+Its architecture orients on an **external FastAPI backend** (`NEXT_PUBLIC_BACKEND_URL`) that owns auth, quiz persistence, join and scoring — the frontend only calls Supabase for **realtime broadcast** (game start signal), **postgres_changes** (leaderboard) and **storage** (avatars).
+
+The linked Supabase project (reachable via the `supabase` MCP tools) already contains a **purpose-built schema** for this product — `competitions`, `participants`, `questions`, `choices`, `answers`, `admin_keys` — with Quran fields (`surah_number`, `ayah_number`, `juz_number`, …) baked into `questions`. But the schema is a **locked shell**:
+
+- RLS enabled on every table with **zero policies** (no client can read or write anything)
+- **No realtime publications** (no postgres_changes subscription can work)
+- **No storage bucket**, no edge functions, no tracked migrations
+- **0 Supabase Auth users**; the frontend never uses Supabase Auth
+
+So the path is: keep the working product flow, re-architect it onto **Supabase-only** (Auth + DB + Realtime + Storage), supply the missing migrations/policies/publications, and rebuild the UI to a professional multi-route application.
+
+---
+
+## 2. Current architecture (as found)
+
+### 2.1 Stack
+
+| Layer | Choice | Version | Notes |
+|---|---|---|---|
+| Framework | Next.js (App Router) | 15.0.3 | effectively a SPA; only `layout.js` + `page.js` |
+| React | react | ^18.2.0 | `use` import in NavBar is a React 19 API — dead import |
+| Language | Plain JS/JSX | — | no TS, no tsconfig |
+| State | Redux Toolkit + redux-persist | ^2.5.0 / ^6.0.0 | persisted to localStorage, `serializableCheck: false` |
+| Styling | Tailwind CSS 3 + Flowbite (`flowbite-react`) | ^3.4.1 / ^0.10.2 | plugin + content globs configured |
+| Supabase client | @supabase/supabase-js | ^2.47.3 | anon key, client-side only |
+| Icons | `react-icons` (`react-icons/fa`) | — | **not a direct dependency**; resolves transitively via flowbite-react |
+| Backend | External REST API (FastAPI-style) | — | not in this repo; cannot be deployed here |
+
+### 2.2 Repository structure
+
+```
+src/
+├── app/
+│   ├── layout.js              # "use client"; Redux Provider + PersistGate; fonts
+│   ├── page.js                # THE single page: two-pane layout + string-switch "router"
+│   ├── hooks/
+│   │   └── useSupabase.jsx    # creates a new supabase client on every call
+│   └── components/
+│       ├── API/index.jsx      # backend endpoint paths (typos kept: joinQiuz, getQuizHistory)
+│       ├── LeftPane/          # Welcome, LeaderBoard
+│       ├── RightPane/         # Join, Login, SignUp, RoomKey, ReceiveMsg, BroadCast,
+│       │                      #   AvailableQuiz, NavBar, UserSession, Profile, AboutUs
+│       │   ├── Questions/     # Qsettings, EnteredQuiz (question builder)
+│       │   └── Session/       # Qdisplay (student answer screen)
+│       └── Notification/      # ErrorNotify, SuccessNotify (10 s auto-dismiss toasts)
+├── store/
+│   ├── index.js               # persistReducer → localStorage
+│   └── Slices/                # user, room_key, participant, leaderBoard
+└── styles/global.css          # Tailwind + custom .border-2/bg-glass/circles animations
+```
+
+### 2.3 Current flow (host)
+
+1. `Join` → choose role → `Login` (POST `${BACKEND}/authentication/login`) → user object (incl. `access_token`) saved to Redux → persisted.
+2. `Qsettings`: choose question count (1–10) and seconds/question (5–60). Local state only.
+3. `EnteredQuiz`: hand-built question form (4 options + one "correct" radio, per-question inline validation). Submit → POST `/quiz/addQuestions` → backend returns `room_key` → Redux `room_key`.
+4. `BroadCast`: shows join code + Copy; **Start Quiz** sends a Supabase **broadcast** `{event:"cursor-pos", payload:{message:"Start"}}` on channel named `room_key`; **Delete Room** → DELETE `/quiz/deleteRoom`.
+5. Left pane `LeaderBoard` subscribes `postgres_changes` on `NEXT_PUBLIC_DB_TABLE` (INSERT/UPDATE), filters `payload.new.room_key !== parseInt(room_key)` client-side.
+
+### 2.4 Current flow (participant)
+
+1. `Join` → `RoomKey`: enter name + code → POST `/quiz/join` → returns `{id, room_key, questions}` → Redux `participant` + `Questions` (wrapped in `[payload]`).
+2. `ReceiveMsg`: subscribes broadcast on channel `room_key`; on `"Start"` → `Qdisplay`.
+3. `Qdisplay`: client-side `setInterval` countdown from `question.time`; on submit/auto-timeout → PUT `/quiz/updateScore` with full `{id, room_key, name, score:newScore}`; score = `isCorrect ? round(100*(1-timeTaken/totalTime)) : 0`. Shows per-question correct/incorrect colors, then a final score screen. No leaderboard ranking for the student; host sees DB-triggered leaderboard.
+
+### 2.5 Realtime implementation (current)
+
+- **Broadcast** (host→students, one-way, unacknowledged): channel name = room key string, event `"cursor-pos"`.
+- **Postgres Changes** (leaderboard): table from `NEXT_PUBLIC_DB_TABLE`, all events, client-side filter.
+- **No Presence**, no reconnect handling, no resubscribe/backoff, no duplicate-event dedup, no channel cleanup on logout (only on unmount).
+
+### 2.6 Authentication (current)
+
+- Email/password against the **external backend**; response stored verbatim in Redux (incl. `access_token`) → **localStorage** via redux-persist.
+- Logout = clear slice. **No session validation on reload, no expiry, no refresh, no protected routes, no roles.** Stale localStorage revives dead sessions.
+- Supabase Auth exists in the project (auth schema present) but is unused (0 users).
+
+### 2.7 Environment variables (required today)
+
+All `NEXT_PUBLIC_*` (browser-visible), read directly in client components:
+
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase publishable anon key |
+| `NEXT_PUBLIC_SUPABASE_BUCKET` | storage bucket for avatars |
+| `NEXT_PUBLIC_BACKEND_URL` | external REST backend (to be retired) |
+| `NEXT_PUBLIC_DB_TABLE` | table for leaderboard postgres_changes (to be retired) |
+
+---
+
+## 3. Actual Supabase schema (audited via MCP)
+
+All tables `public`, all RLS enabled, **no policies**, no publication, no bucket, no migrations file. Row counts: `competitions` 2, `participants` 8 (dev data — do not delete).
+
+### competitions — game + quiz lifecycle
+`id uuid PK`, `code text UNIQUE`, `name`, `description?`, `status` (`draft|scheduled|waiting|running|paused|finished|cancelled`), `scheduled_at?`, `started_at?`, `finished_at?`, `paused_seconds float8`, `default_points int (=10)`, `default_negative_points int (=-2)`, `speed_bonus_enabled bool`, `created_at`, `updated_at`.
+FKs: participants, questions, answers → `competition_id`.
+
+> **Missing for the product:** no `owner_id` (host), no quiz-library separation from live games, no visibility/archive, no cover image, no language/category/difficulty.
+
+### participants
+`id uuid PK`, `competition_id fk`, `display_name` (len 2–50 enforced), `first_name?`, `last_name?`, `participant_code UNIQUE`, `access_token UNIQUE`, `connected bool`, `joined_at`, `last_seen_at?`, `status` (default `joined`).
+
+> Anonymous joiners get a server-issued token — no Supabase Auth needed to play. Good design; reused.
+
+### questions
+`id uuid PK`, `competition_id fk`, `position ≥ 1`, `text`, `type` (`mcq|true_false|text|number|audio`), `duration_seconds` (1–600, default 15), `points?`, `negative_points?` (≤ 0), `explanation?`, `correct_answer_text?`, `audio_url?`, `started_at?`, `ends_at?`, `created_at`.
+**Quran fields:** `surah_number` (1–114), `ayah_number`, `page_number`, `juz_number` (1–30), `hizb_number` (1–60) — all nullable.
+
+### choices
+`id uuid PK`, `question_id fk`, `text`, `position ≥ 1`, `is_correct bool` (default false).
+
+### answers
+`id uuid PK`, `competition_id fk`, `question_id fk`, `participant_id fk`, `choice_id?`, `answer_text?`, `submitted_at`, `response_time_ms int`, `is_correct bool`, `points float8 (=0)`, `bonus_points float8 (=0)`.
+
+### admin_keys
+`id uuid PK`, `key_hash UNIQUE`, `label?`, `created_at` — **admin is authenticated by hashed API keys, not by a role column.** The frontend must never know the raw key (no `admin_keys` access from client; admin screens call a server/edge function or use a key the operator pastes into a server-side-only env var).
+
+---
+
+## 4. Proposed architecture
+
+### 4.1 High-level decisions
+
+1. **Retire the external backend.** `NEXT_PUBLIC_BACKEND_URL` endpoints (login/signup/addQuestions/join/updateScore) have no deployable code in this repo. Replace with Supabase Auth + DB + Realtime + Storage. Feature-parity is achievable with the existing schema + the migrations in §6.
+2. **Keep the stack.** Next.js 15 App Router + React 18 + Tailwind + Flowbite + Redux (for persisted UI/session state). No new heavy deps. `flowbite-react` is already a dependency; use it as the primary component source, and pin `react-icons` as a direct dependency (currently transitive).
+3. **Introduce TypeScript incrementally** (rule 48 allows staged change; user requires strict TS). New code typed; files migrated directory-by-directory (`lib/`, `services/`, `types/` first), `tsconfig` strict, build verified after each batch. Keep runtime versions unchanged.
+4. **Routing: real routes** under App Router replacing the string-switch router, per §7. Keep old component logic by porting, not re-writing from scratch.
+5. **Realtime model**
+   - **Game/state sync:** single source of truth = `competitions.status` + `questions.started_at/ends_at` (authoritative, server timestamps). Host `UPDATE`s status; everyone subscribes `postgres_changes` filtered `WHERE competition_id = '<uuid>'` (needs table-level publication).
+   - **Lobby presence:** Realtime **Presence** on channel `game:{code}` + `participants.connected`/`last_seen_at` writes.
+   - **Answers/scoring:** client only inserts a raw selection (`answers.choice_id`/`answer_text`, `response_time_ms` computed on client); `is_correct`, `points`, `bonus_points` are computed **server-side** (RLS + `security definer` function) — students can never write their own score.
+   - Robustness requirements: reconnect/backoff (supabase-js v2 reconnects transport; we still handle stale channel state, refetch-on-subscribe, dedup by `answer_id`, cleanup on unmount, single shared client via `lib/supabase/client.ts` instead of a client-per-call hook).
+
+### 4.2 Target structure
+
+```
+src/
+├── app/
+│   ├── (public)/                 # /, /about, /join/[...code]
+│   ├── (auth)/login, (auth)/register
+│   ├── (host)/dashboard, quizzes/[id]/edit, games/[id], analytics, students
+│   ├── (student)/dashboard, history, profile
+│   └── game/[code]/lobby|question|result|leaderboard   # live game (both roles)
+├── components/ui/                # Button, Input, Dialog, Toast, Skeleton, EmptyState, Badge…
+├── components/game/              # Timer, GameLobby, QuestionStage, Leaderboard, Podium
+├── components/quiz/              # QuizEditor, QuestionEditor, QuestionCard, QuizCard
+├── features/…/hooks/             # useGameRealtime, usePresence, useAuthSession, useCompetition
+├── lib/supabase/{client,server,types}.ts
+├── services/                     # quizzes, games, participants, answers, analytics
+├── store/Slices/                 # keep: user(session), participant; drop room_key/leaderBoard → derived from game hooks
+├── types/                        # Competition, Question, Choice, Participant, Answer, GameState
+├── styles/                       # tokens.css (design system), global.css slimmed
+└── i18n/                         # en/ar/fr dictionaries, RTL helper
+supabase/migrations/              # all DDL as versioned SQL (see §6)
+docs/{ARCHITECTURE,SECURITY}.md
+.env.example
+```
+
+### 4.3 Auth flow (proposed)
+
+- **Hosts/registered students:** Supabase Auth (email/password). `auth.users` → public `profiles` table (`id → auth.uid()`, `name`, `role` check `host|student`, `avatar_url`). RLS: users manage own profile.
+- **Players in a game:** anonymous via `participants` (server-issued `access_token` returned by a `create participant` RPC/policy) — no signup required to play.
+- **Admin:** `admin_keys` (hashed). Admin surface is thin (moderation/audit); client uses a **server-only** route/edge function so the raw key never reaches the browser. If an edge function isn't deployed, the admin screens are gated behind an env-var-checked server action.
+- **Route protection:** `middleware.ts` (or server layout checks) redirect unauthenticated users; role checks per segment (`(host)` requires `profiles.role = host`).
+
+### 4.4 Game state machine (proposed, matches schema)
+
+`waiting` (lobby) → `running` (loop: question `started_at`/`ends_at` per question) → `finished` → host may `cancel` anytime → `cancelled`; long-lived quizzes can be `draft`/`scheduled`. Host is authoritative: only `competitions` owner can mutate `status` (RLS `owner_id = auth.uid()` policy).
+
+### 4.5 Scoring (proposed, server-side)
+
+Per `questions.points`/`negative_points`/`speed_bonus_enabled` + `answers.response_time_ms`, computed by an RLS-guarded `security definer` function at insert time. Client sends only `choice_id/answer_text` + `submitted_at`. Leaderboard = `SELECT` over `answers` (no separate leaderboard table needed; the current frontend's `NEXT_PUBLIC_DB_TABLE` contract goes away).
+
+---
+
+## 5. Repository conventions (preserve)
+
+- `@/*` alias → `./src/*` (jsconfig.json; tsconfig must mirror it).
+- Tailwind content globs include `node_modules/flowbite/**/*.js`; custom `custom: 1036px` breakpoint exists.
+- Redux persist + `serializableCheck: false` — keep for session/participant state; don't persist transient game state.
+- Flowbite React 0.10 (older API surface; `Flowbite` component wrappers vs new primitives differ — verify against installed version).
+- `npm run build` currently passes; it is the only reliable quality gate until tooling is added.
+
+---
+
+## 6. Required Supabase migrations (to implement, in order)
+
+All new DDL will be added versioned under `supabase/migrations/` **before** frontend features that depend on them. Identified, not yet executed:
+
+1. `profiles` table + trigger on `auth.users` insert (name, role `host|student` check, avatar_url) + RLS (self + admin).
+2. `competitions` additions: `owner_id uuid` FK → `profiles(id)` (or `auth.users`), `visibility`, `cover_url`, `language`, `category`, `difficulty`, `archived_at?` — RLS: owner CRUD; join via `participants` policy.
+3. Publications for realtime: `supabase_realtime` on `competitions`, `participants`, `answers` (private per-table filters).
+4. RLS policies across all six tables (anon can create/update only their own `participant`/`answer` rows; nobody writes `answers.is_correct/points`; owner-only game-state writes).
+5. Storage bucket (avatars/quiz covers) + policies (`auth.uid()` owns uploads; public read).
+6. Indexes: `answers(competition_id)`, `answers(participant_id)`, `questions(competition_id, position)`, `participants(competition_id)`.
+7. (Optional) Edge functions: `admin` endpoints (uses `admin_keys`), QR/join resolver if needed.
+8. Seed/none — no destructive ops; existing 2 competitions / 8 participants dev rows stay untouched.
+
+> No migration is applied during this audit. Each will be presented with its SQL, reviewed by owner, then applied via MCP + committed to `supabase/migrations/`.
+
+---
+
+## 7. Target routes (see product spec §6)
+
+Public `/`, `/about`, `/join` (+`/join/[code]`), `/(auth)/login`, `/(auth)/register`
+Host `/(host)/dashboard`, `/quizzes` (+`/new`, `/[id]/edit`, `preview`), `/games/[id]` (lobby+control), `/analytics`, `/students`
+Student `/(student)/dashboard`, `/history`, `/profile`
+Game (both) `/game/[code]/lobby`, `/question`, `/result`, `/leaderboard`
+Admin `/admin/*` (users/quizzes/games/analytics/settings — thin, key-gated)
+
+Mapping from current SPA: Join→`/join`, Login→`/login`, SignUp→`/register`, RoomKey→`/join`, ReceiveMsg→`/game/[code]/lobby`, Qdisplay→`/game/[code]/question`, BroadCast/AvailableQuiz→`/(host)/games` + `quizzes`, LeaderBoard→`/game/[code]/leaderboard`.
+
+---
+
+## 8. Known issues / bugs (current code)
+
+| # | Where | Issue |
+|---|---|---|
+| 1 | `Profile.jsx:63` | avatar filename built with `user.id`; backend user uses `user_id` → `undefined_avatar_…` paths |
+| 2 | `NavBar.jsx:1` | `import { use } from "react"` — React 19 API, undefined on 18.2 (dead import) |
+| 3 | `SuccessNotify.jsx` | renders `errorMsg` (undefined prop) + stray `{errorMsg}` span before `successMsg` |
+| 4 | `page.js` | `renderLeftComponent` default returns `null` → blank left pane possible; no error boundary |
+| 5 | `LeaderBoard.jsx` | no initial fetch of participants — empty until first event; `parseInt(room_key)` breaks if code non-numeric |
+| 6 | `RoomKey.jsx` | duplicate submits, `catch` swallows errors (console only); join failures leave stale Redux state |
+| 7 | `Qdisplay.jsx` | client-side timer manipulable; reads `questions[0][…]` (fragile `[payload]` wrap in participant slice); name-shadowing `questions` selector; `handleSubmitAnswer` referenced in effect body before declaration (works only because effect runs post-render — TDZ footgun) |
+| 8 | `BroadCast.jsx` | `channel.send` fired inside subscribe callback; no ack; Delete Room button is a `type="submit"` inside the same form as Start |
+| 9 | `store` | `access_token` + full user object persisted to localStorage: XSS-exposed credential; no expiry/refresh; schema changes strand stale states |
+| 10 | a11y | multiple `<a>`/`<li>` used as buttons without `href`/`role`/keyboard support; many unlabeled controls; error messages rely on color |
+| 11 | `useSupabase.jsx` | new client per call (perf/leak surface); no single shared instance |
+| 12 | Realtime | broadcast never reconnects silently (ReceiveMsg has no resubscribe); host side never unsubscribes its publish channel; event dedup missing |
+
+## 9. Technical debt
+
+- String-literal "router" prevents deep-linking/refresh/sharing — replaced by real routes.
+- Duplicated Tailwind class soup for forms/buttons across Login/SignUp/RoomKey/EnteredQuiz (`border-2` shadow, purple glow) — replaced by the design system.
+- Hand-rolled toast with countdown in two components — replaced by one Toast provider.
+- Question builder fixed to 4 options, no types — replaced by typed QuestionEditor (mcq/true_false + optional Quran reference fields).
+- No error/empty/loading states anywhere except Login spinner — audit & add throughout (rule: every async view).
+
+## 10. Feature roadmap (phased)
+
+0. ✅ Audit + ARCHITECTURE.md + AGENTS.md (this document)
+1. Design system: tokens (light/dark), core UI kit (Button/Input/Dialog/Toast/Skeleton/EmptyState/Badge/Table), RTL-ready primitives
+2. Routing + app shell + navigation (host/student/public segment groups), error boundary, metadata
+3. TypeScript baseline: tsconfig strict, `types/`, `lib/supabase`, migrate `services` first
+4. Supabase foundations: migrations §6 (profiles, ownership, RLS, publication, bucket, indexes) + `.env.example`
+5. Auth: Supabase Auth login/register/guard, session restore (replaces backend login), roles host/student
+6. Quiz management: quizzes list (search/filter/sort/pagination, archive/publish/duplicate/delete), QuizEditor, QuestionEditor (mcq/true_false, points, duration, explanation, Quran reference fields), preview
+7. Live game host: create game from quiz (`competitions.code` 6-char), lobby (QR + copy code), start/next/reveal/finish controls, host question view
+8. Live game student: join [code] (validate, nickname, token), presence lobby, question stage (authoritative timer, submit), per-question feedback
+9. Leaderboard + results: podium, ranked list, per-question breakdown, host results, student own results (privacy)
+10. Dashboards + analytics: host stats (avg score/accuracy, most-missed, response times), quiz analytics, student history/progress — computed from `answers` via queries/service layer
+11. Classes/students (extensible: host-managed profiles/groups, minimal)
+12. i18n: en/ar (RTL)/fr dictionaries + `dir` switching + locale-aware routing; Quran-typography-safe styling
+13. Tests: unit (validation, scoring calc, game-state transitions), component, and E2E (host create→play; student join→answer→result) — Playwright; plus `lint` setup (eslint flat config + eslint-config-next) and a `typecheck` script (`tsc --noEmit`)
+14. Performance: route-level code splitting, image optimization, subscription hygiene, query limits
+15. Light PWA (manifest + icons) if warranted; QR join via existing lib
+16. Security audit → `docs/SECURITY.md` (RLS review, token handling, admin key handling)
+17. Render deployment: build/start scripts verified, README (setup, env, migrations, Realtime enablement, Render blueprint), final UI audit (loading/empty/error/success, dark, RTL, 360–1440px)
+
+---
+
+## 11. Risks & mitigations
+
+- **Auth migration** removes the external backend: existing hosted users of the old app cannot be migrated (no access to that DB). Mitigation: fresh Supabase Auth accounts; document in README.
+- **Old `updateScore` contract disappears** — the student score screen depends on it. Mitigation: server-side scoring replaces it; no feature loss.
+- **Schema renames** (`room_key` → `competitions.code/competitions.id`): full refactor of room/leaderboard slices. Mitigated by service layer isolation; drop `NEXT_PUBLIC_DB_TABLE`.
+- **Realtime on RLS tables**: publication + policies must ship together (migration #3/4) or realtime silently delivers nothing.
+- **Scope**: everything above is staged; each phase ends with build (and later lint/typecheck/tests) green before the next begins.
+
+---
+
+## 12. Quality gates (per phase)
+
+`npm install` → `npm run lint` (once eslint is added) → `npm run typecheck` (once tsconfig exists) → `npm run test` (once tests exist) → `npm run build`. Until tooling exists, `npm run build` is the mandatory gate. No invented commands; scripts are added to package.json as their toolchains land.
+
+---
+
+## 13. Phase progress log
+
+### Phase 1 — Design system ✅ (2026-08-10)
+- Added `src/styles/tokens.css`: light/dark CSS variables (media + `.dark` class), radii, shadows, motion tokens; `color-scheme`, `:focus-visible` base, `prefers-reduced-motion` handling, dialog/toast keyframes.
+- `tailwind.config.js`: colors/fonts/radius/shadows bound to tokens (Geist fonts now actually applied via `fontFamily.sans`); removed dead `background`/`foreground` placeholders.
+- Kit in `src/components/ui/`: `Button` (5 variants/3 sizes/loading/href→Link), `Input`, `Select`, `Textarea` (label+error+hint+aria), `Badge`, `Card`, `Skeleton`, `Spinner`, `EmptyState`, `Dialog` (focus trap/Escape/focus restore/scroll lock), `Toast` (provider + `useToast`, 4 variants, auto-dismiss), `ErrorBoundary` (retry), `src/lib/cn.js`.
+- QA route `/design-system` renders and exercises the whole kit (serves as the visual audit surface).
+- Root layout now server component (metadata, viewport) → client `Providers` (`providers.jsx`): Redux + persist + ErrorBoundary + Toast.
+
+### Phase 2 — Routing + app shell ✅ (2026-08-10)
+- Real App Router routes replacing the SPA string-router; deleted legacy `page.js` and the superseded panes (Login/SignUp/Join/RoomKey/ReceiveMsg/BroadCast/AvailableQuiz/NavBar/UserSession/AboutUs/Profile/Qsettings/EnteredQuiz/Qdisplay/Welcome + Notification toasts). Legacy kept: `API/index.jsx`, `LeftPane/LeaderBoard.jsx`, `hooks/useSupabase.jsx`.
+- `(public)`: `/` landing (hero + role cards + how-it-works), `/about`, `/join` + `/join/[code]` (shared `JoinGameForm` → legacy join → `/game/[roomKey]`).
+- `(auth)`: `/login`, `/register` (same legacy endpoints; new kit UI; success → `/host/games`).
+- `host/` (real dir so URLs carry the prefix): `/host` → redirect `/host/games`; `/host/games` list (loading/empty/error states); `/host/quizzes/new` settings→editor flow; `/host/games/[roomKey]` control screen (copy code, Start broadcast, Delete w/ confirm dialog, legacy LeaderBoard panel) with `RequireUser` guard in layout.
+- `game/`: `/game/[code]` lobby (broadcast listener, session-expired guard, mobile-first) and `/game/[code]/question` (ported timer/submit/feedback/result, better state handling, kit UI).
+- `components/layout/AppHeader.jsx` (public/host variants, mobile menu, active states).
+- Verified: build green (12 routes), all routes return 200, `/host` redirect payload confirmed.
+
+### Phase 3 — TypeScript baseline ✅ (2026-08-10)
+- Installed `typescript@5.9.3` (+ `@types/react@18`, `@types/react-dom@18`); added `npm run typecheck` → `tsc --noEmit` (strict tsconfig, includes `.next/types`).
+- `tsconfig.json`: strict, bundler resolution, `@/*` → `./src/*` alias mirroring jsconfig, `incremental`.
+- `src/types/database.ts`: typed mirror of the audited schema (Competition/Question incl. Quran fields/Choice/Participant/Answer/AdminKey/Profile and GamePhase).
+- `src/lib/supabase/client.ts`: single lazily-created shared client + `isSupabaseConfigured()` guard (replaces per-call clients).
+- `src/lib/cn.ts` migrated (first TS module; `cn.js` removed).
+- Fixed invalid Next 15 page signatures (`game/[code]` and `game/[code]/question` destructured `code` instead of `params`) — caught by the new typecheck over generated `.next/types`.
+- Gates green: `npm run typecheck` + `npm run build`.
+
+### Phase 4 — Supabase foundations ✅ (2026-08-10)
+- Migrations (all versioned in `supabase/migrations/`, applied via MCP, verified end-to-end via PostgREST smoke test):
+  1. `20260810120000_profiles.sql` — `profiles` (role check `host|student`), auto-create trigger from `auth.users` `app_metadata` (never `raw_user_meta_data`), self-only RLS, role immutable.
+  2. `20260810120100_competitions_extensions.sql` — `owner_id → profiles(id)`, `visibility`, `cover_url`, `language` (`en|ar|fr`), `category`, `difficulty`, `archived_at`, `updated_at` trigger.
+  3. `20260810120200_rls_security.sql` — 19 RLS policies; identity via `X-Participant-Token` header (`participant_from_header`); server-side scoring trigger `grade_answer` (mcq/true_false/text/number, speed bonus, negative points, late-submission → 0); RPC surface `join_competition` / `submit_answer` (upsert, one answer per participant per question) / `get_question_reveal` (owner|participant only) / `game_leaderboard` (aggregates only); spoiler columns (`questions.correct_answer_text`, `choices.is_correct`) revoked from REST; direct INSERT/UPDATE on `answers`, INSERT on `participants` revoked; `admin_keys` fully client-locked.
+  4. `20260810120300_realtime_publications.sql` — `supabase_realtime` on `competitions`, `questions`, `participants`, `answers` (NOT `choices`; realtime ignores column privileges).
+  5. `20260810120400_storage_media_bucket.sql` — public bucket `media`; auth-write under `avatars/{uid}/`, `covers/{uid}/`; public read; own-file update/delete.
+  6. `20260810120500_indexes.sql` (+ advisor cleanup `20260810120800_…`): dropped duplicates of pre-existing `idx_*`/unique constraints; added `answers(choice_id)`; kept `answers_participant_id_question_id_key` (pre-existing unique → ON CONFLICT target). Fixed `round(double precision, integer)` bug (42883) found by the smoke test (`20260810120700_…`).
+  7. Advisor pass: `auth.uid()` → initplan subselects in policies; `set_updated_at` search_path pinned; unused `can_read_competition` helper dropped; `join_competition` returns friendly duplicate-name error (`23505`).
+- `.env.example` added (gitignore negation); shared client `src/lib/supabase/client.ts` stored to `src/types` alignment.
+- **Verified via anonymous PostgREST smoke test**: join → self-select → questions/choices visible only when `running` → submit (fast correct 10pt + 9.2 bonus; wrong −2; late 0; empty rejected) → direct answer write 401 → spoiler columns 401/400 → reveal locked to participant/owner → leaderboard aggregates → cleanup, fixtures (2 comps/8 participants) intact.
+- Known/accepted advisor items: `multiple_permissive_policies` on questions/choices SELECT (owner ∪ participant — intentional) and unused-index INFO on new indexes (will be used once live).
+
+### Next phases
+5. Supabase Auth (login/register/guard, session restore, roles host/student; server route sets `app_metadata.role` at signup — role claim never client-asserted) → 6. Quiz management → 7. Live game host → 8. Live game student → 9. Leaderboard → 10. Analytics → 11. Classes → 12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).
