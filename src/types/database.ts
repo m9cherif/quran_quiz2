@@ -50,6 +50,7 @@ export interface Competition {
   category: string | null;
   difficulty: CompetitionDifficulty | null;
   archived_at: string | null;
+  class_id: string | null;
 }
 
 /** Row shape returned by the `list_my_quizzes` RPC (owner quiz library). */

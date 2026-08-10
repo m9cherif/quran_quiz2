@@ -16,12 +16,14 @@ const NAV = {
   host: [
     { href: "/host/quizzes", label: "My Quizzes" },
     { href: "/host/games", label: "Live Games" },
+    { href: "/host/classes", label: "Classes" },
     { href: "/host/analytics", label: "Analytics" },
     { href: "/host/quizzes/new", label: "New Quiz" },
   ],
   student: [
     { href: "/student/dashboard", label: "Dashboard" },
     { href: "/student/history", label: "History" },
+    { href: "/student/classes", label: "Classes" },
     { href: "/join", label: "Join a Game" },
   ],
 };

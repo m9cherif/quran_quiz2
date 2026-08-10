@@ -19,6 +19,7 @@ export interface QuizMetaInput {
   default_negative_points?: number;
   speed_bonus_enabled?: boolean;
   visibility?: "public" | "unlisted" | "private";
+  class_id?: string | null;
 }
 
 export interface SaveQuestionInput {

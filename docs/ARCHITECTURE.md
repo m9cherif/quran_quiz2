@@ -386,5 +386,13 @@ Mapping from current SPA: Join→`/join`, Login→`/login`, SignUp→`/register`
 - Typecheck + build green after `npm install` repair (installed `next` package was corrupted/invalid); `/host/analytics`, `/student/dashboard`, `/student/history` → 200 (static prerender).
 - Known residual: anon players (no sign-in) can't build history — progress tracking needs an account; overview cards for "players/questions/answers" reflect the selected game only (no cross-game aggregation yet).
 
+### Phase 11 — Classes ✅ (2026-08-10)
+- DB (migration `20260810121600_classes.sql`): `classes` (owner FK, unique 8-char auto code identical alphabet/trigger pattern as competitions, archived_at) + `class_members` (composite PK → idempotent joins) + `competitions.class_id` (set null on class delete); RLS on both; `competitions_update_owner` extended so a quiz can only be attached to a class the owner owns.
+- RPCs (definer, owner/member-guarded): `create_class`, `list_my_classes` (member + game counts), `archive_class`, `join_class` (idempotent, rejects archived with `28000`), `leave_class`, `remove_class_member`, `my_classes` (student view), `list_class_members`.
+- Policy recursion fix: `classes_select_owner_or_member` references `class_members` and `class_members` policies reference `classes` → `42P17` infinite recursion. Broken via `is_class_member(uuid, uuid)` security-definer helper (needs `EXECUTE` granted to authenticated — policy expressions run as the query role).
+- Frontend: `/host/classes` (create/archive/remove member dialogs, copy-code chip, member + game counts); `/student/classes` (join-by-code form with `28000` friendly error, leave); quiz editor Settings gains a Class select (loaded via `listMyClasses`, saved into `updateQuizMeta.class_id`); nav updated for both roles.
+- Verified via role-impersonated SQL: host creates class (code `SBJ2S9YY`); student joins → `my_classes` 1/member_count 1; idempotent rejoin keeps 1; host attaches competition via RLS-policy-compliant update → `list_my_classes.game_count` 1; owner `list_class_members` shows the student; remove → 0; rejoin + leave → 0; archive → student join `28000`; anon denied `42501`; recursion/advisory fixed; test data cleaned, fixtures intact (2 comps / 8 participants / 0 questions / 0 answers / 0 profiles).
+- Typecheck + build green; `/host/classes`, `/student/classes`, quiz editor route → 200. Advisors: only known by-design definer WARNs (+ pre-existing `admin_keys` INFO and leaked-password suggestion).
+
 ### Next phases
-11. Classes → 12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).
+12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).

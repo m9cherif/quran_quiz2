@@ -22,6 +22,7 @@ import {
   updateQuizMeta,
 } from "@/services/quizzes";
 import { Dialog } from "@/components/ui/Dialog";
+import { listMyClasses } from "@/services/classes";
 import {
   QuestionForm,
   emptyQuestion,
@@ -51,6 +52,7 @@ export function QuizEditor({ quizId }) {
   const [saving, setSaving] = useState(false);
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launching, setLaunching] = useState(false);
+  const [classes, setClasses] = useState([]);
 
   const isDraft = quiz?.status === "draft";
 
@@ -107,6 +109,11 @@ export function QuizEditor({ quizId }) {
       setPreview(false);
       setDirty(false);
       setErrors({});
+      try {
+        setClasses((await listMyClasses()) ?? []);
+      } catch {
+        setClasses([]);
+      }
       setState("ready");
     } catch (err) {
       console.error("Failed to load quiz:", err);
@@ -207,6 +214,7 @@ export function QuizEditor({ quizId }) {
         default_negative_points: quiz.default_negative_points,
         speed_bonus_enabled: quiz.speed_bonus_enabled,
         visibility: quiz.visibility,
+        class_id: quiz.class_id ?? null,
       });
 
       for (const id of deletedIds) {
@@ -435,6 +443,18 @@ export function QuizEditor({ quizId }) {
               changeQuiz({ default_negative_points: Math.min(0, Number(e.target.value) || 0) })
             }
           />
+          <Select
+            label="Class (optional)"
+            value={quiz?.class_id ?? ""}
+            onChange={(e) => changeQuiz({ class_id: e.target.value || null })}
+          >
+            <option value="">No class</option>
+            {classes.map((cls) => (
+              <option key={cls.id} value={cls.id}>
+                {cls.name}
+              </option>
+            ))}
+          </Select>
         </div>
         <Textarea
           label="Description (shown to players)"
