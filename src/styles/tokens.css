@@ -1,0 +1,198 @@
+:root {
+  /* Brand */
+  --color-primary: 79 70 229;
+  --color-primary-strong: 67 56 202;
+  --color-primary-soft: 224 231 255;
+  --color-primary-contrast: 255 255 255;
+
+  /* Semantic */
+  --color-success: 16 185 129;
+  --color-success-strong: 5 150 105;
+  --color-success-soft: 209 250 229;
+  --color-warning: 245 158 11;
+  --color-warning-strong: 217 119 6;
+  --color-warning-soft: 254 243 199;
+  --color-danger: 244 63 94;
+  --color-danger-strong: 225 29 72;
+  --color-danger-soft: 255 228 230;
+  --color-info: 59 130 246;
+  --color-info-strong: 37 99 235;
+  --color-info-soft: 219 234 254;
+
+  /* Surfaces */
+  --color-surface: 255 255 255;
+  --color-surface-2: 248 250 252;
+  --color-surface-3: 241 245 249;
+  --color-surface-inverse: 15 23 42;
+
+  /* Text */
+  --color-ink: 15 23 42;
+  --color-ink-muted: 100 116 139;
+  --color-ink-faint: 148 163 184;
+  --color-ink-inverse: 241 245 249;
+
+  /* Borders & dividers */
+  --color-border: 226 232 240;
+  --color-border-strong: 203 213 225;
+
+  /* Focus */
+  --color-focus-ring: 99 102 241;
+
+  /* Shadows (kept as raw rgba strings for box-shadow) */
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 1px 3px rgb(15 23 42 / 0.08);
+  --shadow-pop: 0 10px 15px -3px rgb(15 23 42 / 0.1), 0 4px 6px -4px rgb(15 23 42 / 0.08);
+  --shadow-dialog: 0 20px 25px -5px rgb(15 23 42 / 0.2), 0 8px 10px -6px rgb(15 23 42 / 0.1);
+
+  /* Radii */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-full: 9999px;
+
+  /* Motion */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+}
+
+@media (prefers-color-scheme: dark) {
+:root {
+  color-scheme: light dark;
+    --color-primary: 129 140 248;
+    --color-primary-strong: 165 180 252;
+    --color-primary-soft: 49 46 129;
+    --color-primary-contrast: 15 23 42;
+
+    --color-success: 52 211 153;
+    --color-success-strong: 110 231 183;
+    --color-success-soft: 6 78 59;
+    --color-warning: 251 191 36;
+    --color-warning-strong: 252 211 77;
+    --color-warning-soft: 120 53 15;
+    --color-danger: 251 113 133;
+    --color-danger-strong: 253 164 175;
+    --color-danger-soft: 136 19 55;
+    --color-info: 96 165 250;
+    --color-info-strong: 147 197 253;
+    --color-info-soft: 30 58 138;
+
+    --color-surface: 15 23 42;
+    --color-surface-2: 30 41 59;
+    --color-surface-3: 51 65 85;
+    --color-surface-inverse: 241 245 249;
+
+    --color-ink: 241 245 249;
+    --color-ink-muted: 148 163 184;
+    --color-ink-faint: 100 116 139;
+    --color-ink-inverse: 15 23 42;
+
+    --color-border: 51 65 85;
+    --color-border-strong: 71 85 105;
+
+    --color-focus-ring: 129 140 248;
+
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.4);
+    --shadow-pop: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.45);
+    --shadow-dialog: 0 20px 25px -5px rgb(0 0 0 / 0.6), 0 8px 10px -6px rgb(0 0 0 / 0.5);
+  }
+}
+
+/* Class-based dark mode (for a future toggle) — mirrors the media query above. */
+.dark {
+  color-scheme: dark;
+  --color-primary: 129 140 248;
+  --color-primary-strong: 165 180 252;
+  --color-primary-soft: 49 46 129;
+  --color-primary-contrast: 15 23 42;
+
+  --color-success: 52 211 153;
+  --color-success-strong: 110 231 183;
+  --color-success-soft: 6 78 59;
+  --color-warning: 251 191 36;
+  --color-warning-strong: 252 211 77;
+  --color-warning-soft: 120 53 15;
+  --color-danger: 251 113 133;
+  --color-danger-strong: 253 164 175;
+  --color-danger-soft: 136 19 55;
+  --color-info: 96 165 250;
+  --color-info-strong: 147 197 253;
+  --color-info-soft: 30 58 138;
+
+  --color-surface: 15 23 42;
+  --color-surface-2: 30 41 59;
+  --color-surface-3: 51 65 85;
+  --color-surface-inverse: 241 245 249;
+
+  --color-ink: 241 245 249;
+  --color-ink-muted: 148 163 184;
+  --color-ink-faint: 100 116 139;
+  --color-ink-inverse: 15 23 42;
+
+  --color-border: 51 65 85;
+  --color-border-strong: 71 85 105;
+
+  --color-focus-ring: 129 140 248;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.4);
+  --shadow-pop: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.45);
+  --shadow-dialog: 0 20px 25px -5px rgb(0 0 0 / 0.6), 0 8px 10px -6px rgb(0 0 0 / 0.5);
+}
+
+/* Base document defaults */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: rgb(var(--color-surface));
+  color: rgb(var(--color-ink));
+}
+
+/* Visible focus for keyboard users */
+:focus-visible {
+  outline: 2px solid rgb(var(--color-focus-ring));
+  outline-offset: 2px;
+}
+
+/* Motion-safe only */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Component animations (dialog / toast) */
+@keyframes dialog-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

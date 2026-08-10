@@ -1,11 +1,7 @@
-"use client";
-
 import localFont from "next/font/local";
+import "../styles/tokens.css";
 import "../styles/global.css";
-
-import { Provider } from "react-redux";
-import { persistor, store } from "@/store/index";
-import { PersistGate } from "redux-persist/integration/react";
+import Providers from "./providers";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -18,24 +14,28 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
+export const metadata = {
+  title: {
+    default: "Quran Quiz Platform",
+    template: "%s | Quran Quiz Platform",
+  },
+  description:
+    "Host and join live educational quizzes. Real-time question rounds, leaderboards, and results.",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        <link
-          rel="icon"
-          href="/logo.png"
-        />
+        <link rel="icon" href="/logo.png" />
       </head>
-
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <Provider store={store}>
-          <PersistGate loading={null} persistor={persistor}>
-            {children}
-          </PersistGate>
-        </Provider>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
