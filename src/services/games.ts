@@ -87,10 +87,15 @@ export interface RevealPayload {
 }
 
 /** Join a waiting game by its public code. Returns the participant row. */
-export async function joinGame(code: string, displayName: string): Promise<Participant> {
+export async function joinGame(
+  code: string,
+  displayName: string,
+  profileId?: string | null
+): Promise<Participant> {
   const { data, error } = await getSupabase().rpc("join_competition", {
     p_code: code.trim().toUpperCase(),
     p_display_name: displayName.trim(),
+    p_profile_id: profileId ?? null,
   });
   if (error) throw error;
   return data as Participant;

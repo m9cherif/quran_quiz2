@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
@@ -13,6 +13,8 @@ import { joinGame } from "@/services/games";
 /**
  * JoinGameForm — student join: nickname + game code → join_competition RPC
  * (server issues the anonymous access token) → /game/[code] lobby.
+ * When signed in, the session profile is linked so the game will show up in
+ * the student's history.
  */
 export function JoinGameForm({ defaultCode = "" }) {
   const [name, setName] = useState("");
@@ -22,6 +24,8 @@ export function JoinGameForm({ defaultCode = "" }) {
   const router = useRouter();
   const dispatch = useDispatch();
   const { toast } = useToast();
+  const user = useSelector((state) => state.user.user);
+  const profileId = user?.id ?? null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,7 +44,7 @@ export function JoinGameForm({ defaultCode = "" }) {
 
     setIsLoading(true);
     try {
-      const participant = await joinGame(trimmedCode, trimmedName);
+      const participant = await joinGame(trimmedCode, trimmedName, profileId);
       dispatch(
         setParticipant({
           id: participant.id,

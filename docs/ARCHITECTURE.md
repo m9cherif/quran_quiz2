@@ -377,5 +377,14 @@ Mapping from current SPA: Join→`/join`, Login→`/login`, SignUp→`/register`
 - Verified via role-impersonated SQL: owner stats return correct aggregates (1/1/100% and 0/0/0), authenticated non-owner `42501`, anon `42501` grant-level; fixtures intact; typecheck + build green; `/host/games/[roomKey]`, `/game/[code]/result` → 200 (podium on <3 players renders standings only).
 - Unrelated auth advisory noticed: "Leaked password protection disabled" — optional Supabase Auth project toggle, not a code issue.
 
+### Phase 10 — Analytics + dashboards ✅ (2026-08-10)
+- DB (migration `20260810121500_analytics_history.sql`): `participants.profile_id` (FK + index) links a signed-in student to their anonymous game row; `join_competition(text, text, uuid default null)` — optional profile link validated against `auth.uid()` (`42501` on mismatch), now granted to `authenticated` too (fixes the signed-in student join bug where execution as `authenticated` hit revoked EXECUTE); `game_analytics(p_competition_id)` owner-`42501`-gated JSONB (avg score/accuracy, avg response time, top-5 most-missed questions) — no spoiler columns; `my_history()` — the signed-in user's own linked games (score/correct/answered/accuracy).
+- Host `/host/analytics` (new): game picker chips over `listMyLiveGames`, per-game stat cards + most-missed list with accuracy badges; loading/empty/error/retry states.
+- Student `/student/dashboard` + `/student/history` (new `student` segment + layout with `AppHeader variant="student"` + `RequireUser role="student"`): dashboard = games played/avg score/avg accuracy/best + recent 5; history = full table. JoinGameForm passes `profile_id` when a session exists so anonymous play gets attributed to the account.
+- Verified via role-impersonated SQL: seeded a finished test game (2 questions, 4 choices, 3 players, 5 answers) — owner analytics math correct (60% accuracy, 3s avg response, most-missed = Hard q 2 wrong/33.3%/4s); non-owner `42501`; anon `my_history` grant-level denied; anon join links `null`; signed-in join links the uid; mismatched link `42501`; wrong `v_comp` type in the first applied migration caught by the join test and hot-fixed (`fix_join_competition_vcomp_type`); all test data cleaned up, fixtures intact (2 comps / 8 participants / 0 questions / 0 answers).
+- Note: remote migration names on this project are `analytics_history_fix` + `fix_join_competition_vcomp_type`; the single local file is the consolidated intended migration.
+- Typecheck + build green after `npm install` repair (installed `next` package was corrupted/invalid); `/host/analytics`, `/student/dashboard`, `/student/history` → 200 (static prerender).
+- Known residual: anon players (no sign-in) can't build history — progress tracking needs an account; overview cards for "players/questions/answers" reflect the selected game only (no cross-game aggregation yet).
+
 ### Next phases
-10. Analytics → 11. Classes → 12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).
+11. Classes → 12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).
