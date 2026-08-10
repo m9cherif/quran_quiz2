@@ -14,7 +14,8 @@ const NAV = {
     { href: "/about", label: "About" },
   ],
   host: [
-    { href: "/host/games", label: "My Games" },
+    { href: "/host/quizzes", label: "My Quizzes" },
+    { href: "/host/games", label: "Live Games" },
     { href: "/host/quizzes/new", label: "New Quiz" },
   ],
   student: [

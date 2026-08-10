@@ -1,0 +1,482 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Input from "@/components/ui/Input";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Spinner } from "@/components/ui/Spinner";
+import { useToast } from "@/components/ui/Toast";
+import Textarea from "@/components/ui/Textarea";
+import Select from "@/components/ui/Select";
+import EmptyState from "@/components/ui/EmptyState";
+import {
+  deleteQuestion,
+  getQuestionFull,
+  getQuiz,
+  listQuizQuestions,
+  saveQuestion,
+  updateQuizMeta,
+} from "@/services/quizzes";
+import {
+  QuestionForm,
+  emptyQuestion,
+  validateQuestion,
+  questionPoints,
+} from "./QuestionForm";
+import QuestionPreview from "./QuestionPreview";
+
+/**
+ * QuizEditor — full quiz management: meta settings, question list with
+ * move/add/delete, per-question form (all types), and a student-facing
+ * preview. Persistence via owner-scoped RPCs; one "Save" persists all.
+ */
+export function QuizEditor({ quizId }) {
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const [state, setState] = useState("loading");
+  const [loadError, setLoadError] = useState("");
+  const [quiz, setQuiz] = useState(null);
+  const [questions, setQuestions] = useState([]);
+  const [deletedIds, setDeletedIds] = useState([]);
+  const [selected, setSelected] = useState(0);
+  const [preview, setPreview] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setState("loading");
+    setLoadError("");
+    try {
+      const competition = await getQuiz(quizId);
+      if (!competition) {
+        setLoadError("Quiz not found or you don't have access.");
+        setState("error");
+        return;
+      }
+      const items = await listQuizQuestions(quizId);
+      const full = [];
+      for (const item of items) {
+        try {
+          const f = await getQuestionFull(item.id);
+          full.push({
+            id: f.id,
+            position: f.position,
+            text: f.text,
+            type: f.type,
+            duration_seconds: f.duration_seconds,
+            points: f.points,
+            negative_points: f.negative_points,
+            explanation: f.explanation,
+            correct_answer_text: f.correct_answer_text,
+            surah_number: f.surah_number,
+            ayah_number: f.ayah_number,
+            page_number: f.page_number,
+            juz_number: f.juz_number,
+            hizb_number: f.hizb_number,
+            choices: f.choices.map((c) => ({
+              id: c.id,
+              text: c.text,
+              position: c.position,
+              is_correct: c.is_correct,
+            })),
+          });
+        } catch {
+          // skip questions that can't be read (should not happen for owner)
+        }
+      }
+      setQuiz({
+        ...competition,
+        default_points: competition.default_points,
+        default_negative_points: competition.default_negative_points,
+        question_count: full.length,
+        participant_count: 0,
+      });
+      setQuestions(full.length ? full : [emptyQuestion(1)]);
+      setSelected(0);
+      setPreview(false);
+      setDirty(false);
+      setErrors({});
+      setState("ready");
+    } catch (err) {
+      console.error("Failed to load quiz:", err);
+      setLoadError(err instanceof Error ? err.message : "Failed to load the quiz.");
+      setState("error");
+    }
+  }, [quizId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const defaults = useMemo(
+    () => ({
+      points: quiz?.default_points ?? 10,
+      negative: quiz?.default_negative_points ?? -2,
+    }),
+    [quiz]
+  );
+
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
+
+  const changeQuiz = (patch) => {
+    setQuiz((prev) => (prev ? { ...prev, ...patch } : prev));
+    setDirty(true);
+  };
+
+  const updateQuestion = (index, question) => {
+    setQuestions((prev) => prev.map((q, i) => (i === index ? question : q)));
+    setDirty(true);
+  };
+
+  const moveQuestion = (index, delta) => {
+    const target = index + delta;
+    if (target < 0 || target >= questions.length) return;
+    setQuestions((prev) => {
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next.map((q, i) => ({ ...q, position: i + 1 }));
+    });
+    setSelected(target);
+    setDirty(true);
+  };
+
+  const addQuestion = () => {
+    setQuestions((prev) => [...prev, emptyQuestion(prev.length + 1)]);
+    setSelected(questions.length);
+    setPreview(false);
+    setDirty(true);
+  };
+
+  const removeQuestion = (index) => {
+    const question = questions[index];
+    setQuestions((prev) => {
+      const next = prev.filter((_, i) => i !== index).map((q, i) => ({ ...q, position: i + 1 }));
+      setSelected(Math.max(0, index - 1));
+      return next;
+    });
+    if (question?.id) setDeletedIds((prev) => [...prev, question.id]);
+    setDirty(true);
+  };
+
+  const saveAll = async () => {
+    if (!quiz) return;
+
+    const validation = questions.reduce((acc, q, i) => {
+      const e = validateQuestion(q);
+      if (Object.keys(e).length) acc[i] = e;
+      return acc;
+    }, {});
+    setErrors(validation);
+    if (Object.keys(validation).length) {
+      toast({
+        title: "Check the errors",
+        description: "Some questions are incomplete; fix them before saving.",
+        variant: "error",
+      });
+      setPreview(false);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await updateQuizMeta(quiz.id, {
+        name: quiz.name,
+        description: quiz.description,
+        language: quiz.language,
+        category: quiz.category,
+        difficulty: quiz.difficulty,
+        default_points: quiz.default_points,
+        default_negative_points: quiz.default_negative_points,
+        speed_bonus_enabled: quiz.speed_bonus_enabled,
+        visibility: quiz.visibility,
+      });
+
+      for (const id of deletedIds) {
+        try {
+          await deleteQuestion(id);
+        } catch {
+          // already gone or owned elsewhere — ignore
+        }
+      }
+      setDeletedIds([]);
+
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        try {
+          const id = await saveQuestion({
+            competitionId: quiz.id,
+            questionId: q.id,
+            position: i + 1,
+            text: q.text,
+            type: q.type,
+            durationSeconds: q.duration_seconds,
+            points: q.points,
+            negativePoints: q.negative_points,
+            explanation: q.explanation,
+            correctAnswerText: q.correct_answer_text,
+            surahNumber: q.surah_number,
+            ayahNumber: q.ayah_number,
+            pageNumber: q.page_number,
+            juzNumber: q.juz_number,
+            hizbNumber: q.hizb_number,
+            choices: q.choices
+              .filter((c) => c.text.trim())
+              .map((c, j) => ({ text: c.text, position: j + 1, isCorrect: c.isCorrect })),
+          });
+          questions[i] = { ...q, id };
+        } catch (err) {
+          console.error("save failed on question", i + 1, err);
+          if (err?.code === "23505") {
+            // position collision — renumber everything and retry once
+            const revert = questions.map((q) => ({ ...q }));
+            for (let k = 0; k < questions.length; k++) {
+              const retry = await saveQuestion({
+                competitionId: quiz.id,
+                questionId: revert[k].id,
+                position: k + 1,
+                text: revert[k].text,
+                type: revert[k].type,
+                durationSeconds: revert[k].duration_seconds,
+                points: revert[k].points,
+                negativePoints: revert[k].negative_points,
+                explanation: revert[k].explanation,
+                correctAnswerText: revert[k].correct_answer_text,
+                surahNumber: revert[k].surah_number,
+                ayahNumber: revert[k].ayah_number,
+                pageNumber: revert[k].page_number,
+                juzNumber: revert[k].juz_number,
+                hizbNumber: revert[k].hizb_number,
+                choices: revert[k].choices
+                  .filter((c) => c.text.trim())
+                  .map((c, j) => ({ text: c.text, position: j + 1, isCorrect: c.isCorrect })),
+              });
+              revert[k] = { ...revert[k], id: retry };
+            }
+            setQuestions(revert);
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      setQuestions((prev) => prev.map((q, i) => ({ ...q, position: i + 1 })));
+      setDirty(false);
+      toast({ title: "Quiz saved", description: "All changes are stored.", variant: "success" });
+    } catch (err) {
+      console.error("Failed to save quiz:", err);
+      toast({
+        title: "Save failed",
+        description: err instanceof Error ? err.message : "Something went wrong while saving.",
+        variant: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (state === "loading") {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-64" />
+        <div className="grid gap-4 md:grid-cols-[260px_1fr]">
+          <Skeleton className="h-80" />
+          <Skeleton className="h-80" />
+        </div>
+      </div>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <EmptyState
+        icon={<Spinner size={20} />}
+        title="Could not open this quiz"
+        description={loadError}
+      >
+        <Button variant="outline" onClick={() => router.push("/host/quizzes")}>
+          Back to my quizzes
+        </Button>
+        <Button onClick={() => load()}>Try again</Button>
+      </EmptyState>
+    );
+  }
+
+  const current = questions[selected];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" href="/host/quizzes">
+            ← Quizzes
+          </Button>
+          <h1 className="text-xl font-bold text-ink sm:text-2xl">
+            {quiz?.name || "Untitled quiz"}
+          </h1>
+          {dirty && <Badge variant="warning">Unsaved</Badge>}
+        </div>
+        <div className="flex gap-2">
+          {dirty && (
+            <Button
+              variant="ghost"
+              onClick={() => load()}
+              disabled={saving}
+            >
+              Discard
+            </Button>
+          )}
+          <Button loading={saving} onClick={saveAll} disabled={!dirty}>
+            Save changes
+          </Button>
+        </div>
+      </div>
+
+      <Card className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-ink">Settings</h2>
+          <Badge variant="neutral">Code: {quiz?.code}</Badge>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Input
+            label="Quiz name"
+            required
+            value={quiz?.name ?? ""}
+            onChange={(e) => changeQuiz({ name: e.target.value })}
+          />
+          <Select
+            label="Language"
+            value={quiz?.language ?? "en"}
+            onChange={(e) => changeQuiz({ language: e.target.value })}
+          >
+            <option value="en">English</option>
+            <option value="ar">العربية (Arabic)</option>
+            <option value="fr">Français (French)</option>
+          </Select>
+          <Input
+            label="Category"
+            value={quiz?.category ?? ""}
+            onChange={(e) => changeQuiz({ category: e.target.value || null })}
+          />
+          <Select
+            label="Difficulty"
+            value={quiz?.difficulty ?? ""}
+            onChange={(e) => changeQuiz({ difficulty: e.target.value || null })}
+          >
+            <option value="">Any</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </Select>
+          <Input
+            label="Default points per question"
+            type="number"
+            min={0}
+            value={quiz?.default_points ?? 10}
+            onChange={(e) => changeQuiz({ default_points: Math.max(0, Number(e.target.value) || 0) })}
+          />
+          <Input
+            label="Default negative points (wrong answer)"
+            type="number"
+            max={0}
+            value={quiz?.default_negative_points ?? -2}
+            onChange={(e) =>
+              changeQuiz({ default_negative_points: Math.min(0, Number(e.target.value) || 0) })
+            }
+          />
+        </div>
+        <Textarea
+          label="Description (shown to players)"
+          rows={2}
+          value={quiz?.description ?? ""}
+          onChange={(e) => changeQuiz({ description: e.target.value || null })}
+        />
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={quiz?.speed_bonus_enabled ?? false}
+            onChange={(e) => changeQuiz({ speed_bonus_enabled: e.target.checked })}
+            className="h-4 w-4 accent-primary"
+          />
+          Grant a speed bonus for fast correct answers
+        </label>
+      </Card>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-semibold text-ink">
+          Questions <span className="text-ink-muted">({questions.length})</span>
+        </h2>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setPreview((v) => !v)} disabled={!current}>
+            {preview ? "Back to editing" : "Preview"}
+          </Button>
+          <Button size="sm" onClick={addQuestion}>
+            Add question
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="space-y-4">
+          {questions.map((question, index) => (
+            <button
+              type="button"
+              key={question.id ?? `new-${index}`}
+              onClick={() => {
+                setSelected(index);
+                setPreview(false);
+              }}
+              aria-current={index === selected ? "page" : undefined}
+              className={`block w-full rounded-lg border p-3 text-start transition-colors ${
+                index === selected
+                  ? "border-primary bg-primary-soft/40"
+                  : "border-border bg-surface hover:border-border-strong"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-ink">
+                  {index + 1}. {question.text || "Untitled question"}
+                </span>
+                {errors[index] && <Badge variant="danger">Incomplete</Badge>}
+              </div>
+              <span className="mt-0.5 block text-xs text-ink-muted">
+                {question.type} · {question.duration_seconds}s · {question.points ?? defaults.points} pts
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div>
+          {preview && current ? (
+            <QuestionPreview question={current} defaults={defaults} />
+          ) : current ? (
+            <QuestionForm
+              key={current.id ?? `new-${current.position}-${selected}`}
+              question={current}
+              defaults={defaults}
+              errors={errors[selected] ?? {}}
+              onChange={(q) => updateQuestion(selected, q)}
+              onDelete={() => removeQuestion(selected)}
+              onMove={(delta) => moveQuestion(selected, delta)}
+              canMoveUp={selected > 0}
+              canMoveDown={selected < questions.length - 1}
+            />
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default QuizEditor;

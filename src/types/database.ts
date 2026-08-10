@@ -24,6 +24,10 @@ export type GamePhase =
   | "finished"
   | "aborted";
 
+export type CompetitionVisibility = "public" | "unlisted" | "private";
+export type CompetitionLanguage = "en" | "ar" | "fr";
+export type CompetitionDifficulty = "easy" | "medium" | "hard";
+
 export interface Competition {
   id: string;
   code: string;
@@ -39,6 +43,83 @@ export interface Competition {
   speed_bonus_enabled: boolean;
   created_at: string;
   updated_at: string;
+  owner_id: string | null;
+  visibility: CompetitionVisibility;
+  cover_url: string | null;
+  language: CompetitionLanguage;
+  category: string | null;
+  difficulty: CompetitionDifficulty | null;
+  archived_at: string | null;
+}
+
+/** Row shape returned by the `list_my_quizzes` RPC (owner quiz library). */
+export interface QuizSummary {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  status: CompetitionStatus;
+  visibility: CompetitionVisibility;
+  cover_url: string | null;
+  language: CompetitionLanguage;
+  category: string | null;
+  difficulty: CompetitionDifficulty | null;
+  default_points: number;
+  default_negative_points: number;
+  speed_bonus_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  question_count: number;
+  participant_count: number;
+}
+
+/** Full question row (incl. hidden columns) as returned by `get_question_full`. */
+export interface QuizQuestionFull {
+  id: string;
+  competition_id: string;
+  position: number;
+  text: string;
+  type: QuestionType;
+  duration_seconds: number;
+  points: number | null;
+  negative_points: number | null;
+  explanation: string | null;
+  correct_answer_text: string | null;
+  surah_number: number | null;
+  ayah_number: number | null;
+  page_number: number | null;
+  juz_number: number | null;
+  hizb_number: number | null;
+  choices: Array<{
+    id: string;
+    text: string;
+    position: number;
+    is_correct: boolean;
+  }>;
+}
+
+/** Editor-side question draft (id present once persisted). */
+export interface QuizQuestionDraft {
+  id?: string | null;
+  position: number;
+  text: string;
+  type: QuestionType;
+  duration_seconds: number;
+  points: number | null;
+  negative_points: number | null;
+  explanation: string | null;
+  correct_answer_text: string | null;
+  surah_number: number | null;
+  ayah_number: number | null;
+  page_number: number | null;
+  juz_number: number | null;
+  hizb_number: number | null;
+  choices: Array<{
+    id?: string | null;
+    text: string;
+    position: number;
+    is_correct: boolean;
+  }>;
 }
 
 export interface Question {

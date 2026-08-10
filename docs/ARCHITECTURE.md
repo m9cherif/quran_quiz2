@@ -330,5 +330,24 @@ Mapping from current SPA: Join→`/join`, Login→`/login`, SignUp→`/register`
 - **Verified via anonymous PostgREST smoke test**: join → self-select → questions/choices visible only when `running` → submit (fast correct 10pt + 9.2 bonus; wrong −2; late 0; empty rejected) → direct answer write 401 → spoiler columns 401/400 → reveal locked to participant/owner → leaderboard aggregates → cleanup, fixtures (2 comps/8 participants) intact.
 - Known/accepted advisor items: `multiple_permissive_policies` on questions/choices SELECT (owner ∪ participant — intentional) and unused-index INFO on new indexes (will be used once live).
 
+### Phase 5 — Supabase Auth ✅ (2026-08-10)
+- `src/lib/auth/server.ts`: service-role client (env-only, server-only) + `createUserAccount` (validates input, sets `app_metadata.role` — never client-asserted).
+- `src/app/api/auth/register/route.ts`: POST signup route (role `host|student`, email/password validation, friendly errors, no secrets client-side).
+- `src/lib/auth/client.ts`: `getProfile` (profiles lookup), `signInWithEmail`, `signOut`.
+- `src/store/Slices/userSlice.js`: `user` + `status` (`checking|authenticated|anonymous`); only the public profile is persisted (Supabase owns the session).
+- `AuthProvider` (session restore + `onAuthStateChange`, graceful when env unset), `RequireUser` with `role` prop (host layout guards `role="host"`), login → `signInWithPassword` + role-based redirect (invalid creds → friendly error), register → server route + auto sign-in.
+- Verified: `/login` 200, `/api/auth/register` 400 on invalid input; full E2E signup blocked by missing local `SUPABASE_SERVICE_ROLE_KEY` (documented).
+
+### Phase 6 — Quiz management ✅ (2026-08-10)
+- DB (migrations `20260810120900_…`, `20260810121000_…`, `20260810121100_…`):
+  - FK cascades: `questions`, `choices`, `participants`, `answers` (×4) → delete/duplicate quizzes via one call; `answers.choice_id → set null`.
+  - Auto room code: `generate_competition_code()` + BEFORE INSERT trigger (8-char unambiguous alphabet, collision loop).
+  - Owner-scoped library RPCs (single round trip): `list_my_quizzes` (with `question_count`/`participant_count`), `archive_quiz`, `duplicate_quiz` (snapshots questions+choices), plus editor RPCs `save_question` (atomic question+choices replace; rejects non-owners `42501`, empty text `22023`) and `get_question_full` (owner-only read of spoiler-hidden columns).
+- Services: `src/services/quizzes.ts` (typed: list/create/get/update/delete/archive/duplicate, questions list, question save/fetch/delete, live games list, status transitions).
+- UI (`src/components/quiz/`): `QuizLibrary` (search, duplicate, archive, delete w/ Dialog), `QuizCard`, `NewQuizForm` (create → editor redirect), `QuizEditor` (meta settings, question list w/ move/add/delete, `QuestionForm` for all 5 types incl. Quran reference fields, `QuestionPreview` student mock, one "Save changes" → sequential RPC persist with 23505 renumber retry, unsaved-changes guard).
+- Routes: `/host/quizzes` (library; `/host` and NAV now point here), `/host/quizzes/new`, `/host/quizzes/[id]/edit`; `/host/games` rewritten to Supabase live-games list (`MyGames`); legacy `QuizBuilder.jsx` deleted.
+- Verified: RPC E2E via role impersonation (owner saves/fetches; non-owner `42501`; validation `22023`; duplicate+archive+list counts correct; test data cleaned, fixtures intact); typecheck + build green; `/host/quizzes`, `/host/quizzes/new`, `/host/games` → 200.
+- Advisory notes: definer-RPC WARNs are by design (each carries an internal `auth.uid()` owner guard).
+
 ### Next phases
-5. Supabase Auth (login/register/guard, session restore, roles host/student; server route sets `app_metadata.role` at signup — role claim never client-asserted) → 6. Quiz management → 7. Live game host → 8. Live game student → 9. Leaderboard → 10. Analytics → 11. Classes → 12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).
+7. Live game host → 8. Live game student → 9. Leaderboard → 10. Analytics → 11. Classes → 12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).
