@@ -1,6 +1,7 @@
 import { getSupabase } from "@/lib/supabase/client";
+import { getParticipantClient } from "@/lib/supabase/participantClient";
 import { getQuestionFull } from "./quizzes";
-import type { Competition, Participant } from "@/types/database";
+import type { Competition, Participant, Answer } from "@/types/database";
 
 export interface GameQuestionRow {
   id: string;
@@ -70,4 +71,161 @@ export async function endQuestion(questionId: string): Promise<void> {
 /** Remaining ms from a server timestamp; clamped at 0 when expired. */
 export function remainingMs(endsAt: string, now: number = Date.now()): number {
   return Math.max(0, new Date(endsAt).getTime() - now);
+}
+
+// ---------------------------------------------------------------------------
+// Student-side game flow (anonymous player identified by access token)
+// ---------------------------------------------------------------------------
+
+export interface RevealPayload {
+  question_id: string;
+  text: string;
+  correct_answer_text: string | null;
+  explanation: string | null;
+  correct_choice: { id: string; text: string } | null;
+  choices: { id: string; text: string }[];
+}
+
+/** Join a waiting game by its public code. Returns the participant row. */
+export async function joinGame(code: string, displayName: string): Promise<Participant> {
+  const { data, error } = await getSupabase().rpc("join_competition", {
+    p_code: code.trim().toUpperCase(),
+    p_display_name: displayName.trim(),
+  });
+  if (error) throw error;
+  return data as Participant;
+}
+
+/** Restore/validate my participant row for a competition (token client). */
+export async function getMyParticipant(
+  competitionId: string,
+  accessToken: string
+): Promise<Participant | null> {
+  const { data, error } = await getParticipantClient(accessToken).rpc("my_participant", {
+    p_competition_id: competitionId,
+  });
+  if (error) throw error;
+  return (data as Participant | null) ?? null;
+}
+
+/** Presence heartbeat: mark myself online with a server timestamp. */
+export async function updatePresence(competitionId: string, accessToken: string): Promise<void> {
+  const { error } = await getParticipantClient(accessToken).rpc("update_presence", {
+    p_competition_id: competitionId,
+  });
+  if (error) throw error;
+}
+
+/** Lobby player count (aggregate only — participants can't see names). */
+export async function gameParticipantCount(
+  competitionId: string,
+  accessToken?: string
+): Promise<number> {
+  const supabase = accessToken
+    ? getParticipantClient(accessToken)
+    : getSupabase();
+  const { data, error } = await supabase.rpc("game_participant_count", {
+    p_competition_id: competitionId,
+  });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+/** Question deck for students (safe columns; requires the token header). */
+export async function listStudentQuestions(
+  competitionId: string,
+  accessToken: string
+): Promise<GameQuestionRow[]> {
+  const { data, error } = await getParticipantClient(accessToken)
+    .from("questions")
+    .select(
+      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at"
+    )
+    .eq("competition_id", competitionId)
+    .order("position", { ascending: true });
+  if (error) throw error;
+  return (data as GameQuestionRow[]) ?? [];
+}
+
+/** Choices for a set of questions (student token client; is_correct hidden). */
+export async function listChoices(
+  questionIds: string[],
+  accessToken: string
+): Promise<{ id: string; question_id: string; text: string; position: number }[]> {
+  const { data, error } = await getParticipantClient(accessToken)
+    .from("choices")
+    .select("id, question_id, text, position")
+    .in("question_id", questionIds)
+    .order("position", { ascending: true });
+  if (error) throw error;
+  return (data as { id: string; question_id: string; text: string; position: number }[]) ?? [];
+}
+
+/** Submit my (locked, single) answer. Returns the graded answer row. */
+export async function submitAnswer(
+  competitionId: string,
+  questionId: string,
+  accessToken: string,
+  options: { choiceId?: string; answerText?: string; responseTimeMs: number }
+): Promise<Answer> {
+  const { data, error } = await getParticipantClient(accessToken).rpc("submit_answer", {
+    p_competition_id: competitionId,
+    p_question_id: questionId,
+    p_choice_id: options.choiceId ?? null,
+    p_answer_text: options.answerText ?? null,
+    p_response_time_ms: Math.max(0, Math.round(options.responseTimeMs)),
+  });
+  if (error) throw error;
+  return data as Answer;
+}
+
+/** My answers in a game (own rows only). */
+export async function getMyAnswers(
+  competitionId: string,
+  accessToken: string
+): Promise<Answer[]> {
+  const { data, error } = await getParticipantClient(accessToken)
+    .from("answers")
+    .select("*")
+    .eq("competition_id", competitionId)
+    .order("submitted_at", { ascending: true });
+  if (error) throw error;
+  return (data as Answer[]) ?? [];
+}
+
+/** Correct answer + explanation for a closed question (own result). */
+export async function getReveal(
+  questionId: string,
+  accessToken: string
+): Promise<RevealPayload> {
+  const { data, error } = await getParticipantClient(accessToken).rpc("get_question_reveal", {
+    p_question_id: questionId,
+  });
+  if (error) throw error;
+  return data as RevealPayload;
+}
+
+/** Ranked leaderboard for the game (aggregates only). */
+export async function getLeaderboard(
+  competitionId: string
+): Promise<{
+  rank: number;
+  participant_id: string;
+  display_name: string;
+  correct_count: number;
+  answered_count: number;
+  total_points: number;
+}[]> {
+  const { data, error } = await getSupabase().rpc("game_leaderboard", {
+    p_competition_id: competitionId,
+  });
+  if (error) throw error;
+  return (data as {
+    rank: number;
+    participant_id: string;
+    display_name: string;
+    correct_count: number;
+    answered_count: number;
+    total_points: number;
+  }[]) ?? [];
 }

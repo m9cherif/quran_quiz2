@@ -356,5 +356,18 @@ Mapping from current SPA: Join→`/join`, Login→`/login`, SignUp→`/register`
 - Quiz editor: "Launch live game" (draft only, needs ≥1 question, confirm dialog → `waiting` → control room); launched quizzes show a "Launched" badge and lock the Save button.
 - Verified: `begin_question` E2E via role impersonation (draft→`28000`, running→timestamps `now`+7s, double-start→`22023`, end after expiry→no-op); delete-quiz cascade proven on live data; fixtures intact; typecheck + build green; `/host/games/[roomKey]` → 200.
 
+### Phase 8 — Live game student ✅ (2026-08-10)
+- DB (migration `20260810121300_student_game_support.sql`):
+  - **Hardening fixes**: `get_question_reveal` now refuses participants while the window is open (`42501 'Question is still open'` — previously the correct answer leaked mid-question); `submit_answer` now **locks the first answer** per participant per question (ON CONFLICT DO NOTHING → returns the stored row) and rejects submissions before `started_at` (`28000 'Question is not open yet'`) — closes the re-submit-with-0ms speed-bonus exploit and pre-window answering.
+  - New header-token RPCs: `my_participant` (session restore), `update_presence` (connected + `last_seen_at` heartbeat), `game_participant_count` (lobby count; aggregates only — participants never see each other's names, aggregates match the existing RLS model).
+- `src/lib/supabase/participantClient.ts`: cached per-token client injecting `x-participant-token` via `global.headers` (supabase-js 2.47 has no per-request headers on queries).
+- Services (`src/services/games.ts`): `joinGame` (RPC), `getMyParticipant`, `updatePresence`, `gameParticipantCount`, `listStudentQuestions`/`listChoices` (token-scoped REST — RLS keyed off the header), `submitAnswer`, `getMyAnswers`, `getReveal`, `getLeaderboard`.
+- Join: `JoinGameForm` → `join_competition`; 8-char alnum codes, friendly `28000`/`22023` errors; participant slice reduced to the real identity (`id/competitionId/displayName/accessToken/code`), legacy `Questions`/`room` usage dropped.
+- Lobby `/game/[code]`: session restore via `my_participant`, realtime `competitions` status (running → question, finished → result), 5s poll fallback (catches cancelled games RLS hides from anon), player-count badge, presence heartbeat.
+- Question stage `/game/[code]/question`: server-authoritative timing only — active = `started_at ≤ now < ends_at` (250ms client tick, 8s poll + realtime `questions` updates); per-question feedback after the window closes (reveal RPC + own graded answer); text/number/mcq/true_false input; answer locked after first submit; paused/waiting overlays; auto-advance on next `begin_question`.
+- Result `/game/[code]/result` (new): gates on `finished`, personal summary (score/correct/rank) + full ranked leaderboard with own row highlighted.
+- Verified end-to-end via header-impersonated SQL (waiting→running→finished): pre-start submit `28000` (saved by the pre-start guard), questions hidden while waiting / visible while running, reveal-while-open `42501` / reveal-after-end OK, in-window text answer graded 10pts, late mcq graded 0, **resubmit returned the identical locked row**, presence/count/leaderboard correct, cascade cleanup done, fixtures (2 comps / 8 participants) intact. Typecheck + build green; `/join`, `/game/[code]`, `/game/[code]/question`, `/game/[code]/result` → 200.
+- Known residual: timer uses client clock vs server timestamps (skew affects display only; grading is server-authoritative); `game_participant_count` polling in the lobby because anon RLS hides other players' rows from realtime.
+
 ### Next phases
-8. Live game student → 9. Leaderboard → 10. Analytics → 11. Classes → 12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).
+9. Leaderboard → 10. Analytics → 11. Classes → 12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).

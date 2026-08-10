@@ -1,119 +1,337 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
+import { getSupabase } from "@/lib/supabase/client";
+import {
+  getGameByCode,
+  getMyParticipant,
+  listStudentQuestions,
+  listChoices,
+  submitAnswer,
+  getReveal,
+  getMyAnswers,
+  updatePresence,
+  remainingMs,
+} from "@/services/games";
+import { removeParticipant } from "@/store/Slices/participantSlice";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-import { removeParticipant, cleanQuestions } from "@/store/Slices/participantSlice";
-import { removeRoom } from "@/store/Slices/roomSlice";
-import API_CONFIG from "@/app/components/API";
+import { useToast } from "@/components/ui/Toast";
 
 /**
- * GameQuestion — student answer screen.
- * Preserves the legacy flow: per-question client timer, submit to the
- * updateScore endpoint, per-question feedback, final score screen.
+ * GameQuestion — student answer screen driven by server timestamps.
+ * A question is "active" while now ∈ [started_at, ends_at); after that the
+ * reveal (correct answer + explanation + my result) is shown until the host
+ * starts the next question. Realtime on questions/competitions + a light
+ * polling fallback keep students in sync with the host's control room.
  */
-export default function GameQuestion() {
-  const dispatch = useDispatch();
+export default function GameQuestion({ params }) {
   const router = useRouter();
-  const { questions, participant } = useSelector((state) => ({
-    questions: state.participant.Questions,
-    participant: state.participant.Participant,
-  }));
+  const dispatch = useDispatch();
+  const participant = useSelector((state) => state.participant.Participant);
+  const { toast } = useToast();
+  const code = typeof params?.code === "string" ? params.code.toUpperCase() : "";
 
-  const questionList = questions[0] ?? [];
+  const competitionId = participant?.competitionId ?? null;
+  const accessToken = participant?.accessToken ?? null;
 
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [answerSubmitted, setAnswerSubmitted] = useState(false);
-  const [score, setScore] = useState(0);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [answeredCount, setAnsweredCount] = useState(0);
-  const [quizCompleted, setQuizCompleted] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(null);
-  const [error, setError] = useState("");
+  const [status, setStatus] = useState("loading");
+  const [gameEnded, setGameEnded] = useState(false);
+  const [game, setGame] = useState(null);
+  const [questions, setQuestions] = useState([]);
+  const [choices, setChoices] = useState({});
+  const [revealById, setRevealById] = useState({});
+  const [answersById, setAnswersById] = useState({});
+  const [selectedChoiceId, setSelectedChoiceId] = useState(null);
+  const [textAnswer, setTextAnswer] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submittedIds, setSubmittedIds] = useState({});
+  const [nowEpoch, setNowEpoch] = useState(() => Date.now());
+  const [overlay, setOverlay] = useState(""); // "" | paused | waiting
+  const [error, setError] = useState("");
 
-  const currentQuestion = questionList[currentIndex];
-  const totalTime = currentQuestion?.time ?? 0;
-  const timeTaken = timeLeft === null ? 0 : totalTime - timeLeft;
+  const stageStartRef = useRef(null);
+  const stageQuestionRef = useRef(null);
+  const submittedRef = useRef({});
+  const loadedQidsRef = useRef(new Set());
+  const loadedRef = useRef(false);
 
-  const submitScore = async (payload) => {
-    const END_POINT = `${process.env.NEXT_PUBLIC_BACKEND_URL}${API_CONFIG.updateScore}`;
-    const response = await fetch(END_POINT, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      throw new Error(`Score submission failed: ${response.statusText}`);
+  const activeQuestion = findActiveQuestion(questions, nowEpoch);
+  const feedbackQuestion = findFeedbackQuestion(questions, nowEpoch);
+  const currentQuestion = activeQuestion ?? feedbackQuestion;
+  const isActive = Boolean(activeQuestion);
+
+  const leaveGame = useCallback(() => {
+    dispatch(removeParticipant());
+    router.push("/join");
+  }, [dispatch, router]);
+
+  // ---------- bootstrap: validate session, resolve game ----------
+  useEffect(() => {
+    if (!accessToken || !competitionId || loadedRef.current) return;
+    loadedRef.current = true;
+
+    const bootstrap = async () => {
+      try {
+        const mine = await getMyParticipant(competitionId, accessToken);
+        if (!mine || (participant.id && mine.id !== participant.id)) {
+          setGameEnded(true);
+          return;
+        }
+        const current = await getGameByCode(code);
+        if (!current || current.id !== competitionId) {
+          setGameEnded(true);
+          return;
+        }
+        setGame(current);
+        setStatus(current.status);
+      } catch (err) {
+        console.error("Question bootstrap failed:", err);
+        setError("Couldn't reach the game. Check your connection.");
+      }
+    };
+    bootstrap();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, competitionId, code]);
+
+  // ---------- status machine ----------
+  useEffect(() => {
+    if (!game) return;
+    if (status === "running") {
+      setOverlay("");
+      loadDeck();
+    } else if (status === "paused") {
+      setOverlay("paused");
+    } else if (status === "waiting") {
+      setOverlay("waiting");
+    } else if (status === "finished") {
+      router.push(`/game/${code}/result`);
+    } else if (status === "cancelled") {
+      setGameEnded(true);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, game]);
 
-  const handleSubmitAnswer = async (isTimeOut = false) => {
-    if (!isTimeOut && !selectedAnswer) return;
+  // ---------- deck + choices ----------
+  const loadDeck = useCallback(async () => {
+    if (!competitionId || !accessToken) return;
+    try {
+      const list = await listStudentQuestions(competitionId, accessToken);
+      setQuestions((prev) => {
+        const serial = (q) => [q.id, q.started_at, q.ends_at];
+        if (
+          prev.length === list.length &&
+          prev.every((q, i) => serial(q)[0] === serial(list[i])[0] && serial(q)[1] === serial(list[i])[1] && serial(q)[2] === serial(list[i])[2])
+        ) {
+          return prev;
+        }
+        return list;
+      });
+      const freshQids = list.map((q) => q.id).filter((id) => !loadedQidsRef.current.has(id));
+      if (freshQids.length) {
+        const rows = await listChoices(freshQids, accessToken);
+        setChoices((prev) => {
+          const next = { ...prev };
+          for (const row of rows) {
+            next[row.question_id] = next[row.question_id] || [];
+            next[row.question_id].push(row);
+          }
+          return next;
+        });
+        for (const id of freshQids) loadedQidsRef.current.add(id);
+      }
+    } catch {
+      // transient — next event/poll retries
+    }
+  }, [competitionId, accessToken]);
 
-    const isCorrect = !isTimeOut && selectedAnswer === currentQuestion.correct_answer;
-    const pointsEarned = isCorrect ? Math.round(100 * (1 - timeTaken / (totalTime || 1))) : 0;
-    const newScore = score + pointsEarned;
+  // ---------- server clock tick + polling fallback + presence ----------
+  useEffect(() => {
+    if (!game) return;
+    const tick = setInterval(() => setNowEpoch(Date.now()), 250);
+    const poll = setInterval(() => {
+      setNowEpoch(Date.now());
+      loadDeck();
+      if (status === "running") updatePresence(competitionId, accessToken).catch(() => {});
+      getGameByCode(code)
+        .then((current) => {
+          if (!current) {
+            setGameEnded(true);
+            return;
+          }
+          if (current.status !== status) setStatus(current.status);
+        })
+        .catch(() => {});
+    }, 8000);
+    return () => {
+      clearInterval(tick);
+      clearInterval(poll);
+    };
+  }, [game, code, status, competitionId, accessToken, loadDeck]);
+
+  // ---------- realtime: questions + competitions ----------
+  useEffect(() => {
+    if (!game || !competitionId) return;
+    const channel = getSupabase()
+      .channel(`student-game-${competitionId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "competitions",
+          filter: `id=eq.${competitionId}`,
+        },
+        (payload) => {
+          const nextStatus = payload?.new?.status;
+          if (nextStatus) {
+            setStatus(nextStatus);
+            setGame((prev) => (prev ? { ...prev, status: nextStatus } : prev));
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "questions",
+          filter: `competition_id=eq.${competitionId}`,
+        },
+        (payload) => {
+          const id = payload?.new?.id;
+          if (!id) return;
+          setQuestions((prev) => {
+            const next = prev.map((q) => (q.id === id ? { ...q, ...payload.new } : q));
+            return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
+          });
+        }
+      )
+      .subscribe();
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [competitionId, game]);
+
+  // ---------- reveal fetch when a question closes ----------
+  useEffect(() => {
+    if (!feedbackQuestion || !accessToken || revealById[feedbackQuestion.id]) return;
+    let cancelled = false;
+    getReveal(feedbackQuestion.id, accessToken)
+      .then((reveal) => {
+        if (!cancelled) setRevealById((prev) => ({ ...prev, [reveal.question_id]: reveal }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [feedbackQuestion, accessToken, revealById]);
+
+  // ---------- restore my submitted answers on (re)mount ----------
+  useEffect(() => {
+    if (!competitionId || !accessToken || !game || submittedRef.current.done) return;
+    submittedRef.current.done = true;
+    getMyAnswers(competitionId, accessToken)
+      .then((rows) => {
+        const byId = {};
+        const submitted = {};
+        for (const row of rows) {
+          byId[row.question_id] = row;
+          submitted[row.question_id] = true;
+        }
+        setAnswersById(byId);
+        setSubmittedIds(submitted);
+        submittedRef.current.ids = submitted;
+      })
+      .catch(() => {});
+  }, [competitionId, accessToken, game]);
+
+  // ---------- response clock: starts when the question becomes visible ----------
+  useEffect(() => {
+    if (!activeQuestion) {
+      stageStartRef.current = null;
+      stageQuestionRef.current = null;
+      return;
+    }
+    if (stageQuestionRef.current !== activeQuestion.id) {
+      stageQuestionRef.current = activeQuestion.id;
+      stageStartRef.current = Date.now();
+    }
+  }, [activeQuestion]);
+
+  // ---------- submit ----------
+  const handleSubmit = async () => {
+    if (!activeQuestion || !accessToken) return;
+    if (submittedRef.current.ids?.[activeQuestion.id]) return;
+
+    const hasChoices = activeQuestion.type === "mcq" || activeQuestion.type === "true_false";
+    const choiceId = hasChoices ? selectedChoiceId ?? undefined : undefined;
+    const answerText = hasChoices ? undefined : textAnswer.trim();
+
+    if (!choiceId && !answerText) {
+      setError("Pick an answer before submitting.");
+      return;
+    }
 
     setSubmitting(true);
     setError("");
     try {
-      await submitScore({
-        id: participant.id,
-        room_key: participant.room_key,
-        name: participant.name,
-        score: newScore,
+      const elapsed = stageStartRef.current ? Date.now() - stageStartRef.current : 0;
+      const answer = await submitAnswer(competitionId, activeQuestion.id, accessToken, {
+        choiceId,
+        answerText,
+        responseTimeMs: elapsed,
       });
-      setScore(newScore);
-      if (isCorrect) setCorrectCount((c) => c + 1);
-      setAnsweredCount((c) => c + 1);
-      setAnswerSubmitted(true);
+      setAnswersById((prev) => ({ ...prev, [activeQuestion.id]: answer }));
+      setSubmittedIds((prev) => ({ ...prev, [activeQuestion.id]: true }));
+      submittedRef.current.ids = { ...submittedRef.current.ids, [activeQuestion.id]: true };
     } catch (err) {
-      console.error("Score submission failed:", err);
-      setError("Failed to submit your answer. Please try again.");
+      console.error("Submit failed:", err);
+      if (err?.code === "28000") {
+        setError("This question just closed. Wait for the host to continue.");
+      } else {
+        toast({ title: "Couldn't send your answer", variant: "error" });
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  useEffect(() => {
-    setSelectedAnswer(null);
-    setAnswerSubmitted(false);
-    setError("");
-  }, [currentIndex]);
+  const myAnswer = currentQuestion ? answersById[currentQuestion.id] : null;
+  const reveal = currentQuestion ? revealById[currentQuestion.id] : null;
+  const questionChoices = currentQuestion ? choices[currentQuestion.id] || [] : [];
+  const totalScore = Object.values(answersById).reduce(
+    (sum, a) => sum + (a.points ?? 0) + (a.bonus_points ?? 0),
+    0
+  );
+  const remaining = currentQuestion && isActive ? remainingMs(currentQuestion.ends_at) : 0;
 
-  const handleSubmitAnswerRef = useRef(handleSubmitAnswer);
-  handleSubmitAnswerRef.current = handleSubmitAnswer;
+  // ---------- screens ----------
+  if (gameEnded) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <Card padding="lg" className="w-full max-w-sm text-center">
+          <h1 className="text-lg font-semibold text-ink">Game ended</h1>
+          <p className="mt-2 text-sm text-ink-muted">
+            The game is no longer available. Ask your host for the next one.
+          </p>
+          <Button href="/join" className="mt-6 w-full">
+            Back to join
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    if (!currentQuestion || quizCompleted) return;
-
-    setTimeLeft(currentQuestion.time);
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleSubmitAnswerRef.current(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [currentQuestion, quizCompleted]);
-
-  if (!participant?.id || questionList.length === 0) {
+  if (!competitionId || !accessToken) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <Card padding="lg" className="w-full max-w-sm text-center">
           <h1 className="text-lg font-semibold text-ink">Session expired</h1>
           <p className="mt-2 text-sm text-ink-muted">
-            The game session is no longer available on this device.
+            Your game session is missing. Join again with the game code.
           </p>
           <Button href="/join" className="mt-6 w-full">
             Join a game
@@ -123,153 +341,266 @@ export default function GameQuestion() {
     );
   }
 
-  const resetSession = () => {
-    dispatch(removeParticipant());
-    dispatch(cleanQuestions());
-    dispatch(removeRoom());
-    router.push("/join");
-  };
-
-  if (quizCompleted) {
+  if (status === "loading" || !game) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface-2 px-4">
-        <Card padding="lg" className="w-full max-w-md text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary-soft text-primary">
-            <svg aria-hidden="true" className="h-7 w-7" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.3 14.6-4.5-4.5a1 1 0 0 1 1.4-1.4l3.8 3.8 6.2-6.2a1 1 0 0 1 1.4 1.4l-8.3 8.3Z" />
-            </svg>
-          </div>
-          <h1 className="mt-4 text-2xl font-bold text-ink">Quiz completed!</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            {participant.name}, here is your result.
-          </p>
-          <dl className="mt-6 grid grid-cols-3 gap-3">
-            <div className="rounded-md bg-surface-3 p-3">
-              <dt className="text-xs font-medium uppercase tracking-wide text-ink-muted">Score</dt>
-              <dd className="mt-1 text-xl font-bold text-ink">{score}</dd>
-            </div>
-            <div className="rounded-md bg-surface-3 p-3">
-              <dt className="text-xs font-medium uppercase tracking-wide text-ink-muted">Correct</dt>
-              <dd className="mt-1 text-xl font-bold text-success-strong">{correctCount}</dd>
-            </div>
-            <div className="rounded-md bg-surface-3 p-3">
-              <dt className="text-xs font-medium uppercase tracking-wide text-ink-muted">Answered</dt>
-              <dd className="mt-1 text-xl font-bold text-ink">
-                {answeredCount}/{questionList.length}
-              </dd>
-            </div>
-          </dl>
-          <Button onClick={resetSession} className="mt-6 w-full">
-            Return home
+        <div className="text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="mt-4 text-sm font-medium text-ink">Connecting…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (overlay === "waiting") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-surface-2 px-4">
+        <Card padding="lg" className="w-full max-w-sm text-center">
+          <p className="text-sm font-medium text-ink-muted">{game.name}</p>
+          <p className="mt-1 font-mono text-3xl font-bold tracking-[0.3em] text-primary">{code}</p>
+          <p className="mt-6 text-sm font-medium text-ink">Waiting for the host to start…</p>
+          <Button variant="ghost" onClick={leaveGame} className="mt-6 w-full">
+            Leave the game
           </Button>
-          <p className="mt-3 text-xs text-ink-muted">
-            The host can see the full leaderboard.
-          </p>
         </Card>
       </div>
     );
   }
 
+  if (!currentQuestion) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-surface-2 px-4">
+        <Card padding="lg" className="w-full max-w-sm text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="mt-4 text-sm font-medium text-ink">Getting ready…</p>
+          <p className="mt-1 text-xs text-ink-muted">The host is about to start a question.</p>
+        </Card>
+      </div>
+    );
+  }
+
+  const wasSubmitted = Boolean(submittedIds[currentQuestion.id]);
+  const isCorrect = myAnswer?.is_correct ?? false;
+
   return (
     <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-4 py-8">
       <div className="mb-4 flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-ink-muted">
-          Question {currentIndex + 1} of {questionList.length}
+          Question {currentQuestion.position} of {questions.length}
         </p>
         <div className="flex items-center gap-3">
-          <p className="text-sm font-medium text-ink">Score: {score}</p>
-          <span
-            className={`rounded-full px-3 py-1 text-sm font-semibold ${
-              timeLeft !== null && timeLeft <= 5
-                ? "bg-danger-soft text-danger-strong"
-                : "bg-primary-soft text-primary"
-            }`}
-            aria-live="polite"
-          >
-            {timeLeft !== null ? `${timeLeft}s` : "…"}
-          </span>
+          <p className="text-sm font-medium text-ink">Score: {Math.round(totalScore)}</p>
+          {isActive && (
+            <span
+              className={`rounded-full px-3 py-1 text-sm font-semibold ${
+                remaining <= 5000
+                  ? "bg-danger-soft text-danger-strong"
+                  : "bg-primary-soft text-primary"
+              }`}
+              aria-live="polite"
+            >
+              {Math.ceil(remaining / 1000)}s
+            </span>
+          )}
         </div>
       </div>
 
-      <Card padding="lg" className="space-y-5">
-        <h1 className="text-lg font-semibold leading-relaxed text-ink">
-          {currentQuestion.question}
-        </h1>
+      {overlay === "paused" && (
+        <Card
+          padding="md"
+          className="mb-4 border-amber-400 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100"
+        >
+          <p className="text-sm font-semibold">Game paused by the host</p>
+        </Card>
+      )}
 
-        <div role="group" aria-label="Answer choices" className="grid gap-2.5">
-          {currentQuestion.answers.map((answer, idx) => {
-            const isCorrectChoice = answerSubmitted && answer === currentQuestion.correct_answer;
-            const isWrongPick = answerSubmitted && selectedAnswer === answer && answer !== currentQuestion.correct_answer;
-            return (
-              <button
-                key={idx}
-                type="button"
-                disabled={answerSubmitted}
-                onClick={() => setSelectedAnswer(answer)}
-                aria-pressed={selectedAnswer === answer}
-                className={`w-full rounded-md border px-4 py-3 text-left text-sm font-medium transition-colors focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-focus-ring disabled:cursor-not-allowed ${
-                  isCorrectChoice
-                    ? "border-success bg-success-soft text-success-strong"
-                    : isWrongPick
-                      ? "border-danger bg-danger-soft text-danger-strong"
-                      : answerSubmitted
-                        ? "border-border bg-surface-2 text-ink-faint"
-                        : selectedAnswer === answer
+      <Card padding="lg" className="space-y-5">
+        <h1 className="text-lg font-semibold leading-relaxed text-ink">{currentQuestion.text}</h1>
+
+        {isActive && !wasSubmitted && (
+          <>
+            {(currentQuestion.type === "mcq" || currentQuestion.type === "true_false") && (
+              <div role="group" aria-label="Answer choices" className="grid gap-2.5">
+                {questionChoices.map((choice) => {
+                  const isSelected = selectedChoiceId === choice.id;
+                  return (
+                    <button
+                      key={choice.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedChoiceId(choice.id);
+                        setError("");
+                      }}
+                      aria-pressed={isSelected}
+                      className={`w-full rounded-md border px-4 py-3 text-left text-sm font-medium transition-colors focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-focus-ring ${
+                        isSelected
                           ? "border-primary bg-primary-soft text-primary"
                           : "border-border bg-surface text-ink hover:border-primary hover:bg-surface-2"
-                }`}
-              >
-                <span className="me-3 inline-block w-5 text-center font-semibold text-ink-faint">
-                  {String.fromCharCode(65 + idx)}
-                </span>
-                {answer}
-                {isCorrectChoice && (
-                  <span className="ms-2 text-xs font-semibold">Correct</span>
-                )}
-                {isWrongPick && (
-                  <span className="ms-2 text-xs font-semibold">Wrong</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+                      }`}
+                    >
+                      <span className="me-3 inline-block w-5 text-center font-semibold text-ink-faint">
+                        {String.fromCharCode(65 + choice.position - 1)}
+                      </span>
+                      {choice.text}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-        {error && (
-          <p className="text-sm text-danger" role="alert">
-            {error}
-          </p>
+            {(currentQuestion.type === "text" ||
+              currentQuestion.type === "number" ||
+              currentQuestion.type === "audio") && (
+              <input
+                type={currentQuestion.type === "number" ? "number" : "text"}
+                inputMode={currentQuestion.type === "number" ? "decimal" : "text"}
+                value={textAnswer}
+                onChange={(e) => {
+                  setTextAnswer(e.target.value);
+                  setError("");
+                }}
+                placeholder={
+                  currentQuestion.type === "number" ? "Type a number…" : "Type your answer…"
+                }
+                autoComplete="off"
+                aria-label="Your answer"
+                className="w-full rounded-md border border-border bg-surface px-4 py-3 text-sm text-ink outline-none transition-colors focus:border-primary focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-focus-ring"
+              />
+            )}
+
+            {error && (
+              <p className="text-sm text-danger" role="alert">
+                {error}
+              </p>
+            )}
+
+            <Button
+              size="lg"
+              className="w-full"
+              disabled={!selectedChoiceId && !textAnswer.trim()}
+              loading={submitting}
+              onClick={() => handleSubmit()}
+            >
+              Submit answer
+            </Button>
+          </>
         )}
 
-        <Button
-          size="lg"
-          className="w-full"
-          disabled={!selectedAnswer || answerSubmitted}
-          loading={submitting}
-          onClick={() => handleSubmitAnswer()}
-        >
-          {answerSubmitted ? "Submitted" : "Submit answer"}
-        </Button>
-
-        {answerSubmitted && (
-          <div className="flex justify-between">
-            <Button variant="ghost" onClick={() => setCurrentIndex((i) => i + 1)}>
-              Next question
-            </Button>
-            {currentIndex >= questionList.length - 1 && (
-              <Button variant="secondary" onClick={() => setQuizCompleted(true)}>
-                See results
-              </Button>
-            )}
+        {isActive && wasSubmitted && (
+          <div className="rounded-md bg-surface-3 p-4 text-center">
+            <p className="text-sm font-semibold text-success-strong">
+              {isCorrect ? "Correct!" : "Answer submitted"}
+            </p>
+            <p className="mt-1 text-xs text-ink-muted">Waiting for the timer to finish…</p>
           </div>
+        )}
+
+        {!isActive && reveal && (
+          <div className="space-y-4">
+            <div
+              className={`rounded-md p-4 text-sm font-semibold ${
+                myAnswer
+                  ? isCorrect
+                    ? "bg-success-soft text-success-strong"
+                    : "bg-danger-soft text-danger-strong"
+                  : "bg-surface-3 text-ink-muted"
+              }`}
+            >
+              {myAnswer
+                ? isCorrect
+                  ? `Correct! +${Math.round((myAnswer.points ?? 0) + (myAnswer.bonus_points ?? 0))} pts`
+                  : "Wrong answer"
+                : "No answer submitted"}
+            </div>
+
+            {questionChoices.map((choice) => {
+              const isCorrectChoice = reveal.correct_choice?.id === choice.id;
+              const isMyPick = myAnswer?.choice_id === choice.id;
+              return (
+                <div
+                  key={choice.id}
+                  className={`rounded-md border px-4 py-3 text-sm font-medium ${
+                    isCorrectChoice
+                      ? "border-success bg-success-soft text-success-strong"
+                      : isMyPick
+                        ? "border-danger bg-danger-soft text-danger-strong"
+                        : "border-border bg-surface text-ink-faint"
+                  }`}
+                >
+                  <span className="me-3 inline-block w-5 text-center font-semibold">
+                    {String.fromCharCode(65 + choice.position - 1)}
+                  </span>
+                  {choice.text}
+                  {isCorrectChoice && (
+                    <span className="ms-2 text-xs font-semibold">✓ Correct</span>
+                  )}
+                  {isMyPick && !isCorrectChoice && (
+                    <span className="ms-2 text-xs font-semibold">✗ You picked this</span>
+                  )}
+                </div>
+              );
+            })}
+
+            {(reveal.correct_answer_text || reveal.explanation) && (
+              <div className="rounded-md bg-surface-3 p-4 text-sm text-ink-muted">
+                {reveal.correct_answer_text && (
+                  <p>
+                    <span className="font-semibold text-ink">Answer: </span>
+                    {reveal.correct_answer_text}
+                  </p>
+                )}
+                {reveal.explanation && (
+                  <p className="mt-1">
+                    <span className="font-semibold text-ink">Why: </span>
+                    {reveal.explanation}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <p className="text-center text-xs text-ink-muted">
+              Waiting for the host to continue…
+            </p>
+          </div>
+        )}
+
+        {!isActive && !reveal && (
+          <p className="text-center text-sm text-ink-muted">
+            {wasSubmitted ? "Revealing the answer…" : "Loading results…"}
+          </p>
         )}
       </Card>
 
-      <Link
-        href="/join"
+      <button
+        type="button"
+        onClick={leaveGame}
         className="mt-4 text-center text-sm font-medium text-ink-muted underline-offset-4 hover:text-ink hover:underline"
       >
         Leave the game
-      </Link>
+      </button>
     </div>
   );
+}
+
+function findActiveQuestion(questions, nowEpoch) {
+  return (
+    questions.find(
+      (q) =>
+        q.started_at &&
+        new Date(q.started_at).getTime() <= nowEpoch &&
+        q.ends_at &&
+        new Date(q.ends_at).getTime() > nowEpoch
+    ) ?? null
+  );
+}
+
+function findFeedbackQuestion(questions, nowEpoch) {
+  const ended = questions.filter(
+    (q) =>
+      q.started_at &&
+      new Date(q.started_at).getTime() <= nowEpoch &&
+      q.ends_at &&
+      new Date(q.ends_at).getTime() <= nowEpoch
+  );
+  return ended.length ? ended[ended.length - 1] : null;
 }

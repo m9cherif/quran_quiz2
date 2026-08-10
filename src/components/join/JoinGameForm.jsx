@@ -7,17 +7,16 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
-import { setParticipant, setQuestions } from "@/store/Slices/participantSlice";
-import { setRoom } from "@/store/Slices/roomSlice";
-import API_CONFIG from "@/app/components/API";
+import { setParticipant } from "@/store/Slices/participantSlice";
+import { joinGame } from "@/services/games";
 
 /**
- * JoinGameForm — student join: name + game code → legacy join endpoint →
- * store participant/questions → /game/[roomKey].
+ * JoinGameForm — student join: nickname + game code → join_competition RPC
+ * (server issues the anonymous access token) → /game/[code] lobby.
  */
 export function JoinGameForm({ defaultCode = "" }) {
   const [name, setName] = useState("");
-  const [code, setCode] = useState(defaultCode);
+  const [code, setCode] = useState(defaultCode.toUpperCase());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -28,48 +27,44 @@ export function JoinGameForm({ defaultCode = "" }) {
     e.preventDefault();
     setError("");
 
-    const trimmed = code.trim();
-    if (!/^\d{4,12}$/.test(trimmed)) {
+    const trimmedCode = code.trim().toUpperCase();
+    const trimmedName = name.trim();
+    if (!/^[A-Z0-9]{3,10}$/.test(trimmedCode)) {
       setError("Enter the game code shown by the host.");
+      return;
+    }
+    if (trimmedName.length < 2 || trimmedName.length > 50) {
+      setError("Nickname must be between 2 and 50 characters.");
       return;
     }
 
     setIsLoading(true);
-    const END_POINT = `${process.env.NEXT_PUBLIC_BACKEND_URL}${API_CONFIG.joinQiuz}`;
-
     try {
-      const response = await fetch(END_POINT, {
-        method: "POST",
-        headers: {
-          accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ room_key: Number(trimmed), name: name.trim() }),
-      });
-
-      const responseData = await response.json();
-
-      if (response.status === 200 && responseData?.id) {
-        dispatch(
-          setParticipant({
-            id: responseData.id,
-            name: name.trim(),
-            room_key: String(responseData.room_key),
-          })
-        );
-        dispatch(setQuestions(responseData.questions));
-        dispatch(setRoom(trimmed));
-        router.push(`/game/${String(responseData.room_key)}`);
-      } else {
-        setError("Wrong game code. Check it with the host and try again.");
-      }
+      const participant = await joinGame(trimmedCode, trimmedName);
+      dispatch(
+        setParticipant({
+          id: participant.id,
+          competitionId: participant.competition_id,
+          displayName: participant.display_name,
+          accessToken: participant.access_token,
+          code: trimmedCode,
+          joinedAt: participant.joined_at,
+        })
+      );
+      router.push(`/game/${trimmedCode}`);
     } catch (err) {
       console.error("Join failed:", err);
-      toast({
-        title: "Couldn't join the game",
-        description: "Check your connection and try again.",
-        variant: "error",
-      });
+      if (err?.code === "28000") {
+        setError("This game isn't open to join yet. Check the code with your host.");
+      } else if (err?.code === "22023") {
+        setError(err.message ?? "Check your nickname and try again.");
+      } else {
+        toast({
+          title: "Couldn't join the game",
+          description: "Check your connection and try again.",
+          variant: "error",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -94,13 +89,19 @@ export function JoinGameForm({ defaultCode = "" }) {
         />
         <Input
           label="Game code"
-          placeholder="e.g. 4821"
+          placeholder="e.g. A1B2C3D4"
           required
-          inputMode="numeric"
           autoComplete="off"
-          maxLength={12}
+          autoCapitalize="characters"
+          maxLength={10}
           value={code}
-          onChange={(e) => setCode(e.target.value.replace(/[^\d]/g, ""))}
+          onChange={(e) =>
+            setCode(
+              e.target.value
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, "")
+            )
+          }
           error={error || undefined}
         />
         <Button type="submit" loading={isLoading} className="w-full" size="lg">
