@@ -7,8 +7,9 @@ import { useDispatch } from "react-redux";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
-import { setUser } from "@/store/Slices/userSlice";
-import API_CONFIG from "@/app/components/API";
+import { setAuthStatus, setUser } from "@/store/Slices/userSlice";
+import { getProfile, signInWithEmail } from "@/lib/auth/client";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -21,27 +22,27 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    if (!isSupabaseConfigured()) {
+      setError("Supabase is not configured on this deployment.");
+      return;
+    }
     setIsLoading(true);
-    const END_POINT = `${process.env.NEXT_PUBLIC_BACKEND_URL}${API_CONFIG.login}`;
 
     try {
-      const response = await fetch(END_POINT, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const responseData = await response.json();
-
-      if (response.ok && responseData?.user_id) {
-        dispatch(setUser(responseData));
-        router.push("/host/games");
-      } else {
-        setError("Invalid email or password. Please try again.");
+      const { data, error: authError } = await signInWithEmail(email.trim(), password);
+      if (authError || !data.user) {
+        setError(
+          /invalid|credential/i.test(authError?.message ?? "")
+            ? "Invalid email or password. Please try again."
+            : authError?.message ?? "Could not sign in."
+        );
+        return;
       }
+
+      const profile = await getProfile(data.user.id);
+      if (profile) dispatch(setUser(profile));
+      dispatch(setAuthStatus("authenticated"));
+      router.push(profile?.role === "host" ? "/host/games" : "/");
     } catch (err) {
       console.error("Login failed:", err);
       setError("Could not reach the server. Check your connection and try again.");

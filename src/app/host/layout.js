@@ -10,7 +10,7 @@ export default function HostLayout({ children }) {
     <div className="flex min-h-screen flex-col bg-surface-2">
       <AppHeader variant="host" />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-        <RequireUser>{children}</RequireUser>
+        <RequireUser role="host">{children}</RequireUser>
       </main>
     </div>
   );

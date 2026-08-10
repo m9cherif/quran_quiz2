@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { cleanUser } from "@/store/Slices/userSlice";
 import { cn } from "@/lib/cn";
+import { signOut } from "@/lib/auth/client";
 
 const NAV = {
   public: [
@@ -34,9 +35,13 @@ export function AppHeader({ variant = "public" }) {
 
   const links = NAV[variant] ?? NAV.public;
 
-  const logout = () => {
-    dispatch(cleanUser());
-    router.push("/");
+  const logout = async () => {
+    try {
+      await signOut();
+    } finally {
+      dispatch(cleanUser());
+      router.push("/");
+    }
   };
 
   return (
