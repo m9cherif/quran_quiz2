@@ -8,6 +8,8 @@ import {
   getMyParticipant,
   getMyAnswers,
   getLeaderboard,
+  listStudentQuestions,
+  listChoices,
 } from "@/services/games";
 import { removeParticipant } from "@/store/Slices/participantSlice";
 import Button from "@/components/ui/Button";
@@ -30,6 +32,7 @@ export default function GameResult({ params }) {
 
   const [leaderboard, setLeaderboard] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [breakdown, setBreakdown] = useState([]);
   const [state, setState] = useState("loading"); // loading | ready | not-finished | expired
   const loadedRef = useRef(false);
 
@@ -53,9 +56,10 @@ export default function GameResult({ params }) {
           setState("not-finished");
           return;
         }
-        const [allAnswers, rows] = await Promise.all([
+        const [allAnswers, rows, questions] = await Promise.all([
           getMyAnswers(competitionId, accessToken),
           getLeaderboard(competitionId),
+          listStudentQuestions(competitionId, accessToken),
         ]);
         const totals = allAnswers.reduce(
           (acc, a) => {
@@ -65,6 +69,37 @@ export default function GameResult({ params }) {
             return acc;
           },
           { score: 0, correct: 0, answered: 0 }
+        );
+        const choices = await listChoices(
+          questions.map((q) => q.id),
+          accessToken
+        );
+        const choicesByQuestion = {};
+        for (const choice of choices) {
+          choicesByQuestion[choice.question_id] = choicesByQuestion[choice.question_id] || [];
+          choicesByQuestion[choice.question_id].push(choice);
+        }
+        const answerByQuestion = {};
+        for (const answer of allAnswers) {
+          answerByQuestion[answer.question_id] = answer;
+        }
+        setBreakdown(
+          questions.map((q) => {
+            const answer = answerByQuestion[q.id];
+            const myChoice = answer?.choice_id
+              ? (choicesByQuestion[q.id] || []).find((c) => c.id === answer.choice_id)
+              : null;
+            return {
+              position: q.position,
+              text: q.text,
+              type: q.type,
+              answer,
+              myChoiceText: myChoice?.text ?? answer?.answer_text ?? null,
+              isCorrect: Boolean(answer?.is_correct),
+              points: answer ? (answer.points ?? 0) + (answer.bonus_points ?? 0) : 0,
+              skipped: !answer,
+            };
+          })
         );
         setSummary(totals);
         setLeaderboard(rows);
@@ -167,6 +202,32 @@ export default function GameResult({ params }) {
           <Badge variant="secondary">{leaderboard.length} players</Badge>
         </div>
 
+        {leaderboard.length >= 3 && (
+          <div className="mt-4 grid grid-cols-3 items-end gap-2">
+            {[1, 0, 2].map((slot) => {
+              const row = leaderboard[slot];
+              const medal =
+                slot === 0
+                  ? "border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                  : slot === 1
+                    ? "border-slate-300 bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                    : "border-orange-300 bg-orange-50 text-orange-800 dark:bg-orange-950 dark:text-orange-200";
+              return (
+                <div
+                  key={row.participant_id}
+                  className={`rounded-md border px-3 py-4 text-center ${medal} ${slot === 0 ? "order-2 scale-105" : slot === 1 ? "order-1" : "order-3"}`}
+                >
+                  <p className="text-xs font-bold uppercase tracking-wide opacity-70">
+                    {slot === 0 ? "1st" : slot === 1 ? "2nd" : "3rd"}
+                  </p>
+                  <p className="mt-1 truncate text-sm font-semibold">{row.display_name}</p>
+                  <p className="mt-0.5 text-lg font-bold">{Math.round(row.total_points)}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <ol className="mt-4 space-y-2">
           {leaderboard.map((row) => {
             const isMe = row.participant_id === participant?.id;
@@ -201,6 +262,43 @@ export default function GameResult({ params }) {
             );
           })}
         </ol>
+      </Card>
+
+      <Card padding="lg" className="mt-6">
+        <h2 className="text-base font-semibold text-ink">Your answers</h2>
+        <ul className="mt-4 space-y-2">
+          {breakdown.map((item) => (
+            <li
+              key={item.position}
+              className={`rounded-md border px-4 py-3 ${
+                item.skipped
+                  ? "border-border bg-surface"
+                  : item.isCorrect
+                    ? "border-success bg-success-soft/50"
+                    : "border-danger bg-danger-soft/50"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm font-medium text-ink">
+                  <span className="me-1.5 text-ink-faint">{item.position}.</span>
+                  {item.text}
+                </p>
+                <span className="shrink-0 text-xs font-semibold text-ink-muted">
+                  {item.skipped
+                    ? "Skipped"
+                    : item.isCorrect
+                      ? `+${Math.round(item.points)}`
+                      : "Wrong"}
+                </span>
+              </div>
+              {!item.skipped && (
+                <p className="mt-1 text-xs text-ink-muted">
+                  Your answer: <span className="font-medium text-ink">{item.myChoiceText}</span>
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
       </Card>
     </div>
   );

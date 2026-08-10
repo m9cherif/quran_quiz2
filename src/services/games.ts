@@ -208,24 +208,37 @@ export async function getReveal(
 /** Ranked leaderboard for the game (aggregates only). */
 export async function getLeaderboard(
   competitionId: string
-): Promise<{
+): Promise<LeaderboardRow[]> {
+  const { data, error } = await getSupabase().rpc("game_leaderboard", {
+    p_competition_id: competitionId,
+  });
+  if (error) throw error;
+  return (data as LeaderboardRow[]) ?? [];
+}
+
+export interface LeaderboardRow {
   rank: number;
   participant_id: string;
   display_name: string;
   correct_count: number;
   answered_count: number;
   total_points: number;
-}[]> {
-  const { data, error } = await getSupabase().rpc("game_leaderboard", {
+}
+
+export interface QuestionStatRow {
+  position_number: number;
+  text: string;
+  duration_seconds: number;
+  answered_count: number;
+  correct_count: number;
+  accuracy: number;
+}
+
+/** Per-question answered/correct/accuracy — host only (owner-scoped RPC). */
+export async function getQuestionStats(competitionId: string): Promise<QuestionStatRow[]> {
+  const { data, error } = await getSupabase().rpc("game_question_stats", {
     p_competition_id: competitionId,
   });
   if (error) throw error;
-  return (data as {
-    rank: number;
-    participant_id: string;
-    display_name: string;
-    correct_count: number;
-    answered_count: number;
-    total_points: number;
-  }[]) ?? [];
+  return (data as QuestionStatRow[]) ?? [];
 }

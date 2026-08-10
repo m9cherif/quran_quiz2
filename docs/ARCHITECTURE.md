@@ -369,5 +369,13 @@ Mapping from current SPA: Join→`/join`, Login→`/login`, SignUp→`/register`
 - Verified end-to-end via header-impersonated SQL (waiting→running→finished): pre-start submit `28000` (saved by the pre-start guard), questions hidden while waiting / visible while running, reveal-while-open `42501` / reveal-after-end OK, in-window text answer graded 10pts, late mcq graded 0, **resubmit returned the identical locked row**, presence/count/leaderboard correct, cascade cleanup done, fixtures (2 comps / 8 participants) intact. Typecheck + build green; `/join`, `/game/[code]`, `/game/[code]/question`, `/game/[code]/result` → 200.
 - Known residual: timer uses client clock vs server timestamps (skew affects display only; grading is server-authoritative); `game_participant_count` polling in the lobby because anon RLS hides other players' rows from realtime.
 
+### Phase 9 — Leaderboard + results ✅ (2026-08-10)
+- DB (migration `20260810121400_game_question_stats.sql`): `game_question_stats(p_competition_id)` — owner-gated (`42501` for anyone else, anon denied at grant level) per-question `answered_count / correct_count / accuracy` for host results; students never see other players' per-question data.
+- Host control room (`LiveGameControl.jsx`): live **Leaderboard** card in the side rail during lobby/active/paused phases (realtime-refreshed on every `answers` INSERT); on finish/cancel the main column swaps the question deck for a **Results** card — top-3 podium (gold/silver/bronze), full standings, and a per-question breakdown list with accuracy bars.
+- Student result (`/game/[code]/result`): podium for the top 3 + full ranked list + new "Your answers" per-question breakdown (status/points/own answer text; skips shown) — privacy preserved (own rows only).
+- Services: `getLeaderboard` typed as `LeaderboardRow[]`, added `getQuestionStats` + `QuestionStatRow`.
+- Verified via role-impersonated SQL: owner stats return correct aggregates (1/1/100% and 0/0/0), authenticated non-owner `42501`, anon `42501` grant-level; fixtures intact; typecheck + build green; `/host/games/[roomKey]`, `/game/[code]/result` → 200 (podium on <3 players renders standings only).
+- Unrelated auth advisory noticed: "Leaked password protection disabled" — optional Supabase Auth project toggle, not a code issue.
+
 ### Next phases
-9. Leaderboard → 10. Analytics → 11. Classes → 12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).
+10. Analytics → 11. Classes → 12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).

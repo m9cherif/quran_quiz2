@@ -17,6 +17,8 @@ import {
   endQuestion,
   getGameByCode,
   getHostQuestionFull,
+  getLeaderboard,
+  getQuestionStats,
   listGameQuestions,
   listParticipants,
   remainingMs,
@@ -53,6 +55,8 @@ export default function LiveGameControl({ roomKey }) {
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [participants, setParticipants] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [questionStats, setQuestionStats] = useState([]);
   const [reveal, setReveal] = useState(null);
   const [copied, setCopied] = useState(false);
   const [busyAction, setBusyAction] = useState("");
@@ -68,9 +72,17 @@ export default function LiveGameControl({ roomKey }) {
     }
     const items = await listGameQuestions(competition.id);
     const players = await listParticipants(competition.id);
+    const [board, stats] = await Promise.all([
+      getLeaderboard(competition.id).catch(() => []),
+      competition.status === "finished" || competition.status === "cancelled"
+        ? getQuestionStats(competition.id).catch(() => [])
+        : Promise.resolve([]),
+    ]);
     setGame(competition);
     setQuestions(items);
     setParticipants(players);
+    setLeaderboard(board);
+    setQuestionStats(stats);
     const active = items
       .filter((q) => q.started_at && q.ends_at && new Date(q.ends_at).getTime() > Date.now())
       .sort((a, b) => a.position - b.position)[0];
@@ -118,6 +130,11 @@ export default function LiveGameControl({ roomKey }) {
         { event: "UPDATE", schema: "public", table: "competitions", filter: `id=eq.${game.id}` },
         (payload) => {
           setGame((prev) => ({ ...prev, ...payload.new }));
+          if (payload.new.status === "finished" || payload.new.status === "cancelled") {
+            getQuestionStats(game.id)
+              .then(setQuestionStats)
+              .catch(() => {});
+          }
         }
       )
       .on(
@@ -155,6 +172,9 @@ export default function LiveGameControl({ roomKey }) {
         (payload) => {
           const row = payload.new;
           setAnswers((prev) => ({ ...prev, [`${row.participant_id}:${row.question_id}`]: true }));
+          getLeaderboard(game.id)
+            .then(setLeaderboard)
+            .catch(() => {});
         }
       )
       .subscribe();
@@ -418,6 +438,7 @@ export default function LiveGameControl({ roomKey }) {
             </Card>
           )}
 
+          {phase !== "finished" && phase !== "cancelled" && (
           <Card className="space-y-3">
             <h2 className="text-sm font-semibold text-ink">Question deck</h2>
             <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -445,6 +466,91 @@ export default function LiveGameControl({ roomKey }) {
               })}
             </ol>
           </Card>
+        )}
+
+        {(phase === "finished" || phase === "cancelled") && (
+          <Card className="space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-ink">Results</h2>
+              <Badge variant="neutral">{leaderboard.length} players</Badge>
+            </div>
+
+            {leaderboard.length >= 3 && (
+              <div className="grid grid-cols-3 items-end gap-2">
+                {[1, 0, 2].map((slot) => {
+                  const row = leaderboard[slot];
+                  const medal =
+                    slot === 0
+                      ? "border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                      : slot === 1
+                        ? "border-slate-300 bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                        : "border-orange-300 bg-orange-50 text-orange-800 dark:bg-orange-950 dark:text-orange-200";
+                  return (
+                    <div
+                      key={row.participant_id}
+                      className={`rounded-md border px-3 py-4 text-center ${medal} ${slot === 0 ? "order-2 scale-105" : slot === 1 ? "order-1" : "order-3"}`}
+                    >
+                      <p className="text-xs font-bold uppercase tracking-wide opacity-70">
+                        {slot === 0 ? "1st place" : slot === 1 ? "2nd place" : "3rd place"}
+                      </p>
+                      <p className="mt-1 truncate text-sm font-semibold">{row.display_name}</p>
+                      <p className="mt-0.5 text-lg font-bold">{Math.round(row.total_points)}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              {leaderboard.map((row) => (
+                <div
+                  key={row.participant_id}
+                  className="flex items-center gap-3 rounded-md border border-border bg-surface px-4 py-2 text-sm"
+                >
+                  <span className="w-6 text-center text-xs font-bold text-ink-faint">{row.rank}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.display_name}</span>
+                  <span className="shrink-0 text-xs text-ink-muted">
+                    {row.correct_count}/{row.answered_count} correct
+                  </span>
+                  <span className="shrink-0 font-semibold text-ink">{Math.round(row.total_points)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Per-question breakdown</h3>
+              {questionStats.length === 0 ? (
+                <p className="mt-2 text-sm text-ink-muted">No question data.</p>
+              ) : (
+                <ul className="mt-3 space-y-2">
+                  {questionStats.map((row) => (
+                    <li
+                      key={row.position_number}
+                      className="rounded-md border border-border bg-surface-2 px-4 py-2.5"
+                    >
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="min-w-0 flex-1 truncate font-medium text-ink">
+                          {row.position_number}. {row.text}
+                        </span>
+                        <span className="shrink-0 text-xs text-ink-muted">
+                          {row.correct_count}/{row.answered_count} correct · {row.accuracy}%
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-3">
+                        <div
+                          className="h-full rounded-full bg-success"
+                          style={{
+                            width: `${Math.min(100, Math.max(0, row.accuracy))}%`,
+                          }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Card>
+        )}
         </div>
 
         <div className="space-y-4">
@@ -498,6 +604,37 @@ export default function LiveGameControl({ roomKey }) {
               </ul>
             )}
           </Card>
+
+          {phase !== "finished" && phase !== "cancelled" && (
+            <Card className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold text-ink">Leaderboard</h2>
+                <Badge variant="neutral">{leaderboard.length} players</Badge>
+              </div>
+              {leaderboard.length === 0 ? (
+                <p className="py-4 text-center text-sm text-ink-muted">No scores yet.</p>
+              ) : (
+                <ul className="max-h-80 divide-y divide-border overflow-y-auto">
+                  {leaderboard.map((row) => (
+                    <li key={row.participant_id} className="flex items-center gap-3 py-2">
+                      <span className="w-6 text-center text-xs font-bold text-ink-faint">
+                        {row.rank}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-ink">
+                        {row.display_name}
+                      </span>
+                      <span className="shrink-0 text-xs text-ink-muted">
+                        {row.correct_count}/{row.answered_count} ·{" "}
+                        <span className="font-semibold text-ink">
+                          {Math.round(row.total_points)}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          )}
 
           <Card padding="lg" className="space-y-3">
             <h2 className="text-base font-semibold text-ink">Danger zone</h2>
