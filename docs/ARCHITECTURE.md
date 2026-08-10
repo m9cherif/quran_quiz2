@@ -349,5 +349,12 @@ Mapping from current SPA: Join→`/join`, Login→`/login`, SignUp→`/register`
 - Verified: RPC E2E via role impersonation (owner saves/fetches; non-owner `42501`; validation `22023`; duplicate+archive+list counts correct; test data cleaned, fixtures intact); typecheck + build green; `/host/quizzes`, `/host/quizzes/new`, `/host/games` → 200.
 - Advisory notes: definer-RPC WARNs are by design (each carries an internal `auth.uid()` owner guard).
 
+### Phase 7 — Live game host ✅ (2026-08-10)
+- DB (migration `20260810121200_game_lifecycle_rpcs.sql`): `save_question` now locked to `status='draft'` (launched games are immutable — snapshot safety); new owner-scoped RPCs `begin_question` (server timestamps: `started_at=now()`, `ends_at=now()+duration_seconds`; rejects not-active games `28000`, double-start `22023`) and `end_question` (early close, no-op once expired).
+- `src/services/games.ts`: `getGameByCode` (owner/visible select by room code), `listGameQuestions` (safe columns + timing), `listParticipants`, `getHostQuestionFull` (definer RPC incl. correct answer for reveal panels), `beginQuestion`/`endQuestion`, `remainingMs`.
+- `LiveGameControl.jsx` rewritten from the legacy broadcast backend to Supabase: loads game by code, realtime on `competitions` (status), `questions` (start/end → reveal auto-refresh), `participants` and `answers` (answered count); controls per phase (lobby start → active next/end-now/pause → resume → finish; cancel + delete dialogs); host question card with countdown, correct-answer reveal panel, question deck, players list with online dots.
+- Quiz editor: "Launch live game" (draft only, needs ≥1 question, confirm dialog → `waiting` → control room); launched quizzes show a "Launched" badge and lock the Save button.
+- Verified: `begin_question` E2E via role impersonation (draft→`28000`, running→timestamps `now`+7s, double-start→`22023`, end after expiry→no-op); delete-quiz cascade proven on live data; fixtures intact; typecheck + build green; `/host/games/[roomKey]` → 200.
+
 ### Next phases
-7. Live game host → 8. Live game student → 9. Leaderboard → 10. Analytics → 11. Classes → 12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).
+8. Live game student → 9. Leaderboard → 10. Analytics → 11. Classes → 12. i18n → 13. Tests/lint → 14. Perf → 15. PWA → 16. Security audit → 17. Render deploy (see §10 roadmap).

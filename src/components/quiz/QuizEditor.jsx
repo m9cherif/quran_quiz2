@@ -18,8 +18,10 @@ import {
   getQuiz,
   listQuizQuestions,
   saveQuestion,
+  setQuizStatus,
   updateQuizMeta,
 } from "@/services/quizzes";
+import { Dialog } from "@/components/ui/Dialog";
 import {
   QuestionForm,
   emptyQuestion,
@@ -47,6 +49,10 @@ export function QuizEditor({ quizId }) {
   const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [launchOpen, setLaunchOpen] = useState(false);
+  const [launching, setLaunching] = useState(false);
+
+  const isDraft = quiz?.status === "draft";
 
   const load = useCallback(async () => {
     setState("loading");
@@ -286,6 +292,26 @@ export function QuizEditor({ quizId }) {
     }
   };
 
+  const launchGame = async () => {
+    if (!quiz || questions.length === 0) return;
+    setLaunching(true);
+    try {
+      await setQuizStatus(quiz.id, "waiting");
+      toast({ title: "Game launched", description: "The lobby is open — share the code.", variant: "success" });
+      router.push(`/host/games/${quiz.code}`);
+    } catch (err) {
+      console.error("Launch failed:", err);
+      toast({
+        title: "Launch failed",
+        description: err instanceof Error ? err.message : "Try again.",
+        variant: "error",
+      });
+    } finally {
+      setLaunching(false);
+      setLaunchOpen(false);
+    }
+  };
+
   if (state === "loading") {
     return (
       <div className="space-y-4">
@@ -337,7 +363,21 @@ export function QuizEditor({ quizId }) {
               Discard
             </Button>
           )}
-          <Button loading={saving} onClick={saveAll} disabled={!dirty}>
+          {isDraft ? (
+            <Button
+              variant="secondary"
+              loading={launching}
+              onClick={() => setLaunchOpen(true)}
+              disabled={questions.length === 0}
+            >
+              {questions.length === 0 ? "Add questions first" : "Launch live game"}
+            </Button>
+          ) : (
+            <Badge variant="success" dot>
+              Launched
+            </Badge>
+          )}
+          <Button loading={saving} onClick={saveAll} disabled={!dirty || !isDraft}>
             Save changes
           </Button>
         </div>
@@ -475,6 +515,24 @@ export function QuizEditor({ quizId }) {
           ) : null}
         </div>
       </div>
+
+      <Dialog
+        open={launchOpen}
+        onClose={() => setLaunchOpen(false)}
+        size="sm"
+        title="Launch this quiz live?"
+        description={`The room code is ${quiz?.code}. Players can join as soon as the lobby opens — editing will be locked.`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setLaunchOpen(false)} disabled={launching}>
+              Not yet
+            </Button>
+            <Button loading={launching} onClick={launchGame}>
+              Launch game
+            </Button>
+          </>
+        }
+      />
     </div>
   );
 }
