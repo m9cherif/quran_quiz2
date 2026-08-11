@@ -2,7 +2,7 @@
 
 
 [![Made with Supabase](https://supabase.com/badge-made-with-supabase-dark.svg)](https://supabase.com)
-![Vercel Deploy](https://deploy-badge.vercel.app/vercel/quizcast-teamvertex)
+[![Deploy on Render](https://img.shields.io/badge/Render-Deployed-46E3B7?logo=render&logoColor=white)](https://quran-quiz2-of5c.onrender.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 
@@ -78,12 +78,26 @@ For production:
 
 ## Deployment
 
-This application is deployed using **Vercel**. Follow these steps to deploy your own instance:
+This application is deployed on **Render** (https://quran-quiz2-of5c.onrender.com). The service is auto-deployed from the `main` branch:
 
-1. Push the repository to your GitHub or GitLab account.
-2. Connect your repository to Vercel.
-3. Add the `.env.local` variables to your Vercel project in the environment settings.
-4. Deploy the application with a single click!
+1. Push the repository to your GitHub account.
+2. Create a **Web Service** on Render from the repo (`main` branch).
+3. Build command: `npm run build` — Start command: `npm start`.
+4. Add the environment variables below in the service settings.
+5. Deploy — every push to `main` redeploys automatically.
+
+Environment variables required on Render (same as `.env.example`):
+
+```
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_SUPABASE_BUCKET
+SUPABASE_SERVICE_ROLE_KEY        # server-only; used by /api/auth/register
+```
+
+> The Supabase schema, RPCs, RLS policies, and the `media` storage bucket are
+> managed via versioned migrations in `supabase/migrations/` — apply them to
+> your project before the first deploy.
 
 ---
 
