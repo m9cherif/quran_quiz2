@@ -154,6 +154,13 @@ export default function LiveGameControl({ roomKey }) {
       )
       .on(
         "postgres_changes",
+        { event: "INSERT", schema: "public", table: "questions", filter: `competition_id=eq.${game.id}` },
+        (payload) => {
+          setQuestions((prev) => [...prev, payload.new]);
+        }
+      )
+      .on(
+        "postgres_changes",
         { event: "INSERT", schema: "public", table: "participants", filter: `competition_id=eq.${game.id}` },
         (payload) => {
           setParticipants((prev) => [...prev, payload.new]);
@@ -350,6 +357,12 @@ export default function LiveGameControl({ roomKey }) {
         <div className="flex flex-wrap gap-2">
           {phase === "lobby" && (
             <>
+              <Button
+                variant="outline"
+                href={`/host/quizzes/${game.id}/edit`}
+              >
+                {t("host.editQuestions")}
+              </Button>
               <Button variant="outline" onClick={pauseGame} disabled>
                 {t("host.pause")}
               </Button>

@@ -220,6 +220,7 @@ signInToTrack: string;
     gameDeletedDesc: string;
     pause: string;
     startGame: string;
+    editQuestions: string;
     endQuestionNow: string;
     nextQuestion: string;
     finishGame: string;
@@ -748,6 +749,7 @@ export const messages: Record<Locale, Messages> = {
       gameDeletedDesc: "All rounds and players were removed.",
       pause: "Pause",
       startGame: "Start game",
+      editQuestions: "Edit questions",
       endQuestionNow: "End question now",
       nextQuestion: "Next question",
       finishGame: "Finish game",
@@ -1274,6 +1276,7 @@ export const messages: Record<Locale, Messages> = {
       gameDeletedDesc: "أُزيلت جميع الجولات واللاعبين.",
       pause: "إيقاف مؤقت",
       startGame: "بدء اللعبة",
+      editQuestions: "تعديل الأسئلة",
       endQuestionNow: "إنهاء السؤال الآن",
       nextQuestion: "السؤال التالي",
       finishGame: "إنهاء اللعبة",
@@ -1800,6 +1803,7 @@ export const messages: Record<Locale, Messages> = {
       gameDeletedDesc: "Toutes les manches et joueurs ont été supprimés.",
       pause: "Pause",
       startGame: "Lancer le jeu",
+      editQuestions: "Modifier les questions",
       endQuestionNow: "Terminer la question",
       nextQuestion: "Question suivante",
       finishGame: "Terminer le jeu",
