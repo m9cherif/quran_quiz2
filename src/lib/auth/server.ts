@@ -35,7 +35,8 @@ export interface NewAccountInput {
  * handle_new_user trigger. Roles are never taken from client-claimable data.
  */
 export async function createUserAccount(input: NewAccountInput) {
-  const { data, error } = await getServiceClient().auth.admin.createUser({
+  const client = getServiceClient();
+  const { data, error } = await client.auth.admin.createUser({
     email: input.email,
     password: input.password,
     email_confirm: true,
@@ -43,5 +44,16 @@ export async function createUserAccount(input: NewAccountInput) {
     user_metadata: { name: input.name },
   });
   if (error) throw error;
+
+  // The handle_new_user trigger may fire before app_metadata is visible in
+  // raw_app_meta_data (async metadata write), which would leave the profile
+  // with the default 'student' role. Set it explicitly here (service role
+  // bypasses RLS; profile.role is immutable by clients).
+  const { error: updateError } = await client
+    .from("profiles")
+    .update({ role: input.role })
+    .eq("id", data.user.id);
+  if (updateError) throw updateError;
+
   return data.user;
 }
