@@ -9,6 +9,11 @@ import leaderBoardReducer from "./Slices/leaderBoardSlice";
 const persistConfig = {
     key: "root",
     storage,
+    // Never boot from a persisted user profile/status: the role must be
+    // re-fetched from the DB on every load (stale persisted roles caused
+    // wrongful "access restricted" redirects). Session tokens live in
+    // Supabase's own storage, so this is purely a UI-state refresh.
+    blacklist: ["user"],
 };
 
 const rootReducer = combineReducers({

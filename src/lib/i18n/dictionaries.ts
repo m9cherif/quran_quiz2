@@ -36,9 +36,6 @@ questionWord: string;
       avg: string;
       errorTitle: string;
       errorDesc: string;
-      accessDenied: string;
-      accessDeniedDesc: string;
-      backHome: string;
     };
   nav: {
     home: string;
@@ -540,9 +537,6 @@ export const messages: Record<Locale, Messages> = {
       avg: "avg",
       errorTitle: "Something went wrong",
       errorDesc: "An unexpected error occurred while rendering this section.",
-      accessDenied: "Access restricted",
-      accessDeniedDesc: "This area is only available to {role} accounts.",
-      backHome: "Back to home",
     },
     nav: {
       home: "Home",
@@ -1054,9 +1048,6 @@ export const messages: Record<Locale, Messages> = {
       avg: "متوسط",
       errorTitle: "حدث خطأ ما",
       errorDesc: "حدث خطأ غير متوقع أثناء عرض هذا القسم.",
-      accessDenied: "الوصول مقيد",
-      accessDeniedDesc: "هذه المنطقة متاحة فقط لحسابات {role}.",
-      backHome: "العودة إلى الرئيسية",
     },
     nav: {
       home: "الرئيسية",
@@ -1561,9 +1552,6 @@ export const messages: Record<Locale, Messages> = {
       avg: "moy.",
       errorTitle: "Quelque chose s'est mal passé",
       errorDesc: "Une erreur inattendue s'est produite lors du rendu de cette section.",
-      accessDenied: "Accès restreint",
-      accessDeniedDesc: "Cette zone n'est disponible que pour les comptes {role}.",
-      backHome: "Retour à l'accueil",
     },
     nav: {
       home: "Accueil",
