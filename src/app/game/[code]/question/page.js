@@ -19,6 +19,7 @@ import { removeParticipant } from "@/store/Slices/participantSlice";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
  * GameQuestion — student answer screen driven by server timestamps.
@@ -30,6 +31,7 @@ import { useToast } from "@/components/ui/Toast";
 export default function GameQuestion({ params }) {
   const router = useRouter();
   const dispatch = useDispatch();
+  const { t } = useI18n();
   const participant = useSelector((state) => state.participant.Participant);
   const { toast } = useToast();
   const code = typeof params?.code === "string" ? params.code.toUpperCase() : "";
@@ -89,7 +91,7 @@ export default function GameQuestion({ params }) {
         setStatus(current.status);
       } catch (err) {
         console.error("Question bootstrap failed:", err);
-        setError("Couldn't reach the game. Check your connection.");
+        setError(t("game.connectError"));
       }
     };
     bootstrap();
@@ -271,7 +273,7 @@ export default function GameQuestion({ params }) {
     const answerText = hasChoices ? undefined : textAnswer.trim();
 
     if (!choiceId && !answerText) {
-      setError("Pick an answer before submitting.");
+      setError(t("game.pickAnswerError"));
       return;
     }
 
@@ -290,9 +292,9 @@ export default function GameQuestion({ params }) {
     } catch (err) {
       console.error("Submit failed:", err);
       if (err?.code === "28000") {
-        setError("This question just closed. Wait for the host to continue.");
+        setError(t("game.questionClosedError"));
       } else {
-        toast({ title: "Couldn't send your answer", variant: "error" });
+        toast({ title: t("game.sendAnswerFailed"), variant: "error" });
       }
     } finally {
       setSubmitting(false);
@@ -313,12 +315,10 @@ export default function GameQuestion({ params }) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <Card padding="lg" className="w-full max-w-sm text-center">
-          <h1 className="text-lg font-semibold text-ink">Game ended</h1>
-          <p className="mt-2 text-sm text-ink-muted">
-            The game is no longer available. Ask your host for the next one.
-          </p>
+          <h1 className="text-lg font-semibold text-ink">{t("game.gameEndedTitle")}</h1>
+          <p className="mt-2 text-sm text-ink-muted">{t("game.gameEnded")}</p>
           <Button href="/join" className="mt-6 w-full">
-            Back to join
+            {t("common.back")}
           </Button>
         </Card>
       </div>
@@ -329,12 +329,10 @@ export default function GameQuestion({ params }) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <Card padding="lg" className="w-full max-w-sm text-center">
-          <h1 className="text-lg font-semibold text-ink">Session expired</h1>
-          <p className="mt-2 text-sm text-ink-muted">
-            Your game session is missing. Join again with the game code.
-          </p>
+          <h1 className="text-lg font-semibold text-ink">{t("game.sessionExpired")}</h1>
+          <p className="mt-2 text-sm text-ink-muted">{t("game.notAvailableDesc")}</p>
           <Button href="/join" className="mt-6 w-full">
-            Join a game
+            {t("nav.joinGame")}
           </Button>
         </Card>
       </div>
@@ -346,7 +344,7 @@ export default function GameQuestion({ params }) {
       <div className="flex min-h-screen items-center justify-center bg-surface-2 px-4">
         <div className="text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="mt-4 text-sm font-medium text-ink">Connecting…</p>
+          <p className="mt-4 text-sm font-medium text-ink">{t("game.connecting")}</p>
         </div>
       </div>
     );
@@ -358,9 +356,9 @@ export default function GameQuestion({ params }) {
         <Card padding="lg" className="w-full max-w-sm text-center">
           <p className="text-sm font-medium text-ink-muted">{game.name}</p>
           <p className="mt-1 font-mono text-3xl font-bold tracking-[0.3em] text-primary">{code}</p>
-          <p className="mt-6 text-sm font-medium text-ink">Waiting for the host to start…</p>
+          <p className="mt-6 text-sm font-medium text-ink">{t("game.startingSoon")}</p>
           <Button variant="ghost" onClick={leaveGame} className="mt-6 w-full">
-            Leave the game
+            {t("game.leaveGame")}
           </Button>
         </Card>
       </div>
@@ -372,8 +370,8 @@ export default function GameQuestion({ params }) {
       <div className="flex min-h-screen flex-col items-center justify-center bg-surface-2 px-4">
         <Card padding="lg" className="w-full max-w-sm text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="mt-4 text-sm font-medium text-ink">Getting ready…</p>
-          <p className="mt-1 text-xs text-ink-muted">The host is about to start a question.</p>
+          <p className="mt-4 text-sm font-medium text-ink">{t("game.gettingReady")}</p>
+          <p className="mt-1 text-xs text-ink-muted">{t("game.hostAboutToStart")}</p>
         </Card>
       </div>
     );
@@ -386,10 +384,12 @@ export default function GameQuestion({ params }) {
     <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-4 py-8">
       <div className="mb-4 flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-ink-muted">
-          Question {currentQuestion.position} of {questions.length}
+          {t("game.questionOf", { position: currentQuestion.position, total: questions.length })}
         </p>
         <div className="flex items-center gap-3">
-          <p className="text-sm font-medium text-ink">Score: {Math.round(totalScore)}</p>
+          <p className="text-sm font-medium text-ink">
+            {t("game.scoreLabel", { total: Math.round(totalScore) })}
+          </p>
           {isActive && (
             <span
               className={`rounded-full px-3 py-1 text-sm font-semibold ${
@@ -410,7 +410,7 @@ export default function GameQuestion({ params }) {
           padding="md"
           className="mb-4 border-amber-400 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100"
         >
-          <p className="text-sm font-semibold">Game paused by the host</p>
+          <p className="text-sm font-semibold">{t("game.pausedOverlay")}</p>
         </Card>
       )}
 
@@ -420,7 +420,7 @@ export default function GameQuestion({ params }) {
         {isActive && !wasSubmitted && (
           <>
             {(currentQuestion.type === "mcq" || currentQuestion.type === "true_false") && (
-              <div role="group" aria-label="Answer choices" className="grid gap-2.5">
+              <div role="group" aria-label={t("game.answerChoicesLabel")} className="grid gap-2.5">
                 {questionChoices.map((choice) => {
                   const isSelected = selectedChoiceId === choice.id;
                   return (
@@ -460,10 +460,10 @@ export default function GameQuestion({ params }) {
                   setError("");
                 }}
                 placeholder={
-                  currentQuestion.type === "number" ? "Type a number…" : "Type your answer…"
+                  currentQuestion.type === "number" ? t("game.typeNumber") : t("game.typeAnswer")
                 }
                 autoComplete="off"
-                aria-label="Your answer"
+                aria-label={t("game.typeAnswer")}
                 className="w-full rounded-md border border-border bg-surface px-4 py-3 text-sm text-ink outline-none transition-colors focus:border-primary focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-focus-ring"
               />
             )}
@@ -481,7 +481,7 @@ export default function GameQuestion({ params }) {
               loading={submitting}
               onClick={() => handleSubmit()}
             >
-              Submit answer
+              {t("game.submitAnswer")}
             </Button>
           </>
         )}
@@ -489,9 +489,9 @@ export default function GameQuestion({ params }) {
         {isActive && wasSubmitted && (
           <div className="rounded-md bg-surface-3 p-4 text-center">
             <p className="text-sm font-semibold text-success-strong">
-              {isCorrect ? "Correct!" : "Answer submitted"}
+              {isCorrect ? `${t("game.correct")}!` : t("game.answerSubmitted")}
             </p>
-            <p className="mt-1 text-xs text-ink-muted">Waiting for the timer to finish…</p>
+            <p className="mt-1 text-xs text-ink-muted">{t("game.waitingTimer")}</p>
           </div>
         )}
 
@@ -508,9 +508,11 @@ export default function GameQuestion({ params }) {
             >
               {myAnswer
                 ? isCorrect
-                  ? `Correct! +${Math.round((myAnswer.points ?? 0) + (myAnswer.bonus_points ?? 0))} pts`
-                  : "Wrong answer"
-                : "No answer submitted"}
+                  ? `${t("game.correct")}! +${Math.round(
+                      (myAnswer.points ?? 0) + (myAnswer.bonus_points ?? 0)
+                    )} ${t("common.points")}`
+                  : t("game.wrongAnswer")
+                : t("game.noAnswerSubmitted")}
             </div>
 
             {questionChoices.map((choice) => {
@@ -532,10 +534,10 @@ export default function GameQuestion({ params }) {
                   </span>
                   {choice.text}
                   {isCorrectChoice && (
-                    <span className="ms-2 text-xs font-semibold">✓ Correct</span>
+                    <span className="ms-2 text-xs font-semibold">✓ {t("game.correct")}</span>
                   )}
                   {isMyPick && !isCorrectChoice && (
-                    <span className="ms-2 text-xs font-semibold">✗ You picked this</span>
+                    <span className="ms-2 text-xs font-semibold">✗ {t("game.youPickedThis")}</span>
                   )}
                 </div>
               );
@@ -545,28 +547,26 @@ export default function GameQuestion({ params }) {
               <div className="rounded-md bg-surface-3 p-4 text-sm text-ink-muted">
                 {reveal.correct_answer_text && (
                   <p>
-                    <span className="font-semibold text-ink">Answer: </span>
+                    <span className="font-semibold text-ink">{t("game.correctAnswerIs")} </span>
                     {reveal.correct_answer_text}
                   </p>
                 )}
                 {reveal.explanation && (
                   <p className="mt-1">
-                    <span className="font-semibold text-ink">Why: </span>
+                    <span className="font-semibold text-ink">{t("game.why")}: </span>
                     {reveal.explanation}
                   </p>
                 )}
               </div>
             )}
 
-            <p className="text-center text-xs text-ink-muted">
-              Waiting for the host to continue…
-            </p>
+            <p className="text-center text-xs text-ink-muted">{t("game.waitingForQuestion")}</p>
           </div>
         )}
 
         {!isActive && !reveal && (
           <p className="text-center text-sm text-ink-muted">
-            {wasSubmitted ? "Revealing the answer…" : "Loading results…"}
+            {wasSubmitted ? t("game.revealingAnswer") : t("game.loadingResults")}
           </p>
         )}
       </Card>
@@ -576,7 +576,7 @@ export default function GameQuestion({ params }) {
         onClick={leaveGame}
         className="mt-4 text-center text-sm font-medium text-ink-muted underline-offset-4 hover:text-ink hover:underline"
       >
-        Leave the game
+        {t("game.leaveGame")}
       </button>
     </div>
   );

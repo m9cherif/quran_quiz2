@@ -7,17 +7,18 @@ import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import EmptyState from "@/components/ui/EmptyState";
 import { getMyHistory } from "@/services/analytics";
-
-const STATUS_BADGE = {
-  finished: { variant: "neutral", label: "Finished" },
-  cancelled: { variant: "neutral", label: "Cancelled" },
-  running: { variant: "success", label: "Running" },
-  waiting: { variant: "info", label: "Waiting" },
-  paused: { variant: "warning", label: "Paused" },
-};
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 function StatusBadge({ status }) {
-  const info = STATUS_BADGE[status] ?? { variant: "neutral", label: status };
+  const { t } = useI18n();
+  const map = {
+    finished: { variant: "neutral", label: t("common.finished") },
+    cancelled: { variant: "neutral", label: t("common.cancelled") },
+    running: { variant: "success", label: t("common.running") },
+    waiting: { variant: "info", label: t("common.waiting") },
+    paused: { variant: "warning", label: t("common.paused") },
+  };
+  const info = map[status] ?? { variant: "neutral", label: status };
   return <Badge variant={info.variant}>{info.label}</Badge>;
 }
 
@@ -28,6 +29,7 @@ function StatusBadge({ status }) {
 export default function StudentHistory() {
   const [history, setHistory] = useState(null);
   const [failed, setFailed] = useState(false);
+  const { t } = useI18n();
 
   useEffect(() => {
     let cancelled = false;
@@ -47,12 +49,9 @@ export default function StudentHistory() {
   if (failed) {
     return (
       <Card>
-        <EmptyState
-          title="Couldn't load your history"
-          description="Check your connection and try again."
-        >
+        <EmptyState title={t("common.loadFailedTitle")} description={t("common.loadFailedDesc")}>
           <Button variant="outline" onClick={() => window.location.reload()}>
-            Try again
+            {t("common.tryAgain")}
           </Button>
         </EmptyState>
       </Card>
@@ -79,21 +78,19 @@ export default function StudentHistory() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-ink">Game history</h1>
-          <p className="mt-0.5 text-sm text-ink-muted">
-            Every game you joined while signed in, with your score and accuracy.
-          </p>
+          <h1 className="text-2xl font-bold text-ink">{t("student.historyTitle")}</h1>
+          <p className="mt-0.5 text-sm text-ink-muted">{t("student.historySub")}</p>
         </div>
-        <Button href="/join">Join a game</Button>
+        <Button href="/join">{t("nav.joinGame")}</Button>
       </div>
 
       {history.length === 0 ? (
         <Card className="mt-6">
           <EmptyState
-            title="No games recorded"
-            description="Sign in and join a live game to start building your history."
+            title={t("student.noGamesTitle")}
+            description={t("student.noGamesDesc")}
           >
-            <Button href="/join">Join a game</Button>
+            <Button href="/join">{t("nav.joinGame")}</Button>
           </EmptyState>
         </Card>
       ) : (
@@ -103,18 +100,22 @@ export default function StudentHistory() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-ink">{h.name}</p>
                 <p className="mt-0.5 text-xs text-ink-muted">
-                  Code {h.code} · joined {new Date(h.joined_at).toLocaleString()}
-                  {h.finished_at && ` · finished ${new Date(h.finished_at).toLocaleDateString()}`}
+                  {t("common.code")} {h.code} · {t("student.joined")}{" "}
+                  {new Date(h.joined_at).toLocaleString()}
+                  {h.finished_at &&
+                    ` · ${t("common.finished")} ${new Date(h.finished_at).toLocaleDateString()}`}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="text-ink-muted">
-                  {h.correct_count}/{h.answered_count} correct
+                  {h.correct_count}/{h.answered_count} {t("student.correctOf")}
                 </span>
                 <span className="inline-flex h-8 min-w-12 items-center justify-center rounded-md bg-surface-3 px-2 font-semibold text-ink">
                   {h.accuracy}%
                 </span>
-                <span className="font-semibold text-ink">{h.score.toLocaleString()} pts</span>
+                <span className="font-semibold text-ink">
+                  {h.score.toLocaleString()} {t("common.points")}
+                </span>
                 <StatusBadge status={h.status} />
               </div>
             </li>

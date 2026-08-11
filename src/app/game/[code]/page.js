@@ -9,6 +9,7 @@ import { removeParticipant } from "@/store/Slices/participantSlice";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
  * GameLobby — student waiting room for a Supabase live game.
@@ -18,6 +19,7 @@ import Badge from "@/components/ui/Badge";
 export default function GameLobby({ params }) {
   const router = useRouter();
   const dispatch = useDispatch();
+  const { t } = useI18n();
   const participant = useSelector((state) => state.participant.Participant);
   const code = typeof params?.code === "string" ? params.code.toUpperCase() : "";
 
@@ -56,7 +58,7 @@ export default function GameLobby({ params }) {
         setPlayerCount(await gameParticipantCount(competitionId, accessToken));
       } catch (err) {
         console.error("Lobby bootstrap failed:", err);
-        setError("Couldn't reach the game. Check your connection.");
+        setError(t("game.connectError"));
       }
     };
     bootstrap();
@@ -130,12 +132,10 @@ export default function GameLobby({ params }) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <Card padding="lg" className="w-full max-w-sm text-center">
-          <h1 className="text-lg font-semibold text-ink">Game not available</h1>
-          <p className="mt-2 text-sm text-ink-muted">
-            This game was closed by the host or is no longer joinable.
-          </p>
+          <h1 className="text-lg font-semibold text-ink">{t("game.notAvailableTitle")}</h1>
+          <p className="mt-2 text-sm text-ink-muted">{t("game.notAvailableDesc")}</p>
           <Button href="/join" className="mt-6 w-full">
-            Back to join
+            {t("common.back")}
           </Button>
         </Card>
       </div>
@@ -146,12 +146,12 @@ export default function GameLobby({ params }) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <Card padding="lg" className="w-full max-w-sm text-center">
-          <h1 className="text-lg font-semibold text-ink">Session expired</h1>
+          <h1 className="text-lg font-semibold text-ink">{t("game.sessionExpired")}</h1>
           <p className="mt-2 text-sm text-ink-muted">
-            Your game session is missing. Join again with the game code.
+            {t("game.notAvailableDesc")}
           </p>
           <Button href="/join" className="mt-6 w-full">
-            Join a game
+            {t("nav.joinGame")}
           </Button>
         </Card>
       </div>
@@ -162,13 +162,13 @@ export default function GameLobby({ params }) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-surface-2 px-4">
         <Card padding="lg" className="w-full max-w-sm text-center">
-          <p className="text-sm font-medium text-ink-muted">Game code</p>
+          <p className="text-sm font-medium text-ink-muted">{t("common.code")}</p>
           <p className="mt-1 font-mono text-3xl font-bold tracking-[0.3em] text-primary">
             {code}
           </p>
           <div className="mt-6 space-y-2">
             <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <p className="text-sm font-medium text-ink">Connecting to the game…</p>
+            <p className="text-sm font-medium text-ink">{t("game.connecting")}</p>
           </div>
         </Card>
       </div>
@@ -188,13 +188,15 @@ export default function GameLobby({ params }) {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
             <span className="relative inline-flex h-3 w-3 rounded-full bg-primary" />
           </span>
-          <p className="text-sm font-medium text-ink">Waiting for the host to start…</p>
+          <p className="text-sm font-medium text-ink">{t("game.startingSoon")}</p>
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-          <Badge variant="primary">{participant.displayName || "You"}</Badge>
+          <Badge variant="primary">{participant.displayName || t("game.you")}</Badge>
           <Badge>
-            {playerCount > 0 ? `${playerCount} player${playerCount === 1 ? "" : "s"} joined` : "Waiting for players"}
+            {playerCount > 0
+              ? `${playerCount} ${t("game.playerCount")}`
+              : t("game.waitingForPlayers")}
           </Badge>
         </div>
 
@@ -210,7 +212,7 @@ export default function GameLobby({ params }) {
         onClick={leaveLobby}
         className="mt-4 text-sm font-medium text-ink-muted underline-offset-4 hover:text-ink hover:underline"
       >
-        Leave the lobby
+        {t("game.leaveLobby")}
       </button>
     </div>
   );

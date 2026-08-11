@@ -8,10 +8,11 @@ import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { signInWithEmail } from "@/lib/auth/client";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const ROLES = [
-  { value: "host", label: "Host", description: "Create quizzes and run live games" },
-  { value: "student", label: "Student", description: "Join games and track progress" },
+  { value: "host", label: "auth.iAmHost", description: "auth.hostDescription" },
+  { value: "student", label: "auth.iAmStudent", description: "auth.studentDescription" },
 ];
 
 export default function RegisterPage() {
@@ -24,21 +25,22 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const { t } = useI18n();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
     if (name.trim().length < 2) {
-      setError("Name must be at least 2 characters.");
+      setError(t("auth.nameTooShort"));
       return;
     }
     if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError(t("auth.passwordTooShort"));
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError(t("auth.passwordsDoNotMatch"));
       return;
     }
 
@@ -52,11 +54,15 @@ export default function RegisterPage() {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        setError(data?.error || "Could not create the account. Try a different email.");
+        setError(data?.error || t("auth.serverUnreachable"));
         return;
       }
 
-      toast({ title: "Account created", description: "Signing you in…", variant: "success" });
+      toast({
+        title: t("auth.accountCreatedTitle"),
+        description: t("auth.accountCreatedDesc"),
+        variant: "success",
+      });
 
       const { error: signInError } = await signInWithEmail(email.trim(), password);
       if (signInError) {
@@ -66,7 +72,7 @@ export default function RegisterPage() {
       router.push(role === "host" ? "/host/games" : "/");
     } catch (err) {
       console.error("Signup failed:", err);
-      setError("Could not reach the server. Check your connection and try again.");
+      setError(t("auth.serverUnreachable"));
     } finally {
       setIsLoading(false);
     }
@@ -74,14 +80,12 @@ export default function RegisterPage() {
 
   return (
     <Card padding="lg" className="w-full max-w-md">
-      <h1 className="text-xl font-semibold text-ink">Create your account</h1>
-      <p className="mt-1 text-sm text-ink-muted">
-        Choose how you want to use the platform.
-      </p>
+      <h1 className="text-xl font-semibold text-ink">{t("auth.createAccount")}</h1>
+      <p className="mt-1 text-sm text-ink-muted">{t("auth.registerSub")}</p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-5">
         <fieldset>
-          <legend className="mb-2 text-sm font-medium text-ink">Account type</legend>
+          <legend className="mb-2 text-sm font-medium text-ink">{t("auth.accountType")}</legend>
           <div className="grid grid-cols-1 gap-2">
             {ROLES.map((option) => (
               <label
@@ -101,8 +105,8 @@ export default function RegisterPage() {
                   className="mt-1 h-4 w-4 accent-primary"
                 />
                 <span>
-                  <span className="block text-sm font-semibold text-ink">{option.label}</span>
-                  <span className="block text-xs text-ink-muted">{option.description}</span>
+                  <span className="block text-sm font-semibold text-ink">{t(option.label)}</span>
+                  <span className="block text-xs text-ink-muted">{t(option.description)}</span>
                 </span>
               </label>
             ))}
@@ -110,15 +114,15 @@ export default function RegisterPage() {
         </fieldset>
 
         <Input
-          label="Full name"
+          label={t("auth.name")}
           required
           autoComplete="name"
-          placeholder="Your name"
+          placeholder={t("auth.name")}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <Input
-          label="Email"
+          label={t("auth.email")}
           type="email"
           required
           autoComplete="email"
@@ -127,34 +131,34 @@ export default function RegisterPage() {
           onChange={(e) => setEmail(e.target.value)}
         />
         <Input
-          label="Password"
+          label={t("auth.password")}
           type="password"
           required
           autoComplete="new-password"
-          placeholder="Minimum 6 characters"
+          placeholder={t("auth.minCharsHint")}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          hint="At least 6 characters."
+          hint={t("auth.minCharsHint")}
         />
         <Input
-          label="Confirm password"
+          label={t("auth.confirmPassword")}
           type="password"
           required
           autoComplete="new-password"
-          placeholder="Repeat your password"
+          placeholder={t("auth.confirmPassword")}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           error={error || undefined}
         />
         <Button type="submit" loading={isLoading} className="w-full" size="lg">
-          Create account
+          {t("auth.signUp")}
         </Button>
       </form>
 
       <p className="mt-6 text-center text-sm text-ink-muted">
-        Already have an account?{" "}
+        {t("auth.alreadyHaveAccount")}{" "}
         <Link href="/login" className="font-medium text-primary hover:underline">
-          Sign in
+          {t("auth.signIn")}
         </Link>
       </p>
     </Card>

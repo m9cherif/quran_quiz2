@@ -9,22 +9,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import EmptyState from "@/components/ui/EmptyState";
 import { listMyLiveGames } from "@/services/quizzes";
 import { getGameAnalytics } from "@/services/analytics";
-
-const STATUS_BADGE = {
-  waiting: { variant: "info", label: "Waiting for players" },
-  running: { variant: "success", label: "Running" },
-  paused: { variant: "warning", label: "Paused" },
-  finished: { variant: "neutral", label: "Finished" },
-  cancelled: { variant: "neutral", label: "Cancelled" },
-};
-
-const OUTCOME_BADGE = {
-  finished: { variant: "neutral", label: "Finished" },
-  cancelled: { variant: "neutral", label: "Cancelled" },
-  running: { variant: "success", label: "Running" },
-  waiting: { variant: "info", label: "Waiting" },
-  paused: { variant: "warning", label: "Paused" },
-};
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 function formatDuration(ms) {
   if (!ms) return "—";
@@ -47,12 +32,31 @@ function StatCard({ label, value, hint }) {
  */
 export default function HostAnalytics() {
   const { toast } = useToast();
+  const { t } = useI18n();
   const [games, setGames] = useState(null);
   const [gamesError, setGamesError] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [analyticsError, setAnalyticsError] = useState(false);
   const [analyticsKey, setAnalyticsKey] = useState(0);
+
+  const getStatusInfo = (status) => {
+    const variants = {
+      waiting: "info",
+      running: "success",
+      paused: "warning",
+      finished: "neutral",
+      cancelled: "neutral",
+    };
+    const labels = {
+      waiting: t("host.gameBadgeWaiting"),
+      running: t("host.gameBadgeRunning"),
+      paused: t("host.gameBadgePaused"),
+      finished: t("host.gameBadgeFinished"),
+      cancelled: t("host.gameBadgeCancelled"),
+    };
+    return { variant: variants[status] ?? "neutral", label: labels[status] ?? status };
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -95,12 +99,9 @@ export default function HostAnalytics() {
   if (gamesError) {
     return (
       <Card>
-        <EmptyState
-          title="Couldn't load your games"
-          description="Check your connection and try again."
-        >
+        <EmptyState title={t("host.loadGamesFailed")} description={t("common.loadFailedDesc")}>
           <Button variant="outline" onClick={() => window.location.reload()}>
-            Try again
+            {t("common.tryAgain")}
           </Button>
         </EmptyState>
       </Card>
@@ -120,13 +121,10 @@ export default function HostAnalytics() {
   if (games.length === 0) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-ink">Analytics</h1>
+        <h1 className="text-2xl font-bold text-ink">{t("host.analyticsTitle")}</h1>
         <Card className="mt-6">
-          <EmptyState
-            title="No games yet"
-            description="Launch a quiz to see score, accuracy and response-time stats here."
-          >
-            <Button href="/host/quizzes">Open my quizzes</Button>
+          <EmptyState title={t("host.noGamesTitle")} description={t("host.noGamesDesc")}>
+            <Button href="/host/quizzes">{t("nav.myQuizzes")}</Button>
           </EmptyState>
         </Card>
       </div>
@@ -137,40 +135,38 @@ export default function HostAnalytics() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-ink">Analytics</h1>
-          <p className="mt-0.5 text-sm text-ink-muted">
-            Score, accuracy, response time and the questions your players missed.
-          </p>
+          <h1 className="text-2xl font-bold text-ink">{t("host.analyticsTitle")}</h1>
+          <p className="mt-0.5 text-sm text-ink-muted">{t("host.analyticsSub")}</p>
         </div>
         <Button variant="outline" size="sm" href="/host/games">
-          Manage games
+          {t("host.manageGames")}
         </Button>
       </div>
 
       {gamesCount > 0 && (
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard label="Games launched" value={gamesCount} />
+          <StatCard label={t("host.gamesLaunched")} value={gamesCount} />
           <StatCard
-            label="Players"
+            label={t("host.playersHeading")}
             value={analytics ? analytics.participants_count : "—"}
-            hint={analytics ? `In ${analytics.code}` : undefined}
+            hint={analytics ? t("host.inGame", { code: analytics.code }) : undefined}
           />
           <StatCard
-            label="Questions"
+            label={t("host.statQuestions")}
             value={analytics ? analytics.questions_count : "—"}
-            hint={analytics ? `In ${analytics.code}` : undefined}
+            hint={analytics ? t("host.inGame", { code: analytics.code }) : undefined}
           />
           <StatCard
-            label="Answers"
+            label={t("host.statAnswers")}
             value={analytics ? analytics.answers_count : "—"}
-            hint={analytics ? `In ${analytics.code}` : undefined}
+            hint={analytics ? t("host.inGame", { code: analytics.code }) : undefined}
           />
         </div>
       )}
 
       <div className="mt-6 flex flex-wrap gap-2">
         {games.map((game) => {
-          const statusInfo = STATUS_BADGE[game.status] ?? { variant: "neutral", label: game.status };
+          const statusInfo = getStatusInfo(game.status);
           const selected = game.id === selectedId;
           return (
             <button
@@ -193,11 +189,11 @@ export default function HostAnalytics() {
       {analyticsError && (
         <Card className="mt-6">
           <EmptyState
-            title="Couldn't load the analytics"
-            description="Try again, or pick another game."
+            title={t("host.loadAnalyticsFailed")}
+            description={t("host.pickAnotherGame")}
           >
             <Button variant="outline" onClick={() => setAnalyticsKey((k) => k + 1)}>
-              Retry
+              {t("common.tryAgain")}
             </Button>
           </EmptyState>
         </Card>
@@ -215,44 +211,44 @@ export default function HostAnalytics() {
         <>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
-              label="Average score"
+              label={t("host.averageScore")}
               value={analytics.avg_score.toLocaleString()}
-              hint={analytics.answers_count === 0 ? "No answers yet" : undefined}
+              hint={analytics.answers_count === 0 ? t("host.noAnswers") : undefined}
             />
             <StatCard
-              label="Average accuracy"
+              label={t("host.averageAccuracy")}
               value={`${analytics.avg_accuracy}%`}
-              hint={`${analytics.answers_count} answers`}
+              hint={`${analytics.answers_count} ${t("common.answerWord")}`}
             />
             <StatCard
-              label="Avg response time"
+              label={t("host.avgResponseTime")}
               value={formatDuration(analytics.avg_response_time_ms)}
             />
             <StatCard
-              label="Players"
+              label={t("host.playersHeading")}
               value={analytics.participants_count}
-              hint={`${analytics.questions_count} questions`}
+              hint={`${analytics.questions_count} ${t("common.questionWord")}`}
             />
           </div>
 
           <Card className="mt-6" padding="lg">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-ink">Most-missed questions</h2>
+                <h2 className="text-lg font-semibold text-ink">{t("host.mostMissed")}</h2>
                 <p className="mt-0.5 text-sm text-ink-muted">
-                  Questions players got wrong most often in game {analytics.code}.
+                  {t("host.mostMissedSub")} {analytics.code}.
                 </p>
               </div>
-              <Badge variant={(OUTCOME_BADGE[analytics.status] ?? {}).variant ?? "neutral"}>
-                {(OUTCOME_BADGE[analytics.status] ?? {}).label ?? analytics.status}
+              <Badge variant={getStatusInfo(analytics.status).variant}>
+                {getStatusInfo(analytics.status).label}
               </Badge>
             </div>
 
             {analytics.most_missed.length === 0 ? (
               <EmptyState
                 className="mt-4"
-                title="Nothing missed"
-                description="No wrong answers recorded for this game."
+                title={t("host.nothingMissed")}
+                description={t("host.nothingMissedDesc")}
               />
             ) : (
               <ul className="mt-4 divide-y divide-border">
@@ -264,12 +260,13 @@ export default function HostAnalytics() {
                         {q.text}
                       </p>
                       <p className="mt-0.5 text-xs text-ink-muted">
-                        {q.incorrect_count} wrong · {q.accuracy}% correct · avg{" "}
-                        {formatDuration(q.avg_response_time_ms)}
+                        {q.incorrect_count} {t("host.wrongAnswers")} · {q.accuracy}
+                        {t("host.correctPct")} · {t("common.avg")} {formatDuration(q.avg_response_time_ms)}
                       </p>
                     </div>
                     <Badge variant={q.accuracy >= 50 ? "success" : "warning"}>
-                      {q.accuracy}% correct
+                      {q.accuracy}
+                      {t("host.correctPct")}
                     </Badge>
                   </li>
                 ))}

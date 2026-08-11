@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 import { getSupabase } from "@/lib/supabase/client";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { deleteQuiz, setQuizStatus } from "@/services/quizzes";
 import {
   beginQuestion,
@@ -24,14 +25,22 @@ import {
   remainingMs,
 } from "@/services/games";
 
-const STATUS_BADGE = {
-  waiting: { variant: "success", label: "Lobby open" },
-  running: { variant: "success", label: "Running" },
-  paused: { variant: "warning", label: "Paused" },
-  finished: { variant: "neutral", label: "Finished" },
-  cancelled: { variant: "neutral", label: "Cancelled" },
-  draft: { variant: "neutral", label: "Draft" },
-};
+export default function LiveGameControl({ roomKey }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const { t } = useI18n();
+
+  const statusInfoOf = (status) => {
+    const map = {
+      waiting: { variant: "success", label: t("host.lobbyOpen") },
+      running: { variant: "success", label: t("common.running") },
+      paused: { variant: "warning", label: t("common.paused") },
+      finished: { variant: "neutral", label: t("common.finished") },
+      cancelled: { variant: "neutral", label: t("common.cancelled") },
+      draft: { variant: "neutral", label: t("common.draft") },
+    };
+    return map[status] ?? { variant: "neutral", label: status };
+  };
 
 function fmt(seconds) {
   const s = Math.max(0, Math.ceil(seconds));
@@ -45,10 +54,6 @@ function fmt(seconds) {
  * the competition, its questions, answers and participants, and drives
  * the round: start → questions (server timestamps) → reveal → finish.
  */
-export default function LiveGameControl({ roomKey }) {
-  const router = useRouter();
-  const { toast } = useToast();
-
   const [state, setState] = useState("loading");
   const [loadError, setLoadError] = useState("");
   const [game, setGame] = useState(null);
@@ -68,7 +73,7 @@ export default function LiveGameControl({ roomKey }) {
   const loadAll = useCallback(async (code, fetchReveal = true) => {
     const competition = await getGameByCode(code);
     if (!competition) {
-      throw new Error("Game not found. Check the room code.");
+      throw new Error(t("host.gameNotFound"));
     }
     const items = await listGameQuestions(competition.id);
     const players = await listParticipants(competition.id);
@@ -95,7 +100,7 @@ export default function LiveGameControl({ roomKey }) {
     } else if (!fetchReveal) {
       setReveal(null);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,7 +113,7 @@ export default function LiveGameControl({ roomKey }) {
       } catch (err) {
         console.error("Failed to load game:", err);
         if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : "Could not open this game.");
+          setLoadError(err instanceof Error ? err.message : t("host.couldNotOpen"));
           setState("error");
         }
       }
@@ -231,7 +236,11 @@ export default function LiveGameControl({ roomKey }) {
         setTimeout(() => setCopied(false), 2000);
       })
       .catch(() => {
-        toast({ title: "Copy failed", variant: "error", description: "Could not copy the code." });
+        toast({
+          title: t("host.copyFailed"),
+          variant: "error",
+          description: t("host.couldNotCopy"),
+        });
       });
   };
 
@@ -242,8 +251,8 @@ export default function LiveGameControl({ roomKey }) {
     } catch (err) {
       console.error(`${action} failed:`, err);
       toast({
-        title: "Action failed",
-        description: err instanceof Error ? err.message : "Try again.",
+        title: t("host.actionFailed"),
+        description: err instanceof Error ? err.message : t("common.tryAgain"),
         variant: "error",
       });
     } finally {
@@ -290,7 +299,11 @@ export default function LiveGameControl({ roomKey }) {
   const deleteRoom = () =>
     run("delete", async () => {
       await deleteQuiz(game.id);
-      toast({ title: "Game deleted", description: "All rounds and players were removed.", variant: "success" });
+      toast({
+        title: t("host.gameDeleted"),
+        description: t("host.gameDeletedDesc"),
+        variant: "success",
+      });
       router.push("/host/games");
     });
 
@@ -310,18 +323,18 @@ export default function LiveGameControl({ roomKey }) {
     return (
       <EmptyState
         icon={<Spinner size={20} />}
-        title="Could not open this game"
+        title={t("host.couldNotOpen")}
         description={loadError}
       >
         <Button variant="outline" onClick={() => router.push("/host/games")}>
-          Back to games
+          {t("host.backToGames")}
         </Button>
-        <Button onClick={() => window.location.reload()}>Try again</Button>
+        <Button onClick={() => window.location.reload()}>{t("common.tryAgain")}</Button>
       </EmptyState>
     );
   }
 
-  const statusInfo = STATUS_BADGE[game.status] ?? { variant: "neutral", label: game.status };
+  const statusInfo = statusInfoOf(game.status);
   const activeEnds = current && new Date(current.ends_at).getTime() > now ? current.ends_at : null;
 
   return (
@@ -329,7 +342,7 @@ export default function LiveGameControl({ roomKey }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" href="/host/games">
-            ← Games
+            ← {t("nav.liveGames")}
           </Button>
           <h1 className="text-xl font-bold text-ink sm:text-2xl">{game.name}</h1>
           <Badge variant={statusInfo.variant} dot>
@@ -340,25 +353,25 @@ export default function LiveGameControl({ roomKey }) {
           {phase === "lobby" && (
             <>
               <Button variant="outline" onClick={pauseGame} disabled>
-                Pause
+                {t("host.pause")}
               </Button>
               <Button loading={busyAction === "start"} onClick={startGame} disabled={!upNext}>
-                Start game
+                {t("host.startGame")}
               </Button>
             </>
           )}
           {phase === "active" && (
             <>
               <Button variant="outline" loading={busyAction === "pause"} onClick={pauseGame}>
-                Pause
+                {t("host.pause")}
               </Button>
               {current && new Date(current.ends_at).getTime() > now ? (
                 <Button variant="outline" loading={busyAction === "end"} onClick={endCurrent}>
-                  End question now
+                  {t("host.endQuestionNow")}
                 </Button>
               ) : upNext ? (
                 <Button loading={busyAction === "next"} onClick={nextQuestion}>
-                  Next question
+                  {t("host.nextQuestion")}
                 </Button>
               ) : null}
               <Button
@@ -367,18 +380,18 @@ export default function LiveGameControl({ roomKey }) {
                 onClick={finishGame}
                 disabled={Boolean(upNext)}
               >
-                Finish game
+                {t("host.finishGame")}
               </Button>
             </>
           )}
           {phase === "paused" && (
             <Button loading={busyAction === "resume"} onClick={resumeGame}>
-              Resume game
+              {t("host.resumeGame")}
             </Button>
           )}
           {(phase === "finished" || phase === "cancelled") && (
             <Button variant="outline" onClick={() => router.push("/host/games")}>
-              Back to games
+              {t("host.backToGames")}
             </Button>
           )}
         </div>
@@ -390,27 +403,31 @@ export default function LiveGameControl({ roomKey }) {
             <Card className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-ink">
-                  Question {current.position} of {questions.length}
+                  {t("host.questionOfCtrl", { position: current.position, total: questions.length })}
                 </h2>
                 {activeEnds && (
                   <Badge variant="warning" dot>
-                    {fmt(remainingMs(activeEnds, now) / 1000)} remaining
+                    {fmt(remainingMs(activeEnds, now) / 1000)} {t("host.remaining")}
                   </Badge>
                 )}
-                {!activeEnds && <Badge variant="neutral">Closed</Badge>}
+                {!activeEnds && <Badge variant="neutral">{t("host.closed")}</Badge>}
               </div>
               <p className="text-lg font-medium text-ink">{current.text}</p>
               <div className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
                 <Badge variant="info">{current.type}</Badge>
-                <Badge variant="neutral">+{current.points ?? game.default_points} pts</Badge>
+                <Badge variant="neutral">
+                  +{current.points ?? game.default_points} {t("common.points")}
+                </Badge>
                 {answeredCount > 0 && (
-                  <Badge variant="success">{answeredCount} answered</Badge>
+                  <Badge variant="success">
+                    {answeredCount} {t("host.answered")}
+                  </Badge>
                 )}
               </div>
 
               {reveal && reveal.id === current.id && !activeEnds && (
                 <div className="rounded-md border-s-4 border-s-success bg-surface-2 px-4 py-3">
-                  <p className="text-sm font-semibold text-success-strong">Correct answer</p>
+                  <p className="text-sm font-semibold text-success-strong">{t("host.correctAnswer")}</p>
                   {reveal.choices.length > 0 ? (
                     <ul className="mt-1.5 space-y-1">
                       {reveal.choices.map((c) => (
@@ -434,13 +451,13 @@ export default function LiveGameControl({ roomKey }) {
           ) : (
             <Card className="flex flex-col items-center gap-2 py-12 text-center">
               <Spinner size={22} className="text-ink-faint" />
-              <p className="text-sm text-ink-muted">No active question.</p>
+              <p className="text-sm text-ink-muted">{t("host.noActiveQuestion")}</p>
             </Card>
           )}
 
           {phase !== "finished" && phase !== "cancelled" && (
           <Card className="space-y-3">
-            <h2 className="text-sm font-semibold text-ink">Question deck</h2>
+            <h2 className="text-sm font-semibold text-ink">{t("host.questionDeck")}</h2>
             <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {questions.map((q) => {
                 const isCurrent = current?.id === q.id;
@@ -459,7 +476,12 @@ export default function LiveGameControl({ roomKey }) {
                     <span className="font-medium">{q.position}. </span>
                     <span className="line-clamp-1">{q.text}</span>
                     <span className="mt-0.5 block text-xs text-ink-faint">
-                      {done ? (isCurrent ? "Active" : "Done") : "Upcoming"} · {q.duration_seconds}s
+                      {done
+                        ? isCurrent
+                          ? t("host.active")
+                          : t("host.done")
+                        : t("host.upcoming")}{" "}
+                      · {q.duration_seconds}s
                     </span>
                   </li>
                 );
@@ -471,8 +493,10 @@ export default function LiveGameControl({ roomKey }) {
         {(phase === "finished" || phase === "cancelled") && (
           <Card className="space-y-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-ink">Results</h2>
-              <Badge variant="neutral">{leaderboard.length} players</Badge>
+              <h2 className="text-base font-semibold text-ink">{t("host.results")}</h2>
+              <Badge variant="neutral">
+                {leaderboard.length} {t("common.players")}
+              </Badge>
             </div>
 
             {leaderboard.length >= 3 && (
@@ -491,7 +515,11 @@ export default function LiveGameControl({ roomKey }) {
                       className={`rounded-md border px-3 py-4 text-center ${medal} ${slot === 0 ? "order-2 scale-105" : slot === 1 ? "order-1" : "order-3"}`}
                     >
                       <p className="text-xs font-bold uppercase tracking-wide opacity-70">
-                        {slot === 0 ? "1st place" : slot === 1 ? "2nd place" : "3rd place"}
+                        {slot === 0
+                          ? `${t("game.firstPlace")} ${t("host.place")}`
+                          : slot === 1
+                            ? `${t("game.secondPlace")} ${t("host.place")}`
+                            : `${t("game.thirdPlace")} ${t("host.place")}`}
                       </p>
                       <p className="mt-1 truncate text-sm font-semibold">{row.display_name}</p>
                       <p className="mt-0.5 text-lg font-bold">{Math.round(row.total_points)}</p>
@@ -510,7 +538,7 @@ export default function LiveGameControl({ roomKey }) {
                   <span className="w-6 text-center text-xs font-bold text-ink-faint">{row.rank}</span>
                   <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.display_name}</span>
                   <span className="shrink-0 text-xs text-ink-muted">
-                    {row.correct_count}/{row.answered_count} correct
+                    {row.correct_count}/{row.answered_count} {t("student.correctOf")}
                   </span>
                   <span className="shrink-0 font-semibold text-ink">{Math.round(row.total_points)}</span>
                 </div>
@@ -518,9 +546,9 @@ export default function LiveGameControl({ roomKey }) {
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-ink">Per-question breakdown</h3>
+              <h3 className="text-sm font-semibold text-ink">{t("host.perQuestionBreakdown")}</h3>
               {questionStats.length === 0 ? (
-                <p className="mt-2 text-sm text-ink-muted">No question data.</p>
+                <p className="mt-2 text-sm text-ink-muted">{t("host.noQuestionData")}</p>
               ) : (
                 <ul className="mt-3 space-y-2">
                   {questionStats.map((row) => (
@@ -533,7 +561,8 @@ export default function LiveGameControl({ roomKey }) {
                           {row.position_number}. {row.text}
                         </span>
                         <span className="shrink-0 text-xs text-ink-muted">
-                          {row.correct_count}/{row.answered_count} correct · {row.accuracy}%
+                          {row.correct_count}/{row.answered_count} {t("student.correctOf")} ·{" "}
+                          {row.accuracy}%
                         </span>
                       </div>
                       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-3">
@@ -556,36 +585,35 @@ export default function LiveGameControl({ roomKey }) {
         <div className="space-y-4">
           <Card padding="lg">
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-ink">Share the code</h2>
+              <h2 className="text-base font-semibold text-ink">{t("host.shareCode")}</h2>
               <Badge variant="success" dot>
-                Lobby open
+                {t("host.lobbyOpen")}
               </Badge>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <p
                 className="rounded-md border border-border bg-surface-2 px-4 py-2 font-mono text-2xl font-bold tracking-widest text-ink"
-                aria-label="Game code"
+                aria-label={t("common.code")}
               >
                 {roomKey}
               </p>
               <Button variant="outline" onClick={copyCode}>
-                {copied ? "Copied!" : "Copy"}
+                {copied ? t("host.copied") : t("common.copy")}
               </Button>
             </div>
             <p className="mt-3 text-sm text-ink-muted">
-              Students go to <span className="font-medium text-ink">/join</span> and enter this
-              code to join the lobby.
+              {t("host.studentsGoJoin", { path: "/join" })}
             </p>
           </Card>
 
           <Card className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-ink">Players</h2>
+              <h2 className="text-base font-semibold text-ink">{t("host.playersHeading")}</h2>
               <Badge variant="neutral">{participants.length}</Badge>
             </div>
             {participants.length === 0 ? (
               <p className="py-4 text-center text-sm text-ink-muted">
-                Waiting for players to join…
+                {t("host.waitingPlayers")}
               </p>
             ) : (
               <ul className="max-h-72 divide-y divide-border overflow-y-auto">
@@ -597,7 +625,7 @@ export default function LiveGameControl({ roomKey }) {
                     />
                     <span className="min-w-0 flex-1 truncate text-sm text-ink">{p.display_name}</span>
                     <span className="text-xs text-ink-faint">
-                      {p.connected ? "online" : "away"}
+                      {p.connected ? t("host.online") : t("host.away")}
                     </span>
                   </li>
                 ))}
@@ -608,11 +636,13 @@ export default function LiveGameControl({ roomKey }) {
           {phase !== "finished" && phase !== "cancelled" && (
             <Card className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold text-ink">Leaderboard</h2>
-                <Badge variant="neutral">{leaderboard.length} players</Badge>
+                <h2 className="text-base font-semibold text-ink">{t("game.leaderboard")}</h2>
+                <Badge variant="neutral">
+                  {leaderboard.length} {t("common.players")}
+                </Badge>
               </div>
               {leaderboard.length === 0 ? (
-                <p className="py-4 text-center text-sm text-ink-muted">No scores yet.</p>
+                <p className="py-4 text-center text-sm text-ink-muted">{t("host.noScoresYet")}</p>
               ) : (
                 <ul className="max-h-80 divide-y divide-border overflow-y-auto">
                   {leaderboard.map((row) => (
@@ -637,14 +667,14 @@ export default function LiveGameControl({ roomKey }) {
           )}
 
           <Card padding="lg" className="space-y-3">
-            <h2 className="text-base font-semibold text-ink">Danger zone</h2>
+            <h2 className="text-base font-semibold text-ink">{t("host.dangerZone")}</h2>
             <Button
               variant="outline"
               className="w-full"
               onClick={() => setCancelOpen(true)}
               disabled={game.status === "finished" || game.status === "cancelled"}
             >
-              Cancel game
+              {t("host.cancelGame")}
             </Button>
             <Button
               variant="danger"
@@ -652,7 +682,7 @@ export default function LiveGameControl({ roomKey }) {
               onClick={() => setDeleteOpen(true)}
               disabled={game.status !== "finished" && game.status !== "cancelled"}
             >
-              Delete game
+              {t("host.deleteGame")}
             </Button>
           </Card>
         </div>
@@ -662,15 +692,15 @@ export default function LiveGameControl({ roomKey }) {
         open={cancelOpen}
         onClose={() => setCancelOpen(false)}
         size="sm"
-        title="Cancel this game?"
-        description="The room closes and players can no longer answer. Results stay available."
+        title={t("host.cancelTitle")}
+        description={t("host.cancelDesc")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setCancelOpen(false)} disabled={Boolean(busyAction)}>
-              Keep playing
+              {t("host.keepPlaying")}
             </Button>
             <Button variant="danger" loading={busyAction === "cancel"} onClick={cancelGame}>
-              Cancel game
+              {t("host.cancelGame")}
             </Button>
           </>
         }
@@ -680,15 +710,15 @@ export default function LiveGameControl({ roomKey }) {
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         size="sm"
-        title="Delete this game?"
-        description="The game, its rounds and all player records are permanently removed."
+        title={t("host.deleteGameTitle")}
+        description={t("host.deleteGameDesc")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setDeleteOpen(false)} disabled={Boolean(busyAction)}>
-              Keep it
+              {t("host.keepIt")}
             </Button>
             <Button variant="danger" loading={busyAction === "delete"} onClick={deleteRoom}>
-              Delete permanently
+              {t("host.deletePermanently")}
             </Button>
           </>
         }

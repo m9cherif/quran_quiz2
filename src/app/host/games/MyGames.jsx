@@ -8,14 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import EmptyState from "@/components/ui/EmptyState";
 import { listMyLiveGames, setQuizStatus } from "@/services/quizzes";
-
-const STATUS_BADGE = {
-  waiting: { variant: "info", label: "Waiting for players" },
-  running: { variant: "success", label: "Running" },
-  paused: { variant: "warning", label: "Paused" },
-  finished: { variant: "neutral", label: "Finished" },
-  cancelled: { variant: "neutral", label: "Cancelled" },
-};
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
  * MyGames — live games owned by this host (non-draft competitions).
@@ -24,8 +17,20 @@ const STATUS_BADGE = {
  */
 export default function MyGames() {
   const { toast } = useToast();
+  const { t } = useI18n();
   const [games, setGames] = useState(null);
   const [error, setError] = useState(false);
+
+  const statusBadge = (status) => {
+    const map = {
+      waiting: { variant: "info", label: t("host.gameBadgeWaiting") },
+      running: { variant: "success", label: t("host.gameBadgeRunning") },
+      paused: { variant: "warning", label: t("host.gameBadgePaused") },
+      finished: { variant: "neutral", label: t("host.gameBadgeFinished") },
+      cancelled: { variant: "neutral", label: t("host.gameBadgeCancelled") },
+    };
+    return map[status] ?? { variant: "neutral", label: status };
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -46,22 +51,23 @@ export default function MyGames() {
     try {
       await setQuizStatus(game.id, "cancelled");
       setGames((prev) => (prev ?? []).map((g) => (g.id === game.id ? { ...g, status: "cancelled" } : g)));
-      toast({ title: "Game cancelled", description: `${game.name} was stopped.`, variant: "info" });
+      toast({
+        title: t("host.cancelledToastTitle"),
+        description: `${game.name} ${t("host.cancelledToastDesc")}`,
+        variant: "info",
+      });
     } catch (err) {
       console.error("Cancel failed:", err);
-      toast({ title: "Could not cancel", description: "Try again.", variant: "error" });
+      toast({ title: t("host.cancelFailed"), description: t("common.tryAgain"), variant: "error" });
     }
   };
 
   if (error) {
     return (
       <Card>
-        <EmptyState
-          title="Couldn't load your games"
-          description="Check your connection and try again."
-        >
+        <EmptyState title={t("host.loadFailedTitle")} description={t("host.loadFailedDesc")}>
           <Button variant="outline" onClick={() => window.location.reload()}>
-            Try again
+            {t("common.tryAgain")}
           </Button>
         </EmptyState>
       </Card>
@@ -88,27 +94,25 @@ export default function MyGames() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-ink">Live games</h1>
-          <p className="mt-0.5 text-sm text-ink-muted">
-            Games you launched. Open a control room to run a round.
-          </p>
+          <h1 className="text-2xl font-bold text-ink">{t("host.myGamesTitle")}</h1>
+          <p className="mt-0.5 text-sm text-ink-muted">{t("host.myGamesSub")}</p>
         </div>
-        <Button href="/host/quizzes">Browse quizzes</Button>
+        <Button href="/host/quizzes">{t("host.browseQuizzes")}</Button>
       </div>
 
       {games.length === 0 ? (
         <Card className="mt-6">
           <EmptyState
-            title="No live games yet"
-            description="Pick a quiz from your library and launch it — students join with the room code."
+            title={t("common.noGamesYet")}
+            description={t("host.noGamesDesc")}
           >
-            <Button href="/host/quizzes">Open my quizzes</Button>
+            <Button href="/host/quizzes">{t("host.browseQuizzes")}</Button>
           </EmptyState>
         </Card>
       ) : (
         <ul className="mt-6 divide-y divide-border rounded-lg border border-border bg-surface">
           {games.map((game) => {
-            const statusInfo = STATUS_BADGE[game.status] ?? { variant: "neutral", label: game.status };
+            const statusInfo = statusBadge(game.status);
             return (
             <li key={game.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="flex min-w-0 items-center gap-3">
@@ -118,7 +122,9 @@ export default function MyGames() {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-ink">{game.name}</p>
                   <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                    <Badge variant="neutral">Code {game.code}</Badge>
+                    <Badge variant="neutral">
+                      {t("common.code")} {game.code}
+                    </Badge>
                     <Badge variant={statusInfo.variant} dot>
                       {statusInfo.label}
                     </Badge>
@@ -128,11 +134,11 @@ export default function MyGames() {
               <div className="flex items-center gap-2">
                 {(game.status === "waiting" || game.status === "paused" || game.status === "running") && (
                   <Button variant="ghost" size="sm" onClick={() => cancel(game)}>
-                    Cancel
+                    {t("host.cancel")}
                   </Button>
                 )}
                 <Button size="sm" href={`/host/games/${game.code}`}>
-                  Open control room
+                  {t("host.openControlRoom")}
                 </Button>
               </div>
             </li>

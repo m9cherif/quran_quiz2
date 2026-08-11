@@ -4,13 +4,14 @@ import { Badge } from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 import { questionPoints } from "./QuestionForm";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
-const quranRef = (q) => {
+const quranRef = (q, t) => {
   const parts = [];
-  if (q.surah_number) parts.push(`Surah ${q.surah_number}`);
-  if (q.ayah_number) parts.push(`Ayah ${q.ayah_number}`);
-  if (q.juz_number) parts.push(`Juz ${q.juz_number}`);
-  if (q.page_number) parts.push(`Page ${q.page_number}`);
+  if (q.surah_number) parts.push(`${t("editor.surah")} ${q.surah_number}`);
+  if (q.ayah_number) parts.push(`${t("editor.ayah")} ${q.ayah_number}`);
+  if (q.juz_number) parts.push(`${t("editor.juz")} ${q.juz_number}`);
+  if (q.page_number) parts.push(`${t("editor.page")} ${q.page_number}`);
   return parts.join(" · ");
 };
 
@@ -19,26 +20,35 @@ const quranRef = (q) => {
  * and the choice/answer controls. Read-only mock (no timer animation).
  */
 export function QuestionPreview({ question, defaults }) {
+  const { t } = useI18n();
   const { points, negative } = questionPoints(question, defaults);
-  const reference = quranRef(question);
+  const reference = quranRef(question, t);
 
   return (
     <Card className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Badge variant="info">Preview — {question.duration_seconds}s</Badge>
+        <Badge variant="info">
+          {t("editor.preview")} — {question.duration_seconds}s
+        </Badge>
         <div className="flex items-center gap-1.5 text-xs text-ink-muted">
-          <Badge variant="success">+{points} pts</Badge>
-          {negative < 0 && <Badge variant="danger">{negative} pts</Badge>}
+          <Badge variant="success">+{points} {t("common.points")}</Badge>
+          {negative < 0 && (
+            <Badge variant="danger">
+              {negative} {t("common.points")}
+            </Badge>
+          )}
         </div>
       </div>
 
       <div>
-        <p className="text-base font-semibold text-ink">{question.text || "Question text…"}</p>
+        <p className="text-base font-semibold text-ink">
+          {question.text || t("editor.questionTextPlaceholder")}
+        </p>
         {reference && <p className="mt-1 text-sm text-ink-muted">{reference}</p>}
       </div>
 
       {question.type === "mcq" && (
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" role="list" aria-label="Answer options">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" role="list" aria-label={t("game.answerChoicesLabel")}>
           {question.choices.filter((c) => c.text.trim()).map((choice, i) => (
             <div
               key={i}
@@ -53,7 +63,7 @@ export function QuestionPreview({ question, defaults }) {
               {choice.text}
               {choice.isCorrect && (
                 <span className="ms-auto rounded-full bg-success px-2 py-0.5 text-xs font-medium text-white">
-                  Correct
+                  {t("game.correct")}
                 </span>
               )}
             </div>
@@ -63,7 +73,10 @@ export function QuestionPreview({ question, defaults }) {
 
       {question.type === "true_false" && (
         <div className="flex gap-3">
-          {["True", "False"].map((value) => (
+          {[
+            { value: "True", label: t("editor.trueOption") },
+            { value: "False", label: t("editor.falseOption") },
+          ].map(({ value, label }) => (
             <div
               key={value}
               className={cn(
@@ -73,7 +86,7 @@ export function QuestionPreview({ question, defaults }) {
                   : "border-border bg-surface text-ink-muted"
               )}
             >
-              {value}
+              {label}
             </div>
           ))}
         </div>
@@ -81,10 +94,10 @@ export function QuestionPreview({ question, defaults }) {
 
       {(question.type === "text" || question.type === "number") && (
         <div className="rounded-md border border-dashed border-border bg-surface px-4 py-3 text-sm text-ink-muted">
-          {question.type === "number" ? "Numeric answer field" : "Text answer field"}
+          {question.type === "number" ? t("game.typeNumber") : t("game.typeAnswer")}
           {question.correct_answer_text && (
             <div className="mt-2 text-success-strong">
-              Expected: <b>{question.correct_answer_text}</b>
+              {t("editor.expected")}: <b>{question.correct_answer_text}</b>
             </div>
           )}
         </div>
@@ -92,7 +105,7 @@ export function QuestionPreview({ question, defaults }) {
 
       {question.explanation && (
         <div className="rounded-md border-s-4 border-s-info bg-surface-2 px-4 py-3 text-sm text-ink-muted">
-          <span className="font-semibold text-ink">Why: </span>
+          <span className="font-semibold text-ink">{t("game.why")} </span>
           {question.explanation}
         </div>
       )}

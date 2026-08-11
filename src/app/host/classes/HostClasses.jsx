@@ -16,11 +16,22 @@ import {
   listMyClasses,
   removeClassMember,
 } from "@/services/classes";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
-function copyCode(code, toast) {
+function copyCode(code, toast, t) {
   navigator.clipboard?.writeText(code).then(
-    () => toast({ title: "Code copied", description: `Class code ${code}.`, variant: "info" }),
-    () => toast({ title: "Couldn't copy", description: "Select the code manually.", variant: "error" })
+    () =>
+      toast({
+        title: t("host.codeCopied"),
+        description: `${t("host.codeCopiedDesc")} ${code}.`,
+        variant: "info",
+      }),
+    () =>
+      toast({
+        title: t("host.copyFailed"),
+        description: t("host.copyFailedDesc"),
+        variant: "error",
+      })
   );
 }
 
@@ -31,6 +42,7 @@ function copyCode(code, toast) {
  */
 export default function HostClasses() {
   const { toast } = useToast();
+  const { t } = useI18n();
   const [classes, setClasses] = useState(null);
   const [failed, setFailed] = useState(false);
   const [name, setName] = useState("");
@@ -68,7 +80,11 @@ export default function HostClasses() {
         console.error("Failed to load members:", err);
         if (!cancelled) {
           setMembers([]);
-          toast({ title: "Couldn't load members", description: "Try again.", variant: "error" });
+          toast({
+            title: t("host.membersLoadFailed"),
+            description: t("common.tryAgain"),
+            variant: "error",
+          });
         }
       });
     return () => {
@@ -81,15 +97,19 @@ export default function HostClasses() {
     setCreating(true);
     try {
       await createClass(name, description || null);
-      toast({ title: "Class created", description: "Share the code with your students.", variant: "success" });
+      toast({
+        title: t("host.createdToast"),
+        description: t("host.createdToastDesc"),
+        variant: "success",
+      });
       setName("");
       setDescription("");
       load();
     } catch (err) {
       console.error("Create class failed:", err);
       toast({
-        title: "Couldn't create the class",
-        description: "Check the name and try again.",
+        title: t("host.createFailed"),
+        description: t("host.createFailedDesc"),
         variant: "error",
       });
     } finally {
@@ -103,10 +123,10 @@ export default function HostClasses() {
       await removeClassMember(membersClass.id, profileId);
       setMembers((prev) => (prev ?? []).filter((m) => m.profile_id !== profileId));
       load();
-      toast({ title: "Member removed", variant: "info" });
+      toast({ title: t("host.memberRemoved"), variant: "info" });
     } catch (err) {
       console.error("Remove member failed:", err);
-      toast({ title: "Couldn't remove the member", variant: "error" });
+      toast({ title: t("host.removeMemberFailed"), variant: "error" });
     }
   };
 
@@ -115,12 +135,16 @@ export default function HostClasses() {
     setArchiving(true);
     try {
       await archiveClass(archiveTarget.id);
-      toast({ title: "Class archived", description: "Students can no longer join it.", variant: "info" });
+      toast({
+        title: t("host.archivedToast"),
+        description: t("host.archivedToastDesc"),
+        variant: "info",
+      });
       setArchiveTarget(null);
       load();
     } catch (err) {
       console.error("Archive class failed:", err);
-      toast({ title: "Couldn't archive the class", variant: "error" });
+      toast({ title: t("host.archiveFailed"), variant: "error" });
     } finally {
       setArchiving(false);
     }
@@ -129,9 +153,9 @@ export default function HostClasses() {
   if (failed) {
     return (
       <Card>
-        <EmptyState title="Couldn't load your classes" description="Check your connection and try again.">
+        <EmptyState title={t("host.loadFailedTitle")} description={t("host.loadFailedDesc")}>
           <Button variant="outline" onClick={() => window.location.reload()}>
-            Try again
+            {t("common.tryAgain")}
           </Button>
         </EmptyState>
       </Card>
@@ -152,21 +176,19 @@ export default function HostClasses() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-ink">Classes</h1>
-          <p className="mt-0.5 text-sm text-ink-muted">
-            Group your students, share a code, and assign quizzes to a class.
-          </p>
+          <h1 className="text-2xl font-bold text-ink">{t("host.classesTitle")}</h1>
+          <p className="mt-0.5 text-sm text-ink-muted">{t("host.classesSub")}</p>
         </div>
-        <Button href="/host/analytics">Analytics</Button>
+        <Button href="/host/analytics">{t("nav.analytics")}</Button>
       </div>
 
       <Card className="mt-6" padding="lg">
-        <h2 className="text-lg font-semibold text-ink">Create a class</h2>
+        <h2 className="text-lg font-semibold text-ink">{t("host.createClass")}</h2>
         <form onSubmit={handleCreate} className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end">
           <div className="flex-1">
             <Input
-              label="Class name"
-              placeholder="e.g. Quran Group A"
+              label={t("host.className")}
+              placeholder={t("host.classNamePlaceholder")}
               required
               maxLength={60}
               value={name}
@@ -175,25 +197,22 @@ export default function HostClasses() {
           </div>
           <div className="flex-1">
             <Input
-              label="Description (optional)"
-              placeholder="e.g. Second period, beginners"
+              label={t("host.classDescription")}
+              placeholder={t("host.classDescriptionPlaceholder")}
               maxLength={300}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
           <Button type="submit" loading={creating} disabled={name.trim().length < 2}>
-            Create class
+            {t("host.createClass")}
           </Button>
         </form>
       </Card>
 
       {classes.length === 0 ? (
         <Card className="mt-6">
-          <EmptyState
-            title="No classes yet"
-            description="Create your first class and share its code with students."
-          />
+          <EmptyState title={t("host.noClassesYet")} description={t("host.noClassesYetDesc")} />
         </Card>
       ) : (
         <ul className="mt-6 divide-y divide-border rounded-lg border border-border bg-surface">
@@ -202,18 +221,17 @@ export default function HostClasses() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="truncate text-sm font-medium text-ink">{cls.name}</p>
-                  {cls.archived_at && <Badge variant="neutral">Archived</Badge>}
+                  {cls.archived_at && <Badge variant="neutral">{t("host.archivedBadge")}</Badge>}
                 </div>
                 <p className="mt-0.5 text-xs text-ink-muted">
-                  {cls.description || "No description"} · {cls.member_count} member
-                  {cls.member_count === 1 ? "" : "s"} · {cls.game_count} game
-                  {cls.game_count === 1 ? "" : "s"}
+                  {cls.description || t("editor.noDescription")} · {cls.member_count}{" "}
+                  {t("host.memberWord")} · {cls.game_count} {t("host.gameWord")}
                 </p>
                 <button
                   type="button"
-                  onClick={() => copyCode(cls.code, toast)}
+                  onClick={() => copyCode(cls.code, toast, t)}
                   className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2 py-1 font-mono text-xs font-semibold tracking-wider text-primary transition-colors hover:bg-surface-3"
-                  title="Copy class code"
+                  title={t("host.copyClassCode")}
                 >
                   {cls.code}
                   <svg aria-hidden="true" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -224,11 +242,11 @@ export default function HostClasses() {
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setMembersClass(cls)}>
-                  Members
+                  {t("host.membersLabel")}
                 </Button>
                 {!cls.archived_at && (
                   <Button variant="ghost" size="sm" onClick={() => setArchiveTarget(cls)}>
-                    Archive
+                    {t("host.archiveLabel")}
                   </Button>
                 )}
               </div>
@@ -240,11 +258,11 @@ export default function HostClasses() {
       <Dialog
         open={membersClass !== null}
         onClose={() => setMembersClass(null)}
-        title={membersClass ? `Members — ${membersClass.name}` : "Members"}
-        description={`Code ${membersClass?.code ?? ""}. Students join from their classes page.`}
+        title={membersClass ? `${t("host.membersLabel")} — ${membersClass.name}` : t("host.membersLabel")}
+        description={`${t("common.code")} ${membersClass?.code ?? ""}. ${t("host.membersJoinHint")}`}
         footer={
           <Button variant="ghost" onClick={() => setMembersClass(null)}>
-            Close
+            {t("common.close")}
           </Button>
         }
       >
@@ -257,8 +275,8 @@ export default function HostClasses() {
         ) : members.length === 0 ? (
           <EmptyState
             className="py-4"
-            title="No members yet"
-            description="Share the class code for students to join."
+            title={t("host.noMembers")}
+            description={t("host.noMembersDesc")}
           />
         ) : (
           <ul className="divide-y divide-border">
@@ -266,15 +284,17 @@ export default function HostClasses() {
               <li key={m.profile_id} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-ink">{m.name}</p>
-                  <p className="text-xs text-ink-muted">Joined {new Date(m.joined_at).toLocaleDateString()}</p>
+                  <p className="text-xs text-ink-muted">
+                    {t("host.joinedOn")} {new Date(m.joined_at).toLocaleDateString()}
+                  </p>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => removeMember(m.profile_id)}
-                  aria-label={`Remove ${m.name}`}
+                  aria-label={`${t("host.removeMember")} ${m.name}`}
                 >
-                  Remove
+                  {t("host.removeMember")}
                 </Button>
               </li>
             ))}
@@ -285,15 +305,15 @@ export default function HostClasses() {
       <Dialog
         open={archiveTarget !== null}
         onClose={() => setArchiveTarget(null)}
-        title="Archive this class?"
-        description={`${archiveTarget?.name ?? ""} will stop accepting new members. Existing assignments stay.`}
+        title={t("host.archiveTitle")}
+        description={`${archiveTarget?.name ?? ""} ${t("host.archiveDesc")}`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setArchiveTarget(null)}>
-              Keep class
+              {t("host.keepClass")}
             </Button>
             <Button variant="danger" loading={archiving} onClick={confirmArchive}>
-              Archive class
+              {t("host.archiveLabel")}
             </Button>
           </>
         }

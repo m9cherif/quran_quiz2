@@ -7,22 +7,15 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import { cn } from "@/lib/cn";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const QUESTION_TYPES = [
-  { value: "mcq", label: "Multiple choice" },
-  { value: "true_false", label: "True / False" },
-  { value: "text", label: "Text answer" },
-  { value: "number", label: "Number answer" },
-  { value: "audio", label: "Audio" },
+  { value: "mcq", key: "typeMcq" },
+  { value: "true_false", key: "typeTrueFalse" },
+  { value: "text", key: "typeText" },
+  { value: "number", key: "typeNumber" },
+  { value: "audio", key: "typeAudio" },
 ];
-
-const TYPE_LABEL = {
-  mcq: "Multiple choice",
-  true_false: "True / False",
-  text: "Text answer",
-  number: "Number answer",
-  audio: "Audio",
-};
 
 function buildInitialChoices() {
   return [
@@ -61,26 +54,26 @@ export function questionPoints(question, defaults) {
   };
 }
 
-export function validateQuestion(question) {
+export function validateQuestion(question, t = (key) => key) {
   const errors = {};
-  if (!question.text.trim()) errors.text = "Question text is required.";
+  if (!question.text.trim()) errors.text = t("editor.missingText");
   if (question.type === "mcq") {
     const filled = question.choices.filter((c) => c.text.trim());
     if (filled.length < 2) {
-      errors.choices = "Add at least 2 options.";
+      errors.choices = t("editor.missingTwoChoices");
     } else if (!filled.some((c) => c.isCorrect)) {
-      errors.correct = "Mark one option as the correct answer.";
+      errors.correct = t("editor.missingCorrectMarker");
     } else if (filled.filter((c) => c.isCorrect).length > 1) {
-      errors.correct = "Only one option can be the correct answer.";
+      errors.correct = t("editor.onlyOneCorrect");
     }
   } else if (question.type === "true_false") {
     // correct_answer_text drives grading for non-mcq types
     if (!question.correct_answer_text?.trim()) {
-      errors.correct = "Choose the correct answer.";
+      errors.correct = t("editor.chooseCorrect");
     }
   } else if (question.type === "text" || question.type === "number") {
     if (!question.correct_answer_text?.trim()) {
-      errors.correct = "Enter the correct answer (used for scoring).";
+      errors.correct = t("editor.missingCorrectText");
     }
   }
   return errors;
@@ -101,6 +94,9 @@ export function QuestionForm({
   canMoveUp,
   canMoveDown,
 }) {
+  const { t } = useI18n();
+  const typeLabel = (type) =>
+    t(`editor.${QUESTION_TYPES.find((item) => item.value === type)?.key ?? "typeText"}`);
   const set = (patch) => onChange({ ...question, ...patch });
   const ref =
     (field) =>
@@ -123,31 +119,43 @@ export function QuestionForm({
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-soft text-sm font-semibold text-primary">
             {question.position}
           </span>
-          <Badge variant="neutral">{TYPE_LABEL[type]}</Badge>
+          <Badge variant="neutral">{typeLabel(type)}</Badge>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" disabled={!canMoveUp} onClick={() => onMove(-1)} aria-label="Move question up">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!canMoveUp}
+            onClick={() => onMove(-1)}
+            aria-label={t("editor.moveUp")}
+          >
             ↑
           </Button>
-          <Button variant="ghost" size="sm" disabled={!canMoveDown} onClick={() => onMove(1)} aria-label="Move question down">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!canMoveDown}
+            onClick={() => onMove(1)}
+            aria-label={t("editor.moveDown")}
+          >
             ↓
           </Button>
           <Button variant="ghost" size="sm" onClick={onDelete} className="text-danger">
-            Delete
+            {t("common.delete")}
           </Button>
         </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Select label="Type" value={type} onChange={(e) => set({ type: e.target.value })}>
-          {QUESTION_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
+        <Select label={t("editor.typeLabel")} value={type} onChange={(e) => set({ type: e.target.value })}>
+          {QUESTION_TYPES.map((item) => (
+            <option key={item.value} value={item.value}>
+              {t(`editor.${item.key}`)}
             </option>
           ))}
         </Select>
         <Input
-          label="Duration (seconds)"
+          label={t("editor.duration")}
           type="number"
           min={1}
           max={600}
@@ -156,7 +164,7 @@ export function QuestionForm({
           onChange={(e) => set({ duration_seconds: Math.max(1, Number(e.target.value) || 1) })}
         />
         <Input
-          label={`Points (default ${defaults.points})`}
+          label={`${t("editor.pointsPerQuestion")} (${t("editor.default")} ${defaults.points})`}
           type="number"
           min={0}
           value={question.points ?? ""}
@@ -167,7 +175,7 @@ export function QuestionForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Input
-          label={`Negative points (default ${defaults.negative})`}
+          label={`${t("editor.negativePoints")} (${t("editor.default")} ${defaults.negative})`}
           type="number"
           max={0}
           value={question.negative_points ?? ""}
@@ -175,27 +183,25 @@ export function QuestionForm({
           onChange={ref("negative_points")}
         />
         <Input
-          label="Explanation (shown after reveal)"
+          label={t("editor.explanation")}
           value={question.explanation ?? ""}
           onChange={(e) => set({ explanation: e.target.value || null })}
         />
       </div>
 
       <Textarea
-        label="Question text"
+        label={t("editor.questionText")}
         required
         rows={3}
         value={question.text}
         onChange={(e) => set({ text: e.target.value })}
         error={errors.text}
-        placeholder="Type the question…"
+        placeholder={t("editor.questionTextPlaceholder")}
       />
 
       {type === "mcq" && (
         <fieldset>
-          <legend className="mb-1.5 block text-sm font-medium text-ink">
-            Options — mark the correct one
-          </legend>
+          <legend className="mb-1.5 block text-sm font-medium text-ink">{t("editor.optionsMark")}</legend>
           <div className="space-y-2.5">
             {question.choices.map((choice, i) => (
               <div key={choice.id ?? `new-${i}`} className={cn("flex items-center gap-2.5")}>
@@ -209,12 +215,12 @@ export function QuestionForm({
                     }
                     className="h-4 w-4 accent-primary"
                   />
-                  <span className="sr-only">Mark option {i + 1} as correct</span>
+                  <span className="sr-only">{t("editor.markOptionAria", { n: i + 1 })}</span>
                 </label>
                 <input
                   type="text"
                   value={choice.text}
-                  placeholder={`Option ${i + 1}`}
+                  placeholder={`${t("editor.optionWord")} ${i + 1}`}
                   onChange={(e) => setChoice(i, { text: e.target.value })}
                   aria-invalid={errors.choices ? true : undefined}
                   className="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-ink transition-colors placeholder:text-ink-faint focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-focus-ring"
@@ -224,7 +230,7 @@ export function QuestionForm({
                   size="sm"
                   onClick={() => set({ choices: question.choices.filter((_, j) => j !== i).map((c, j) => ({ ...c, position: j + 1 })) })}
                   disabled={question.choices.length <= 2}
-                  aria-label={`Remove option ${i + 1}`}
+                  aria-label={t("editor.removeOptionAria", { n: i + 1 })}
                 >
                   ×
                 </Button>
@@ -239,7 +245,7 @@ export function QuestionForm({
                 set({ choices: [...question.choices, { text: "", position: question.choices.length + 1, isCorrect: false, id: null }] })
               }
             >
-              Add option
+              {t("editor.addOption")}
             </Button>
             {(errors.choices || errors.correct) && (
               <p className="self-center text-sm text-danger" role="alert">
@@ -252,9 +258,12 @@ export function QuestionForm({
 
       {type === "true_false" && (
         <fieldset>
-          <legend className="mb-1.5 block text-sm font-medium text-ink">Correct answer</legend>
+          <legend className="mb-1.5 block text-sm font-medium text-ink">{t("editor.correctAnswer")}</legend>
           <div className="flex gap-3">
-            {["True", "False"].map((value) => {
+            {[
+              { value: "True", label: t("editor.trueOption") },
+              { value: "False", label: t("editor.falseOption") },
+            ].map(({ value, label }) => {
               const isChecked = question.correct_answer_text === value;
               return (
                 <label
@@ -274,7 +283,7 @@ export function QuestionForm({
                     onChange={() => set({ correct_answer_text: value })}
                     className="sr-only"
                   />
-                  {value}
+                  {label}
                 </label>
               );
             })}
@@ -289,7 +298,7 @@ export function QuestionForm({
 
       {(type === "text" || type === "number") && (
         <Input
-          label={type === "number" ? "Correct numeric answer" : "Correct answer (exact text match, case-insensitive)"}
+          label={type === "number" ? t("editor.correctNumeric") : t("editor.correctTextHint")}
           required
           type={type === "number" ? "number" : "text"}
           value={question.correct_answer_text ?? ""}
@@ -299,15 +308,13 @@ export function QuestionForm({
       )}
 
       <details className="rounded-md border border-border bg-surface px-3 py-2.5">
-        <summary className="cursor-pointer text-sm font-medium text-ink">
-          Quran reference (optional)
-        </summary>
+        <summary className="cursor-pointer text-sm font-medium text-ink">{t("editor.surahRef")}</summary>
         <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <Input label="Surah" type="number" min={1} max={114} value={question.surah_number ?? ""} onChange={ref("surah_number")} />
-          <Input label="Ayah" type="number" min={1} value={question.ayah_number ?? ""} onChange={ref("ayah_number")} />
-          <Input label="Page" type="number" min={1} value={question.page_number ?? ""} onChange={ref("page_number")} />
-          <Input label="Juz" type="number" min={1} max={30} value={question.juz_number ?? ""} onChange={ref("juz_number")} />
-          <Input label="Hizb" type="number" min={1} max={60} value={question.hizb_number ?? ""} onChange={ref("hizb_number")} />
+          <Input label={t("editor.surah")} type="number" min={1} max={114} value={question.surah_number ?? ""} onChange={ref("surah_number")} />
+          <Input label={t("editor.ayah")} type="number" min={1} value={question.ayah_number ?? ""} onChange={ref("ayah_number")} />
+          <Input label={t("editor.page")} type="number" min={1} value={question.page_number ?? ""} onChange={ref("page_number")} />
+          <Input label={t("editor.juz")} type="number" min={1} max={30} value={question.juz_number ?? ""} onChange={ref("juz_number")} />
+          <Input label={t("editor.hizb")} type="number" min={1} max={60} value={question.hizb_number ?? ""} onChange={ref("hizb_number")} />
         </div>
       </details>
     </Card>

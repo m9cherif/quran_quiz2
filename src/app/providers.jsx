@@ -6,17 +6,20 @@ import { PersistGate } from "redux-persist/integration/react";
 import ToastProvider from "@/components/ui/Toast";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import AuthProvider from "@/components/auth/AuthProvider";
+import { I18nProvider } from "@/lib/i18n/I18nProvider";
 
 export default function Providers({ children }) {
   return (
     <Provider store={store}>
-      <PersistGate loading={null} persistor={persistor}>
-        <AuthProvider>
+      <I18nProvider>
+        <PersistGate loading={null} persistor={persistor}>
+          <AuthProvider>
           <ErrorBoundary>
             <ToastProvider>{children}</ToastProvider>
           </ErrorBoundary>
         </AuthProvider>
       </PersistGate>
+      </I18nProvider>
     </Provider>
   );
 }

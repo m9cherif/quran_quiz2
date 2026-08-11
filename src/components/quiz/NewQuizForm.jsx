@@ -9,6 +9,7 @@ import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
 import { createQuiz } from "@/services/quizzes";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
  * NewQuizForm — minimal metadata for a fresh quiz; the full editor opens
@@ -17,6 +18,7 @@ import { createQuiz } from "@/services/quizzes";
 export function NewQuizForm() {
   const router = useRouter();
   const { toast } = useToast();
+  const { t } = useI18n();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -29,7 +31,7 @@ export function NewQuizForm() {
   const submit = async (e) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError("Give your quiz a name first.");
+      setError(t("editor.quizNameRequired"));
       return;
     }
     setError("");
@@ -42,42 +44,44 @@ export function NewQuizForm() {
         category: category.trim() || null,
         difficulty: difficulty || null,
       });
-      toast({ title: "Quiz created", description: "Now add your questions.", variant: "success" });
+      toast({
+        title: t("editor.quizCreated"),
+        description: t("editor.quizCreatedDesc"),
+        variant: "success",
+      });
       router.push(`/host/quizzes/${quiz.id}/edit`);
     } catch (err) {
       console.error("Create quiz failed:", err);
-      setError(err instanceof Error ? err.message : "Could not create the quiz.");
+      setError(err instanceof Error ? err.message : t("editor.createFailed"));
       setCreating(false);
     }
   };
 
   return (
     <div className="mx-auto w-full max-w-xl">
-      <h1 className="text-2xl font-bold text-ink">Create a quiz</h1>
-      <p className="mt-1 text-sm text-ink-muted">
-        You'll add questions right after — the quiz stays a draft until you launch it live.
-      </p>
+      <h1 className="text-2xl font-bold text-ink">{t("editor.createQuiz")}</h1>
+      <p className="mt-1 text-sm text-ink-muted">{t("editor.createSub")}</p>
 
       <Card padding="lg" className="mt-6">
         <form onSubmit={submit} className="space-y-5" noValidate>
           <Input
-            label="Quiz name"
+            label={t("editor.quizName")}
             required
-            placeholder="e.g. Surah Al-Baqarah Basics"
+            placeholder={t("editor.quizNamePlaceholder")}
             value={name}
             onChange={(e) => setName(e.target.value)}
             error={error || undefined}
           />
           <Textarea
-            label="Description (optional)"
+            label={t("editor.description")}
             rows={2}
-            placeholder="What is this quiz about?"
+            placeholder={t("editor.descriptionPlaceholder")}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
           <div className="grid gap-4 sm:grid-cols-3">
             <Select
-              label="Language"
+              label={t("editor.language")}
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
             >
@@ -86,24 +90,24 @@ export function NewQuizForm() {
               <option value="fr">Français (French)</option>
             </Select>
             <Input
-              label="Category"
-              placeholder="general"
+              label={t("editor.category")}
+              placeholder={t("editor.categoryPlaceholder")}
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             />
             <Select
-              label="Difficulty"
+              label={t("editor.difficulty")}
               value={difficulty}
               onChange={(e) => setDifficulty(e.target.value)}
             >
-              <option value="">Any</option>
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
+              <option value="">{t("editor.difficultyAny")}</option>
+              <option value="easy">{t("editor.difficultyEasy")}</option>
+              <option value="medium">{t("editor.difficultyMedium")}</option>
+              <option value="hard">{t("editor.difficultyHard")}</option>
             </Select>
           </div>
           <Button type="submit" loading={creating} className="w-full" size="lg">
-            Create and add questions
+            {t("editor.createAndAdd")}
           </Button>
         </form>
       </Card>

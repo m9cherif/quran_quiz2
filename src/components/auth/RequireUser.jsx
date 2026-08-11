@@ -6,6 +6,7 @@ import { useSelector } from "react-redux";
 import Skeleton from "@/components/ui/Skeleton";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
  * RequireUser — session-aware route guard.
@@ -18,6 +19,7 @@ export function RequireUser({ children, role }) {
   const user = useSelector((state) => state.user.user);
   const status = useSelector((state) => state.user.status);
   const router = useRouter();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (status === "checking") return;
@@ -52,12 +54,10 @@ export function RequireUser({ children, role }) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center px-4">
         <Card padding="lg" className="w-full max-w-sm text-center">
-          <h1 className="text-lg font-semibold text-ink">Access restricted</h1>
-          <p className="mt-2 text-sm text-ink-muted">
-            This area is only available to {role} accounts.
-          </p>
+          <h1 className="text-lg font-semibold text-ink">{t("common.accessDenied")}</h1>
+          <p className="mt-2 text-sm text-ink-muted">{t("common.accessDeniedDesc", { role })}</p>
           <Button href="/" className="mt-6 w-full">
-            Back to home
+            {t("common.backHome")}
           </Button>
         </Card>
       </div>

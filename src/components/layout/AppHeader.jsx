@@ -7,24 +7,26 @@ import { useDispatch, useSelector } from "react-redux";
 import { cleanUser } from "@/store/Slices/userSlice";
 import { cn } from "@/lib/cn";
 import { signOut } from "@/lib/auth/client";
+import { useI18n } from "@/lib/i18n/I18nProvider";
+import LocaleSwitcher from "@/components/ui/LocaleSwitcher";
 
 const NAV = {
   public: [
-    { href: "/", label: "Home" },
-    { href: "/about", label: "About" },
+    { href: "/", labelKey: "nav.home" },
+    { href: "/about", labelKey: "nav.about" },
   ],
   host: [
-    { href: "/host/quizzes", label: "My Quizzes" },
-    { href: "/host/games", label: "Live Games" },
-    { href: "/host/classes", label: "Classes" },
-    { href: "/host/analytics", label: "Analytics" },
-    { href: "/host/quizzes/new", label: "New Quiz" },
+    { href: "/host/quizzes", labelKey: "nav.myQuizzes" },
+    { href: "/host/games", labelKey: "nav.liveGames" },
+    { href: "/host/classes", labelKey: "nav.classes" },
+    { href: "/host/analytics", labelKey: "nav.analytics" },
+    { href: "/host/quizzes/new", labelKey: "nav.newQuiz" },
   ],
   student: [
-    { href: "/student/dashboard", label: "Dashboard" },
-    { href: "/student/history", label: "History" },
-    { href: "/student/classes", label: "Classes" },
-    { href: "/join", label: "Join a Game" },
+    { href: "/student/dashboard", labelKey: "nav.dashboard" },
+    { href: "/student/history", labelKey: "nav.history" },
+    { href: "/student/classes", labelKey: "nav.classes" },
+    { href: "/join", labelKey: "nav.joinGame" },
   ],
 };
 
@@ -36,6 +38,7 @@ export function AppHeader({ variant = "public" }) {
   const pathname = usePathname();
   const router = useRouter();
   const dispatch = useDispatch();
+  const { t } = useI18n();
   const user = useSelector((state) => state.user.user);
 
   const links = NAV[variant] ?? NAV.public;
@@ -57,7 +60,7 @@ export function AppHeader({ variant = "public" }) {
           <img src="/logo.png" alt="Quran Quiz Platform" className="h-10 w-auto" />
         </Link>
 
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
+        <nav className="hidden items-center gap-1 md:flex" aria-label={t("nav.main")}>
           {links.map((link) => (
             <Link
               key={link.href}
@@ -70,39 +73,40 @@ export function AppHeader({ variant = "public" }) {
                   : "text-ink-muted hover:bg-surface-3 hover:text-ink"
               )}
             >
-              {link.label}
+              {t(link.labelKey)}
             </Link>
           ))}
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
+          <LocaleSwitcher className="mr-1" />
           {variant === "public" && (
             <>
               <Link
                 href="/login"
                 className="rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
               >
-                Log in
+                {t("nav.logIn")}
               </Link>
               <Link
                 href="/join"
                 className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-contrast transition-colors hover:bg-primary-strong focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-focus-ring"
               >
-                Join a Game
+                {t("nav.joinGame")}
               </Link>
             </>
           )}
           {variant === "host" && user && (
             <div className="flex items-center gap-2 text-sm text-ink-muted">
               <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-medium text-primary">
-                Host
+                {t("nav.host")}
               </span>
               <button
                 type="button"
                 onClick={logout}
                 className="rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
               >
-                Sign out
+                {t("nav.signOut")}
               </button>
             </div>
           )}
@@ -113,7 +117,7 @@ export function AppHeader({ variant = "public" }) {
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-controls="mobile-nav"
-          aria-label="Toggle navigation"
+          aria-label={t("nav.toggle")}
           className="inline-flex h-10 w-10 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-3 md:hidden"
         >
           <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -133,10 +137,13 @@ export function AppHeader({ variant = "public" }) {
       {open && (
         <nav
           id="mobile-nav"
-          aria-label="Mobile navigation"
+          aria-label={t("nav.mobile")}
           className="border-t border-border bg-surface px-4 pb-4 pt-2 md:hidden"
         >
           <ul className="flex flex-col gap-1">
+            <li className="flex justify-end pb-1">
+              <LocaleSwitcher />
+            </li>
             {links.map((link) => (
               <li key={link.href}>
                 <Link
@@ -150,7 +157,7 @@ export function AppHeader({ variant = "public" }) {
                       : "text-ink-muted hover:bg-surface-3 hover:text-ink"
                   )}
                 >
-                  {link.label}
+                  {t(link.labelKey)}
                 </Link>
               </li>
             ))}
@@ -161,14 +168,14 @@ export function AppHeader({ variant = "public" }) {
                   onClick={() => setOpen(false)}
                   className="flex-1 rounded-md border border-border px-3 py-2 text-center text-sm font-medium text-ink transition-colors hover:bg-surface-2"
                 >
-                  Log in
+                  {t("nav.logIn")}
                 </Link>
                 <Link
                   href="/join"
                   onClick={() => setOpen(false)}
                   className="flex-1 rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-primary-contrast transition-colors hover:bg-primary-strong"
                 >
-                  Join a Game
+                  {t("nav.joinGame")}
                 </Link>
               </li>
             )}

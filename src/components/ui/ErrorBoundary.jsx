@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
  * ErrorBoundary — route/segment-level error fallback.
@@ -11,7 +12,7 @@ import React from "react";
  *
  * Fallback shows a human message + "Try again" (re-mounts children).
  */
-export class ErrorBoundary extends React.Component {
+export class ErrorBoundaryInner extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, message: "" };
@@ -38,6 +39,8 @@ export class ErrorBoundary extends React.Component {
       return this.props.fallback(this.reset, this.state.message);
     }
 
+    const { t } = this.props;
+
     return (
       <div
         role="alert"
@@ -57,9 +60,9 @@ export class ErrorBoundary extends React.Component {
             />
           </svg>
         </div>
-        <h2 className="text-base font-semibold text-ink">Something went wrong</h2>
+        <h2 className="text-base font-semibold text-ink">{t("common.errorTitle")}</h2>
         <p className="max-w-sm text-sm text-ink-muted">
-          An unexpected error occurred while rendering this section.
+          {t("common.errorDesc")}
           {this.state.message && (
             <span className="mt-1 block font-mono text-xs text-ink-faint">
               {this.state.message}
@@ -71,11 +74,16 @@ export class ErrorBoundary extends React.Component {
           onClick={this.reset}
           className="mt-2 inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-contrast transition-colors hover:bg-primary-strong focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-focus-ring"
         >
-          Try again
+          {t("common.tryAgain")}
         </button>
       </div>
     );
   }
+}
+
+export function ErrorBoundary(props) {
+  const { t } = useI18n();
+  return <ErrorBoundaryInner {...props} t={t} />;
 }
 
 export default ErrorBoundary;

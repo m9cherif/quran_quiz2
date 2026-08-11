@@ -30,6 +30,7 @@ import {
   questionPoints,
 } from "./QuestionForm";
 import QuestionPreview from "./QuestionPreview";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
  * QuizEditor — full quiz management: meta settings, question list with
@@ -39,6 +40,18 @@ import QuestionPreview from "./QuestionPreview";
 export function QuizEditor({ quizId }) {
   const router = useRouter();
   const { toast } = useToast();
+  const { t } = useI18n();
+
+  const typeLabel = (type) => {
+    const labels = {
+      mcq: t("editor.typeMcq"),
+      true_false: t("editor.typeTrueFalse"),
+      text: t("editor.typeText"),
+      number: t("editor.typeNumber"),
+      audio: t("editor.typeAudio"),
+    };
+    return labels[type] ?? type;
+  };
 
   const [state, setState] = useState("loading");
   const [loadError, setLoadError] = useState("");
@@ -62,7 +75,7 @@ export function QuizEditor({ quizId }) {
     try {
       const competition = await getQuiz(quizId);
       if (!competition) {
-        setLoadError("Quiz not found or you don't have access.");
+        setLoadError(t("editor.loadNotFound"));
         setState("error");
         return;
       }
@@ -117,10 +130,10 @@ export function QuizEditor({ quizId }) {
       setState("ready");
     } catch (err) {
       console.error("Failed to load quiz:", err);
-      setLoadError(err instanceof Error ? err.message : "Failed to load the quiz.");
+      setLoadError(err instanceof Error ? err.message : t("editor.loadFailed"));
       setState("error");
     }
-  }, [quizId]);
+  }, [quizId, t]);
 
   useEffect(() => {
     load();
@@ -187,15 +200,15 @@ export function QuizEditor({ quizId }) {
     if (!quiz) return;
 
     const validation = questions.reduce((acc, q, i) => {
-      const e = validateQuestion(q);
+      const e = validateQuestion(q, t);
       if (Object.keys(e).length) acc[i] = e;
       return acc;
     }, {});
     setErrors(validation);
     if (Object.keys(validation).length) {
       toast({
-        title: "Check the errors",
-        description: "Some questions are incomplete; fix them before saving.",
+        title: t("editor.checkErrors"),
+        description: t("editor.checkErrorsDesc"),
         variant: "error",
       });
       setPreview(false);
@@ -287,12 +300,16 @@ export function QuizEditor({ quizId }) {
 
       setQuestions((prev) => prev.map((q, i) => ({ ...q, position: i + 1 })));
       setDirty(false);
-      toast({ title: "Quiz saved", description: "All changes are stored.", variant: "success" });
+      toast({
+        title: t("editor.savedToastTitle"),
+        description: t("editor.savedToastDesc"),
+        variant: "success",
+      });
     } catch (err) {
       console.error("Failed to save quiz:", err);
       toast({
-        title: "Save failed",
-        description: err instanceof Error ? err.message : "Something went wrong while saving.",
+        title: t("editor.saveFailedTitle"),
+        description: err instanceof Error ? err.message : t("editor.saveFailed"),
         variant: "error",
       });
     } finally {
@@ -305,13 +322,17 @@ export function QuizEditor({ quizId }) {
     setLaunching(true);
     try {
       await setQuizStatus(quiz.id, "waiting");
-      toast({ title: "Game launched", description: "The lobby is open — share the code.", variant: "success" });
+      toast({
+        title: t("editor.launchToastTitle"),
+        description: t("editor.launchToastDesc"),
+        variant: "success",
+      });
       router.push(`/host/games/${quiz.code}`);
     } catch (err) {
       console.error("Launch failed:", err);
       toast({
-        title: "Launch failed",
-        description: err instanceof Error ? err.message : "Try again.",
+        title: t("editor.launchFailedTitle"),
+        description: err instanceof Error ? err.message : t("editor.launchFailed"),
         variant: "error",
       });
     } finally {
@@ -334,15 +355,11 @@ export function QuizEditor({ quizId }) {
 
   if (state === "error") {
     return (
-      <EmptyState
-        icon={<Spinner size={20} />}
-        title="Could not open this quiz"
-        description={loadError}
-      >
+      <EmptyState icon={<Spinner size={20} />} title={t("editor.loadTitle")} description={loadError}>
         <Button variant="outline" onClick={() => router.push("/host/quizzes")}>
-          Back to my quizzes
+          {t("editor.backToQuizzes")}
         </Button>
-        <Button onClick={() => load()}>Try again</Button>
+        <Button onClick={() => load()}>{t("common.tryAgain")}</Button>
       </EmptyState>
     );
   }
@@ -354,21 +371,17 @@ export function QuizEditor({ quizId }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" href="/host/quizzes">
-            ← Quizzes
+            ← {t("nav.myQuizzes")}
           </Button>
           <h1 className="text-xl font-bold text-ink sm:text-2xl">
-            {quiz?.name || "Untitled quiz"}
+            {quiz?.name || t("editor.untitledQuiz")}
           </h1>
-          {dirty && <Badge variant="warning">Unsaved</Badge>}
+          {dirty && <Badge variant="warning">{t("editor.unsaved")}</Badge>}
         </div>
         <div className="flex gap-2">
           {dirty && (
-            <Button
-              variant="ghost"
-              onClick={() => load()}
-              disabled={saving}
-            >
-              Discard
+            <Button variant="ghost" onClick={() => load()} disabled={saving}>
+              {t("editor.discard")}
             </Button>
           )}
           {isDraft ? (
@@ -378,33 +391,35 @@ export function QuizEditor({ quizId }) {
               onClick={() => setLaunchOpen(true)}
               disabled={questions.length === 0}
             >
-              {questions.length === 0 ? "Add questions first" : "Launch live game"}
+              {questions.length === 0 ? t("editor.addQuestionsFirst") : t("editor.launchGame")}
             </Button>
           ) : (
             <Badge variant="success" dot>
-              Launched
+              {t("editor.launched")}
             </Badge>
           )}
           <Button loading={saving} onClick={saveAll} disabled={!dirty || !isDraft}>
-            Save changes
+            {t("editor.saveChanges")}
           </Button>
         </div>
       </div>
 
       <Card className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-ink">Settings</h2>
-          <Badge variant="neutral">Code: {quiz?.code}</Badge>
+          <h2 className="text-sm font-semibold text-ink">{t("editor.settings")}</h2>
+          <Badge variant="neutral">
+            {t("common.code")}: {quiz?.code}
+          </Badge>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Input
-            label="Quiz name"
+            label={t("editor.quizName")}
             required
             value={quiz?.name ?? ""}
             onChange={(e) => changeQuiz({ name: e.target.value })}
           />
           <Select
-            label="Language"
+            label={t("editor.language")}
             value={quiz?.language ?? "en"}
             onChange={(e) => changeQuiz({ language: e.target.value })}
           >
@@ -413,29 +428,29 @@ export function QuizEditor({ quizId }) {
             <option value="fr">Français (French)</option>
           </Select>
           <Input
-            label="Category"
+            label={t("editor.category")}
             value={quiz?.category ?? ""}
             onChange={(e) => changeQuiz({ category: e.target.value || null })}
           />
           <Select
-            label="Difficulty"
+            label={t("editor.difficulty")}
             value={quiz?.difficulty ?? ""}
             onChange={(e) => changeQuiz({ difficulty: e.target.value || null })}
           >
-            <option value="">Any</option>
-            <option value="easy">Easy</option>
-            <option value="medium">Medium</option>
-            <option value="hard">Hard</option>
+            <option value="">{t("editor.difficultyAny")}</option>
+            <option value="easy">{t("editor.difficultyEasy")}</option>
+            <option value="medium">{t("editor.difficultyMedium")}</option>
+            <option value="hard">{t("editor.difficultyHard")}</option>
           </Select>
           <Input
-            label="Default points per question"
+            label={t("editor.defaultPoints")}
             type="number"
             min={0}
             value={quiz?.default_points ?? 10}
             onChange={(e) => changeQuiz({ default_points: Math.max(0, Number(e.target.value) || 0) })}
           />
           <Input
-            label="Default negative points (wrong answer)"
+            label={t("editor.defaultNegativePoints")}
             type="number"
             max={0}
             value={quiz?.default_negative_points ?? -2}
@@ -444,11 +459,11 @@ export function QuizEditor({ quizId }) {
             }
           />
           <Select
-            label="Class (optional)"
+            label={t("editor.classOptional")}
             value={quiz?.class_id ?? ""}
             onChange={(e) => changeQuiz({ class_id: e.target.value || null })}
           >
-            <option value="">No class</option>
+            <option value="">{t("editor.noClass")}</option>
             {classes.map((cls) => (
               <option key={cls.id} value={cls.id}>
                 {cls.name}
@@ -457,7 +472,7 @@ export function QuizEditor({ quizId }) {
           </Select>
         </div>
         <Textarea
-          label="Description (shown to players)"
+          label={t("editor.description")}
           rows={2}
           value={quiz?.description ?? ""}
           onChange={(e) => changeQuiz({ description: e.target.value || null })}
@@ -469,20 +484,20 @@ export function QuizEditor({ quizId }) {
             onChange={(e) => changeQuiz({ speed_bonus_enabled: e.target.checked })}
             className="h-4 w-4 accent-primary"
           />
-          Grant a speed bonus for fast correct answers
+          {t("editor.speedBonus")}
         </label>
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-ink">
-          Questions <span className="text-ink-muted">({questions.length})</span>
+          {t("editor.questions")} <span className="text-ink-muted">({questions.length})</span>
         </h2>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setPreview((v) => !v)} disabled={!current}>
-            {preview ? "Back to editing" : "Preview"}
+            {preview ? t("editor.backToEditing") : t("editor.preview")}
           </Button>
           <Button size="sm" onClick={addQuestion}>
-            Add question
+            {t("editor.addQuestion")}
           </Button>
         </div>
       </div>
@@ -506,12 +521,13 @@ export function QuizEditor({ quizId }) {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium text-ink">
-                  {index + 1}. {question.text || "Untitled question"}
+                  {index + 1}. {question.text || t("editor.untitledQuestion")}
                 </span>
-                {errors[index] && <Badge variant="danger">Incomplete</Badge>}
+                {errors[index] && <Badge variant="danger">{t("editor.incomplete")}</Badge>}
               </div>
               <span className="mt-0.5 block text-xs text-ink-muted">
-                {question.type} · {question.duration_seconds}s · {question.points ?? defaults.points} pts
+                {typeLabel(question.type)} · {question.duration_seconds}s ·{" "}
+                {question.points ?? defaults.points} {t("common.points")}
               </span>
             </button>
           ))}
@@ -540,15 +556,15 @@ export function QuizEditor({ quizId }) {
         open={launchOpen}
         onClose={() => setLaunchOpen(false)}
         size="sm"
-        title="Launch this quiz live?"
-        description={`The room code is ${quiz?.code}. Players can join as soon as the lobby opens — editing will be locked.`}
+        title={t("editor.launchDialogTitle")}
+        description={`${t("editor.launchDialogDesc")} ${quiz?.code}. ${t("editor.launchDialogLocked")}`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setLaunchOpen(false)} disabled={launching}>
-              Not yet
+              {t("editor.launchDialogKeep")}
             </Button>
             <Button loading={launching} onClick={launchGame}>
-              Launch game
+              {t("editor.launchDialogConfirm")}
             </Button>
           </>
         }

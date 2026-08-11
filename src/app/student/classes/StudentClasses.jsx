@@ -8,6 +8,7 @@ import Input from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import EmptyState from "@/components/ui/EmptyState";
 import { joinClass, leaveClass, myClasses } from "@/services/classes";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
  * StudentClasses — join a class with the host's code and see the classes
@@ -16,6 +17,7 @@ import { joinClass, leaveClass, myClasses } from "@/services/classes";
  */
 export default function StudentClasses() {
   const { toast } = useToast();
+  const { t } = useI18n();
   const [classes, setClasses] = useState(null);
   const [failed, setFailed] = useState(false);
   const [code, setCode] = useState("");
@@ -40,21 +42,29 @@ export default function StudentClasses() {
     setJoinError("");
     const trimmed = code.trim().toUpperCase();
     if (!/^[A-Z0-9]{3,10}$/.test(trimmed)) {
-      setJoinError("Enter the class code your teacher shared.");
+      setJoinError(t("student.classCodeError"));
       return;
     }
     setJoining(true);
     try {
       await joinClass(trimmed);
-      toast({ title: "Class joined", description: "You can now see your class here.", variant: "success" });
+      toast({
+        title: t("student.classJoined"),
+        description: t("student.classJoinedDesc"),
+        variant: "success",
+      });
       setCode("");
       load();
     } catch (err) {
       console.error("Join class failed:", err);
       if (err?.code === "28000") {
-        setJoinError("That class code isn't open right now. Check with your teacher.");
+        setJoinError(t("student.classNotOpen"));
       } else {
-        toast({ title: "Couldn't join the class", description: "Try again.", variant: "error" });
+        toast({
+          title: t("student.classJoinFailed"),
+          description: t("common.tryAgain"),
+          variant: "error",
+        });
       }
     } finally {
       setJoining(false);
@@ -65,19 +75,26 @@ export default function StudentClasses() {
     try {
       await leaveClass(cls.id);
       setClasses((prev) => (prev ?? []).filter((c) => c.id !== cls.id));
-      toast({ title: "Class left", description: `${cls.name} was removed from your list.`, variant: "info" });
+      toast({
+        title: t("student.classLeft"),
+        description: t("student.classLeftDesc", { name: cls.name }),
+        variant: "info",
+      });
     } catch (err) {
       console.error("Leave class failed:", err);
-      toast({ title: "Couldn't leave the class", variant: "error" });
+      toast({ title: t("student.classLeaveFailed"), variant: "error" });
     }
   };
 
   if (failed) {
     return (
       <Card>
-        <EmptyState title="Couldn't load your classes" description="Check your connection and try again.">
+        <EmptyState
+          title={t("student.classesLoadFailed")}
+          description={t("common.loadFailedDesc")}
+        >
           <Button variant="outline" onClick={() => window.location.reload()}>
-            Try again
+            {t("common.tryAgain")}
           </Button>
         </EmptyState>
       </Card>
@@ -98,21 +115,19 @@ export default function StudentClasses() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-ink">My classes</h1>
-          <p className="mt-0.5 text-sm text-ink-muted">
-            Join with the code your teacher shares to stay in their group.
-          </p>
+          <h1 className="text-2xl font-bold text-ink">{t("student.myClasses")}</h1>
+          <p className="mt-0.5 text-sm text-ink-muted">{t("student.myClassesSub")}</p>
         </div>
-        <Button href="/join">Join a game</Button>
+        <Button href="/join">{t("nav.joinGame")}</Button>
       </div>
 
       <Card className="mt-6" padding="lg">
-        <h2 className="text-lg font-semibold text-ink">Join a class</h2>
+        <h2 className="text-lg font-semibold text-ink">{t("student.joinClass")}</h2>
         <form onSubmit={handleJoin} className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end">
           <div className="flex-1">
             <Input
-              label="Class code"
-              placeholder="e.g. SBJ2S9YY"
+              label={t("student.classCode")}
+              placeholder={t("student.classCodePlaceholder")}
               required
               autoComplete="off"
               autoCapitalize="characters"
@@ -129,17 +144,14 @@ export default function StudentClasses() {
             />
           </div>
           <Button type="submit" loading={joining} disabled={code.trim().length < 3}>
-            Join class
+            {t("student.joinClassButton")}
           </Button>
         </form>
       </Card>
 
       {classes.length === 0 ? (
         <Card className="mt-6">
-          <EmptyState
-            title="No classes yet"
-            description="Ask your teacher for the class code and enter it above."
-          />
+          <EmptyState title={t("student.noClassesTitle")} description={t("student.noClassesDesc")} />
         </Card>
       ) : (
         <ul className="mt-6 divide-y divide-border rounded-lg border border-border bg-surface">
@@ -148,12 +160,12 @@ export default function StudentClasses() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-ink">{cls.name}</p>
                 <p className="mt-0.5 text-xs text-ink-muted">
-                  {cls.description || `Code ${cls.code}`} · {cls.member_count} member
-                  {cls.member_count === 1 ? "" : "s"}
+                  {cls.description || `${t("common.code")} ${cls.code}`} · {cls.member_count}{" "}
+                  {t("student.members")}
                 </p>
               </div>
               <Button variant="ghost" size="sm" onClick={() => leave(cls)}>
-                Leave
+                {t("common.leave")}
               </Button>
             </li>
           ))}

@@ -4,23 +4,35 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-
-const STATUS_BADGE = {
-  draft: { variant: "neutral", label: "Draft" },
-  waiting: { variant: "info", label: "Waiting" },
-  running: { variant: "success", label: "Running" },
-  paused: { variant: "warning", label: "Paused" },
-  finished: { variant: "info", label: "Finished" },
-  cancelled: { variant: "danger", label: "Cancelled" },
-  scheduled: { variant: "warning", label: "Scheduled" },
-};
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
  * QuizCard — quiz library tile: name, meta chips, question/participant
  * counts, and actions (edit / duplicate / archive / delete).
  */
 export function QuizCard({ quiz, onDuplicate, onDelete, busy = false }) {
-  const badge = STATUS_BADGE[quiz.status] ?? STATUS_BADGE.draft;
+  const { t } = useI18n();
+
+  const statusBadge = {
+    draft: t("common.draft"),
+    waiting: t("common.waiting"),
+    running: t("common.running"),
+    paused: t("common.paused"),
+    finished: t("common.finished"),
+    cancelled: t("common.cancelled"),
+    scheduled: t("common.scheduled"),
+  };
+  const badge = {
+    variant:
+      quiz.status === "running"
+        ? "success"
+        : quiz.status === "paused" || quiz.status === "scheduled"
+          ? "warning"
+          : quiz.status === "cancelled"
+            ? "danger"
+            : "neutral",
+    label: statusBadge[quiz.status] ?? t("common.draft"),
+  };
 
   return (
     <Card className="flex flex-col gap-4">
@@ -33,16 +45,20 @@ export function QuizCard({ quiz, onDuplicate, onDelete, busy = false }) {
             {quiz.name}
           </Link>
           <p className="mt-0.5 line-clamp-2 text-sm text-ink-muted">
-            {quiz.description || "No description"}
+            {quiz.description || t("editor.noDescription")}
           </p>
         </div>
         <Badge variant={badge.variant}>{badge.label}</Badge>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
-        <Badge variant="neutral">{quiz.question_count} questions</Badge>
+        <Badge variant="neutral">
+          {quiz.question_count} {t("common.questionWord")}
+        </Badge>
         {quiz.participant_count > 0 && (
-          <Badge variant="neutral">{quiz.participant_count} players</Badge>
+          <Badge variant="neutral">
+            {quiz.participant_count} {t("common.players")}
+          </Badge>
         )}
         <Badge variant="neutral">
           {quiz.language.toUpperCase()} · {quiz.category ?? "general"} · {quiz.difficulty ?? "any"}
@@ -51,7 +67,7 @@ export function QuizCard({ quiz, onDuplicate, onDelete, busy = false }) {
 
       <div className="mt-auto flex flex-wrap gap-2">
         <Button href={`/host/quizzes/${quiz.id}/edit`} size="sm" className="flex-1">
-          {quiz.status === "draft" ? "Edit" : "Open"}
+          {quiz.status === "draft" ? t("editor.editLabel") : t("editor.openLabel")}
         </Button>
         <Button
           variant="outline"
@@ -59,7 +75,7 @@ export function QuizCard({ quiz, onDuplicate, onDelete, busy = false }) {
           onClick={() => onDuplicate(quiz)}
           disabled={busy}
         >
-          Duplicate
+          {t("editor.duplicateAction")}
         </Button>
         <Button
           variant="ghost"
@@ -67,7 +83,7 @@ export function QuizCard({ quiz, onDuplicate, onDelete, busy = false }) {
           onClick={() => onDelete(quiz)}
           disabled={busy}
         >
-          Delete
+          {t("common.delete")}
         </Button>
       </div>
     </Card>
