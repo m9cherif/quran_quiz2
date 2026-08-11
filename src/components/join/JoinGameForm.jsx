@@ -9,6 +9,7 @@ import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { setParticipant } from "@/store/Slices/participantSlice";
 import { joinGame } from "@/services/games";
+import { joinClass } from "@/services/classes";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
@@ -63,7 +64,11 @@ export function JoinGameForm({ defaultCode = "" }) {
       if (err?.code === "P0003") {
         setError(t("join.draftError"));
       } else if (err?.code === "P0004") {
-        setError(t("join.classCodeError"));
+        if (profileId) {
+          await handleClassJoin(trimmedCode);
+        } else {
+          setError(t("join.classCodeNeedsLogin"));
+        }
       } else if (err?.code === "28000") {
         setError(t("join.notOpenError"));
       } else if (err?.code === "22023") {
@@ -77,6 +82,29 @@ export function JoinGameForm({ defaultCode = "" }) {
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleClassJoin = async (code) => {
+    try {
+      const cls = await joinClass(code);
+      toast({
+        title: t("student.classJoined"),
+        description: t("student.classJoinedDesc"),
+        variant: "success",
+      });
+      router.push("/student/classes");
+    } catch (err) {
+      console.error("Class join failed:", err);
+      if (err?.code === "28000") {
+        setError(t("student.classNotOpen"));
+      } else {
+        toast({
+          title: t("student.classJoinFailed"),
+          description: t("common.tryAgain"),
+          variant: "error",
+        });
+      }
     }
   };
 

@@ -125,6 +125,7 @@ draft: string;
     notOpenError: string;
     draftError: string;
     classCodeError: string;
+    classCodeNeedsLogin: string;
     genericErrorTitle: string;
     genericErrorDesc: string;
   };
@@ -632,10 +633,10 @@ export const messages: Record<Locale, Messages> = {
     },
     join: {
       title: "Join a game",
-      subtitle: "Enter the game code from your teacher, then pick a nickname.",
+      subtitle: "Enter a game or class code your teacher shared, then pick a nickname.",
       nickname: "Your nickname",
       nicknamePlaceholder: "e.g. Ahmed",
-      gameCode: "Game code",
+      gameCode: "Code",
       gameCodePlaceholder: "e.g. A1B2C3D4",
       joinButton: "Join game",
       nickError: "Nickname must be between 2 and 50 characters.",
@@ -645,6 +646,8 @@ export const messages: Record<Locale, Messages> = {
         "This quiz hasn't been launched yet. Ask your host to launch it from their quiz library — drafts can't be joined.",
       classCodeError:
         "That's a class code, not a game code. Join the class from your Classes page — live games use the code shown in the host's control room.",
+      classCodeNeedsLogin:
+        "Class codes need a signed-in account. Log in, then join the class from your Classes page.",
       genericErrorTitle: "Couldn't join the game",
       genericErrorDesc: "Check your connection and try again.",
     },
@@ -1159,10 +1162,10 @@ export const messages: Record<Locale, Messages> = {
     },
     join: {
       title: "انضم إلى لعبة",
-      subtitle: "أدخل رمز اللعبة من معلمك، ثم اختر اسمًا مستعارًا.",
+      subtitle: "أدخل رمز لعبة أو صف شاركه معلمك، ثم اختر اسمًا مستعارًا.",
       nickname: "اسمك المستعار",
       nicknamePlaceholder: "مثال: أحمد",
-      gameCode: "رمز اللعبة",
+      gameCode: "الرمز",
       gameCodePlaceholder: "مثال: A1B2C3D4",
       joinButton: "انضم إلى اللعبة",
       nickError: "يجب أن يكون الاسم بين 2 و50 حرفًا.",
@@ -1172,6 +1175,8 @@ export const messages: Record<Locale, Messages> = {
         "لم يُطلق هذا الاختبار بعد. اطلب من المضيف إطلاقه من مكتبة الاختبارات — لا يمكن الانضمام إلى المسودات.",
       classCodeError:
         "هذا رمز صف، وليس رمز لعبة. انضم إلى الصف من صفحة صفوفك — الألعاب المباشرة تستخدم الرمز الظاهر في غرفة تحكم المضيف.",
+      classCodeNeedsLogin:
+        "أكواد الصفوف تتطلب تسجيل الدخول. سجّل الدخول ثم انضم إلى الصف من صفحة صفوفك.",
       genericErrorTitle: "تعذّر الانضمام إلى اللعبة",
       genericErrorDesc: "تحقق من اتصالك وحاول مجددًا.",
     },
@@ -1681,10 +1686,10 @@ export const messages: Record<Locale, Messages> = {
     },
     join: {
       title: "Rejoindre un jeu",
-      subtitle: "Entrez le code du jeu de votre enseignant, puis choisissez un pseudo.",
+      subtitle: "Saisissez un code de jeu ou de classe partagé par votre enseignant, puis choisissez un pseudo.",
       nickname: "Votre pseudo",
       nicknamePlaceholder: "ex. Ahmed",
-      gameCode: "Code du jeu",
+      gameCode: "Code",
       gameCodePlaceholder: "ex. A1B2C3D4",
       joinButton: "Rejoindre le jeu",
       nickError: "Le pseudo doit faire entre 2 et 50 caractères.",
@@ -1694,6 +1699,8 @@ export const messages: Record<Locale, Messages> = {
         "Ce quiz n'a pas encore été lancé. Demandez à l'hôte de le lancer depuis sa bibliothèque — les brouillons ne sont pas joignables.",
       classCodeError:
         "Ce code est un code de classe, pas un code de jeu. Rejoignez la classe depuis votre page Classes — les jeux en direct utilisent le code affiché dans la salle de contrôle de l'hôte.",
+      classCodeNeedsLogin:
+        "Les codes de classe nécessitent un compte connecté. Connectez-vous, puis rejoignez la classe depuis votre page Classes.",
       genericErrorTitle: "Impossible de rejoindre le jeu",
       genericErrorDesc: "Vérifiez votre connexion et réessayez.",
     },
