@@ -354,7 +354,7 @@ export default function GameQuestion({ params }) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-surface-2 px-4">
         <Card padding="lg" className="w-full max-w-sm text-center">
-          <p className="text-sm font-medium text-ink-muted">{game.name}</p>
+          <p className="text-sm font-medium text-ink-muted">{game.title}</p>
           <p className="mt-1 font-mono text-3xl font-bold tracking-[0.3em] text-primary">{code}</p>
           <p className="mt-6 text-sm font-medium text-ink">{t("game.startingSoon")}</p>
           <Button variant="ghost" onClick={leaveGame} className="mt-6 w-full">

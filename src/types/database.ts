@@ -32,7 +32,10 @@ export interface Competition {
   id: string;
   code: string;
   name: string;
+  title: string;
   description: string | null;
+  instructions: string | null;
+  minutes_per_question: number;
   status: CompetitionStatus;
   scheduled_at: string | null;
   started_at: string | null;

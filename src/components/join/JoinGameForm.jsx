@@ -60,7 +60,11 @@ export function JoinGameForm({ defaultCode = "" }) {
       router.push(`/game/${trimmedCode}`);
     } catch (err) {
       console.error("Join failed:", err);
-      if (err?.code === "28000") {
+      if (err?.code === "P0003") {
+        setError(t("join.draftError"));
+      } else if (err?.code === "P0004") {
+        setError(t("join.classCodeError"));
+      } else if (err?.code === "28000") {
         setError(t("join.notOpenError"));
       } else if (err?.code === "22023") {
         setError(err.message ?? t("join.nickError"));

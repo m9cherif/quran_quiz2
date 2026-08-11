@@ -11,7 +11,10 @@ import type {
 
 export interface QuizMetaInput {
   name: string;
+  title?: string | null;
   description?: string | null;
+  instructions?: string | null;
+  minutes_per_question?: number;
   language: CompetitionLanguage;
   category?: string | null;
   difficulty?: CompetitionDifficulty | null;
@@ -69,9 +72,10 @@ export async function listMyQuizzes(): Promise<QuizSummary[]> {
 }
 
 export async function createQuiz(input: QuizMetaInput): Promise<Pick<Competition, "id" | "code">> {
+  const { data: sessionUser } = await getSupabase().auth.getUser();
   const { data, error } = await getSupabase()
     .from("competitions")
-    .insert([input as never])
+    .insert([{ ...input, owner_id: sessionUser?.user?.id ?? null } as never])
     .select("id, code")
     .single();
   if (error) throw error;

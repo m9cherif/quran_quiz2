@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import Countdown from "@/components/ui/Countdown";
 import { Dialog } from "@/components/ui/Dialog";
 import EmptyState from "@/components/ui/EmptyState";
+import HostDashboard from "@/components/host/HostDashboard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
@@ -22,7 +24,6 @@ import {
   getQuestionStats,
   listGameQuestions,
   listParticipants,
-  remainingMs,
 } from "@/services/games";
 
 export default function LiveGameControl({ roomKey }) {
@@ -41,12 +42,6 @@ export default function LiveGameControl({ roomKey }) {
     };
     return map[status] ?? { variant: "neutral", label: status };
   };
-
-function fmt(seconds) {
-  const s = Math.max(0, Math.ceil(seconds));
-  const m = Math.floor(s / 60);
-  return `${m}:${String(s % 60).padStart(2, "0")}`;
-}
 
 /**
  * LiveGameControl — host control room for a running game.
@@ -216,6 +211,9 @@ function fmt(seconds) {
     ? Object.keys(answers).filter((key) => key.endsWith(`:${current.id}`)).length
     : 0;
 
+  const effectiveSeconds = (q) =>
+    Math.min(q.duration_seconds, Math.max(1, game?.minutes_per_question ?? 1) * 60);
+
   const phase = !game
     ? "lobby"
     : game.status === "running"
@@ -344,7 +342,7 @@ function fmt(seconds) {
           <Button variant="ghost" size="sm" href="/host/games">
             ← {t("nav.liveGames")}
           </Button>
-          <h1 className="text-xl font-bold text-ink sm:text-2xl">{game.name}</h1>
+          <h1 className="text-xl font-bold text-ink sm:text-2xl">{game.title}</h1>
           <Badge variant={statusInfo.variant} dot>
             {statusInfo.label}
           </Badge>
@@ -399,6 +397,8 @@ function fmt(seconds) {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-4">
+          {phase === "lobby" && <HostDashboard game={game} />}
+
           {current ? (
             <Card className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -406,9 +406,10 @@ function fmt(seconds) {
                   {t("host.questionOfCtrl", { position: current.position, total: questions.length })}
                 </h2>
                 {activeEnds && (
-                  <Badge variant="warning" dot>
-                    {fmt(remainingMs(activeEnds, now) / 1000)} {t("host.remaining")}
-                  </Badge>
+                  <span className="inline-flex items-center gap-2 text-sm text-ink-muted">
+                    <Countdown endsAt={activeEnds} now={now} size="lg" />
+                    {t("host.remaining")}
+                  </span>
                 )}
                 {!activeEnds && <Badge variant="neutral">{t("host.closed")}</Badge>}
               </div>
@@ -481,7 +482,7 @@ function fmt(seconds) {
                           ? t("host.active")
                           : t("host.done")
                         : t("host.upcoming")}{" "}
-                      · {q.duration_seconds}s
+                      · {effectiveSeconds(q)}s
                     </span>
                   </li>
                 );

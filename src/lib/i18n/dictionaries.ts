@@ -29,9 +29,10 @@ export interface Messages {
     noResults: string;
     loadFailedTitle: string;
     loadFailedDesc: string;
-    draft: string;
+draft: string;
     scheduled: string;
-questionWord: string;
+    reset: string;
+    questionWord: string;
       answerWord: string;
       avg: string;
       errorTitle: string;
@@ -122,6 +123,8 @@ questionWord: string;
     nickError: string;
     codeError: string;
     notOpenError: string;
+    draftError: string;
+    classCodeError: string;
     genericErrorTitle: string;
     genericErrorDesc: string;
   };
@@ -196,6 +199,17 @@ signInToTrack: string;
     deleteDesc: string;
     deletePermanently: string;
     lobbyOpen: string;
+    setupTitle: string;
+    setupTagline: string;
+    setupGameTitle: string;
+    setupGameTitlePlaceholder: string;
+    setupInstructions: string;
+    setupInstructionsPlaceholder: string;
+    setupMinutesPerQuestion: string;
+    setupMinutesHint: string;
+    setupSave: string;
+    setupSaved: string;
+    setupSaveFailed: string;
     gameNotFound: string;
     couldNotOpen: string;
     backToGames: string;
@@ -532,6 +546,7 @@ export const messages: Record<Locale, Messages> = {
       loadFailedDesc: "Check your connection and try again.",
       draft: "Draft",
       scheduled: "Scheduled",
+      reset: "Reset",
       questionWord: "questions",
       answerWord: "answers",
       avg: "avg",
@@ -626,6 +641,10 @@ export const messages: Record<Locale, Messages> = {
       nickError: "Nickname must be between 2 and 50 characters.",
       codeError: "Enter the game code shown by the host.",
       notOpenError: "This game isn't open to join yet. Check the code with your host.",
+      draftError:
+        "This quiz hasn't been launched yet. Ask your host to launch it from their quiz library — drafts can't be joined.",
+      classCodeError:
+        "That's a class code, not a game code. Join the class from your Classes page — live games use the code shown in the host's control room.",
       genericErrorTitle: "Couldn't join the game",
       genericErrorDesc: "Check your connection and try again.",
     },
@@ -705,6 +724,18 @@ export const messages: Record<Locale, Messages> = {
         "“{name}” and its {count} question(s) will be permanently removed.",
       deletePermanently: "Delete permanently",
       lobbyOpen: "Lobby open",
+      setupTitle: "Game setup",
+      setupTagline:
+        "Set the game title students see, optional instructions, and how long each question stays open.",
+      setupGameTitle: "Game title",
+      setupGameTitlePlaceholder: "e.g. Quran night round 2",
+      setupInstructions: "Instructions (optional)",
+      setupInstructionsPlaceholder: "Shown to students while they wait in the lobby…",
+      setupMinutesPerQuestion: "Time per question (minutes)",
+      setupMinutesHint: "Questions longer than this limit are shortened to it when they start.",
+      setupSave: "Save setup",
+      setupSaved: "Setup saved",
+      setupSaveFailed: "Couldn't save the setup",
       gameNotFound: "Game not found. Check the room code.",
       couldNotOpen: "Could not open this game.",
       backToGames: "Back to games",
@@ -1043,6 +1074,7 @@ export const messages: Record<Locale, Messages> = {
       loadFailedDesc: "تحقق من اتصالك وحاول مجددًا.",
       draft: "مسودة",
       scheduled: "مجدول",
+      reset: "إعادة ضبط",
       questionWord: "سؤالًا",
       answerWord: "إجابات",
       avg: "متوسط",
@@ -1136,6 +1168,10 @@ export const messages: Record<Locale, Messages> = {
       nickError: "يجب أن يكون الاسم بين 2 و50 حرفًا.",
       codeError: "أدخل رمز اللعبة الذي يعرضه المضيف.",
       notOpenError: "هذه اللعبة غير مفتوحة للانضمام بعد. تحقق من الرمز مع المضيف.",
+      draftError:
+        "لم يُطلق هذا الاختبار بعد. اطلب من المضيف إطلاقه من مكتبة الاختبارات — لا يمكن الانضمام إلى المسودات.",
+      classCodeError:
+        "هذا رمز صف، وليس رمز لعبة. انضم إلى الصف من صفحة صفوفك — الألعاب المباشرة تستخدم الرمز الظاهر في غرفة تحكم المضيف.",
       genericErrorTitle: "تعذّر الانضمام إلى اللعبة",
       genericErrorDesc: "تحقق من اتصالك وحاول مجددًا.",
     },
@@ -1212,6 +1248,18 @@ export const messages: Record<Locale, Messages> = {
       deleteDesc: "سيُحذف «{name}» نهائيًا مع أسئلته البالغة {count} سؤالًا.",
       deletePermanently: "حذف نهائي",
       lobbyOpen: "القاعة مفتوحة",
+      setupTitle: "إعداد اللعبة",
+      setupTagline:
+        "حدّد عنوان اللعبة الذي يراه الطلاب، والتعليمات الاختيارية، والمدة المتاحة لكل سؤال.",
+      setupGameTitle: "عنوان اللعبة",
+      setupGameTitlePlaceholder: "مثال: جولة الليل القرآنية 2",
+      setupInstructions: "التعليمات (اختياري)",
+      setupInstructionsPlaceholder: "تُعرض للطلاب أثناء انتظارهم في القاعة…",
+      setupMinutesPerQuestion: "الوقت لكل سؤال (دقائق)",
+      setupMinutesHint: "تُقصّ الأسئلة الأطول من هذا الحد إلى الحد نفسه عند بدء السؤال.",
+      setupSave: "حفظ الإعداد",
+      setupSaved: "تم حفظ الإعداد",
+      setupSaveFailed: "تعذّر حفظ الإعداد",
       gameNotFound: "اللعبة غير موجودة. تحقق من رمز الغرفة.",
       couldNotOpen: "تعذّر فتح هذه اللعبة.",
       backToGames: "العودة إلى الألعاب",
@@ -1547,6 +1595,7 @@ export const messages: Record<Locale, Messages> = {
       loadFailedDesc: "Vérifiez votre connexion et réessayez.",
       draft: "Brouillon",
       scheduled: "Programmé",
+      reset: "Réinitialiser",
       questionWord: "questions",
       answerWord: "réponses",
       avg: "moy.",
@@ -1641,6 +1690,10 @@ export const messages: Record<Locale, Messages> = {
       nickError: "Le pseudo doit faire entre 2 et 50 caractères.",
       codeError: "Entrez le code du jeu affiché par l'hôte.",
       notOpenError: "Ce jeu n'accepte pas encore de joueurs. Vérifiez le code avec l'hôte.",
+      draftError:
+        "Ce quiz n'a pas encore été lancé. Demandez à l'hôte de le lancer depuis sa bibliothèque — les brouillons ne sont pas joignables.",
+      classCodeError:
+        "Ce code est un code de classe, pas un code de jeu. Rejoignez la classe depuis votre page Classes — les jeux en direct utilisent le code affiché dans la salle de contrôle de l'hôte.",
       genericErrorTitle: "Impossible de rejoindre le jeu",
       genericErrorDesc: "Vérifiez votre connexion et réessayez.",
     },
@@ -1719,6 +1772,18 @@ export const messages: Record<Locale, Messages> = {
       deleteDesc: "« {name} » et ses {count} question(s) seront définitivement supprimés.",
       deletePermanently: "Supprimer définitivement",
       lobbyOpen: "Salle ouverte",
+      setupTitle: "Configuration du jeu",
+      setupTagline:
+        "Définissez le titre du jeu vu par les élèves, les consignes facultatives et le temps accordé à chaque question.",
+      setupGameTitle: "Titre du jeu",
+      setupGameTitlePlaceholder: "ex. Manche coranique du soir n°2",
+      setupInstructions: "Consignes (facultatif)",
+      setupInstructionsPlaceholder: "Affichées aux élèves pendant l'attente dans le lobby…",
+      setupMinutesPerQuestion: "Temps par question (minutes)",
+      setupMinutesHint: "Les questions plus longues que cette limite sont réduites à cette durée au démarrage.",
+      setupSave: "Enregistrer",
+      setupSaved: "Configuration enregistrée",
+      setupSaveFailed: "Enregistrement impossible",
       gameNotFound: "Jeu introuvable. Vérifiez le code de la salle.",
       couldNotOpen: "Impossible d'ouvrir ce jeu.",
       backToGames: "Retour aux jeux",

@@ -178,10 +178,16 @@ export default function GameLobby({ params }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-surface-2 px-4">
       <Card padding="lg" className="w-full max-w-sm text-center">
-        <p className="text-sm font-medium text-ink-muted">{game.name}</p>
+        <p className="text-sm font-medium text-ink-muted">{game.title}</p>
         <p className="mt-1 font-mono text-3xl font-bold tracking-[0.3em] text-primary">
           {code}
         </p>
+
+        {game.instructions && (
+          <p className="mt-4 rounded-md bg-surface-2 px-3 py-2 text-sm text-ink">
+            {game.instructions}
+          </p>
+        )}
 
         <div className="mt-6 flex flex-col items-center gap-2">
           <span className="relative flex h-3 w-3" aria-hidden="true">
