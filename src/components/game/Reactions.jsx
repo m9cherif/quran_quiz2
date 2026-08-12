@@ -22,7 +22,11 @@ export function useReactions(competitionId, { listen = true } = {}) {
 
   useEffect(() => {
     if (!competitionId) return;
-    const channel = getSupabase().channel(`room-${competitionId}`, {
+    // Its own topic on purpose: the control room and the student screen both
+    // already hold a `room-{id}` channel for deck nudges, and a second channel
+    // with the same topic on one client is not delivered — which is why
+    // reactions never reached the host.
+    const channel = getSupabase().channel(`reactions-${competitionId}`, {
       config: { broadcast: { self: false } },
     });
     if (listen) {

@@ -10,7 +10,7 @@ const MIC_OFF = <path d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 
 const CAM_ON = <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h7A1.5 1.5 0 0 1 13 6.5v7A1.5 1.5 0 0 1 11.5 15h-7A1.5 1.5 0 0 1 3 13.5v-7Zm11 2.06 3-1.8v6.48l-3-1.8V8.56Z" />;
 const CAM_OFF = <path d="M3.28 2.22a.75.75 0 1 0-1.06 1.06l1.03 1.03A1.5 1.5 0 0 0 3 5.5v9A1.5 1.5 0 0 0 4.5 16h7c.3 0 .58-.09.82-.24l3.4 3.4a.75.75 0 0 0 1.06-1.06L3.28 2.22ZM13 8.56l3-1.8v6.48l-1.2-.72V8.56ZM6.2 5h5.3A1.5 1.5 0 0 1 13 6.5v.7L6.2 5Z" />;
 
-function VideoTile({ stream, label, muted = false, self = false, onMute, muteLabel }) {
+function VideoTile({ stream, label, muted = false, self = false, controls = null }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -39,15 +39,7 @@ function VideoTile({ stream, label, muted = false, self = false, onMute, muteLab
       )}
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-black/50 px-2 py-1">
         <span className="truncate text-xs font-medium text-white">{label}</span>
-        {onMute && (
-          <button
-            type="button"
-            onClick={onMute}
-            className="shrink-0 rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-white/25"
-          >
-            {muteLabel}
-          </button>
-        )}
+        {controls && <span className="flex shrink-0 gap-1">{controls}</span>}
       </div>
     </div>
   );
@@ -61,9 +53,23 @@ function VideoTile({ stream, label, muted = false, self = false, onMute, muteLab
 export default function CallPanel({ call, role, selfLabel, className = "" }) {
   const { t } = useI18n();
   const {
-    joined, connecting, micOn, camOn, hasCamera, forcedMute, error, relaySource,
-    peers, localStream, join, leave, toggleMic, toggleCam, muteParticipant,
+    joined, connecting, micOn, camOn, hasCamera, hostNotice, error, relaySource,
+    peers, localStream, join, leave, toggleMic, toggleCam,
+    controlParticipant, controlEveryone,
   } = call;
+
+  const isHost = role === "host";
+
+  /** Small pill button used for the host's per-student controls. */
+  const tileButton = (onClick, text) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-white/25"
+    >
+      {text}
+    </button>
+  );
 
   if (!joined) {
     return (
@@ -126,10 +132,29 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
         </div>
       </div>
 
-      {forcedMute && (
+      {hostNotice && (
         <p className="mb-3 rounded-md bg-warning-soft px-3 py-2 text-xs text-warning-strong" role="status">
-          {t("call.mutedByHost")}
+          {t(`call.byHost_${hostNotice}`)}
         </p>
+      )}
+
+      {/* Whole-room controls: one tap covers every student on the call. */}
+      {isHost && peers.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-surface-2 px-3 py-2">
+          <span className="text-xs font-semibold text-ink-muted">{t("call.everyone")}</span>
+          <Button size="sm" variant="outline" onClick={() => controlEveryone({ mic: false })}>
+            {t("call.muteAll")}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => controlEveryone({ mic: true })}>
+            {t("call.unmuteAll")}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => controlEveryone({ cam: false })}>
+            {t("call.camsOff")}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => controlEveryone({ cam: true })}>
+            {t("call.camsOn")}
+          </Button>
+        </div>
       )}
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -139,8 +164,16 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
             key={peer.id}
             stream={peer.stream}
             label={peer.name || (peer.role === "host" ? t("nav.host") : t("call.student"))}
-            onMute={role === "host" ? () => muteParticipant(peer.id) : undefined}
-            muteLabel={t("call.mute")}
+            controls={
+              isHost && peer.role !== "host" ? (
+                <>
+                  {tileButton(() => controlParticipant(peer.id, { mic: false }), t("call.mute"))}
+                  {tileButton(() => controlParticipant(peer.id, { mic: true }), t("call.unmute"))}
+                  {tileButton(() => controlParticipant(peer.id, { cam: false }), t("call.stopCam"))}
+                  {tileButton(() => controlParticipant(peer.id, { cam: true }), t("call.startCam"))}
+                </>
+              ) : null
+            }
           />
         ))}
       </div>

@@ -629,6 +629,18 @@ moveDown: string;
     aria: string;
   },
   call: {
+    unmute: string;
+    stopCam: string;
+    startCam: string;
+    everyone: string;
+    muteAll: string;
+    unmuteAll: string;
+    camsOff: string;
+    camsOn: string;
+    byHost_micOff: string;
+    byHost_micOn: string;
+    byHost_camOff: string;
+    byHost_camOn: string;
     relayNone: string;
     relayPublic: string;
     relayConfigured: string;

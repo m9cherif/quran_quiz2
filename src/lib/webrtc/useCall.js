@@ -36,7 +36,8 @@ export function useCall({ competitionId, role, displayName, enabled }) {
   const [hasCamera, setHasCamera] = useState(false);
   const [error, setError] = useState("");
   const [peers, setPeers] = useState([]); // [{ id, name, stream, role }]
-  const [forcedMute, setForcedMute] = useState(false);
+  /** Last thing the host did to this device: micOn|micOff|camOn|camOff. */
+  const [hostNotice, setHostNotice] = useState("");
 
   const selfIdRef = useRef(randomId());
   const iceServersRef = useRef(FALLBACK_ICE);
@@ -133,7 +134,7 @@ export function useCall({ competitionId, role, displayName, enabled }) {
     }
     setPeers([]);
     setJoined(false);
-    setForcedMute(false);
+    setHostNotice("");
   }, [dropPeer, send]);
 
   const join = useCallback(async () => {
@@ -210,12 +211,36 @@ export function useCall({ competitionId, role, displayName, enabled }) {
         .on("broadcast", { event: "bye" }, ({ payload }) => {
           if (payload?.from) dropPeer(payload.from);
         })
-        .on("broadcast", { event: "force-mute" }, ({ payload }) => {
-          // Host asked this device to go quiet.
-          if (payload?.to !== selfIdRef.current) return;
-          localStreamRef.current?.getAudioTracks().forEach((t) => (t.enabled = false));
-          setMicOn(false);
-          setForcedMute(true);
+        .on("broadcast", { event: "host-control" }, ({ payload }) => {
+          // The host drives this device's mic/camera. Addressed to one
+          // student or to "all". The change is always announced on screen —
+          // a camera must never light up without the person seeing why.
+          if (payload?.to !== selfIdRef.current && payload?.to !== "all") return;
+          if (payload.role !== "host") return;
+
+          const stream = localStreamRef.current;
+          if (!stream) return;
+
+          if (typeof payload.mic === "boolean") {
+            stream.getAudioTracks().forEach((t) => (t.enabled = payload.mic));
+            setMicOn(payload.mic);
+          }
+          if (typeof payload.cam === "boolean") {
+            const videos = stream.getVideoTracks();
+            if (videos.length > 0) {
+              videos.forEach((t) => (t.enabled = payload.cam));
+              setCamOn(payload.cam);
+            }
+          }
+          setHostNotice(
+            typeof payload.cam === "boolean" && typeof payload.mic !== "boolean"
+              ? payload.cam
+                ? "camOn"
+                : "camOff"
+              : payload.mic
+                ? "micOn"
+                : "micOff"
+          );
         });
 
       channel.subscribe((status) => {
@@ -236,7 +261,7 @@ export function useCall({ competitionId, role, displayName, enabled }) {
     const next = !micOn;
     tracks.forEach((t) => (t.enabled = next));
     setMicOn(next);
-    if (next) setForcedMute(false);
+    setHostNotice("");
   }, [micOn]);
 
   const toggleCam = useCallback(() => {
@@ -245,10 +270,22 @@ export function useCall({ competitionId, role, displayName, enabled }) {
     const next = !camOn;
     tracks.forEach((t) => (t.enabled = next));
     setCamOn(next);
+    setHostNotice("");
   }, [camOn]);
 
-  /** Host-only: ask one participant's device to mute itself. */
-  const muteParticipant = useCallback((peerId) => send("force-mute", { to: peerId }), [send]);
+  /**
+   * Host-only: drive a student's mic/camera, or every student at once with
+   * "all". Pass only what should change, e.g. { mic: false } or { cam: true }.
+   */
+  const controlParticipant = useCallback(
+    (peerId, changes) => send("host-control", { to: peerId, ...changes }),
+    [send]
+  );
+
+  const controlEveryone = useCallback(
+    (changes) => send("host-control", { to: "all", ...changes }),
+    [send]
+  );
 
   // The host closing the room, or the page going away, must free the camera.
   useEffect(() => {
@@ -264,7 +301,7 @@ export function useCall({ competitionId, role, displayName, enabled }) {
     micOn,
     camOn,
     hasCamera,
-    forcedMute,
+    hostNotice,
     error,
     peers,
     localStream: localStreamRef.current,
@@ -272,7 +309,8 @@ export function useCall({ competitionId, role, displayName, enabled }) {
     leave,
     toggleMic,
     toggleCam,
-    muteParticipant,
+    controlParticipant,
+    controlEveryone,
   };
 }
 
