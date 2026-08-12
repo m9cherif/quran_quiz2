@@ -488,6 +488,7 @@ const fr: Messages = {
       expected: "Attendue",
     },
     game: {
+      answerRecorded: "Votre réponse a été enregistrée : {points} points.",
       lobbyTitle: "Salle d'attente",
       lobbySub: "Préparez votre appareil — l'hôte va lancer les questions.",
       waitingForPlayers: "En attente de joueurs",
@@ -561,6 +562,8 @@ const fr: Messages = {
       thirdPlace: "3e",
     },
     pw: {
+      submitPartial: "Envoyer {placed} sur {total}",
+      autosaveHint: "Votre travail est enregistré au fur et à mesure — il compte même si le temps s'écoule.",
       autoFill: "Remplir depuis la page",
       hideCount: "Mots à cacher",
       annotatedWords: "{count} mots sont repérés sur cette page",

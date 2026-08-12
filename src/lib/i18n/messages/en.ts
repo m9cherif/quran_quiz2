@@ -489,6 +489,7 @@ const en: Messages = {
       expected: "Expected",
     },
     game: {
+      answerRecorded: "Your answer was recorded: {points} points.",
       lobbyTitle: "Game lobby",
       lobbySub: "Get your device ready — the host will start the questions.",
       waitingForPlayers: "Waiting for players",
@@ -562,6 +563,8 @@ const en: Messages = {
       thirdPlace: "3rd",
     },
     pw: {
+      submitPartial: "Send {placed} of {total}",
+      autosaveHint: "Your work is saved as you go — it counts even if the time runs out.",
       autoFill: "Fill from page data",
       hideCount: "Words to hide",
       annotatedWords: "{count} words are mapped on this page",

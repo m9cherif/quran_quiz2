@@ -208,6 +208,28 @@ export async function submitAnswer(
   return data as Answer;
 }
 
+/**
+ * Store work-in-progress for a question while its window is open, so the
+ * server holds the student's placements even if they never press submit or the
+ * timer runs out first. The first call fixes the response time.
+ */
+export async function saveProgressAnswer(
+  competitionId: string,
+  questionId: string,
+  accessToken: string,
+  answerText: string,
+  responseTimeMs: number
+): Promise<Answer> {
+  const { data, error } = await getParticipantClient(accessToken).rpc("save_progress_answer", {
+    p_competition_id: competitionId,
+    p_question_id: questionId,
+    p_answer_text: answerText,
+    p_response_time_ms: Math.max(0, Math.round(responseTimeMs)),
+  });
+  if (error) throw error;
+  return data as Answer;
+}
+
 /** My answers in a game (own rows only). */
 export async function getMyAnswers(
   competitionId: string,

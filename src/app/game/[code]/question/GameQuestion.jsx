@@ -10,6 +10,7 @@ import {
   listStudentQuestions,
   listChoices,
   submitAnswer,
+  saveProgressAnswer,
   getReveal,
   getMyAnswers,
   updatePresence,
@@ -45,6 +46,7 @@ export default function GameQuestion({ code }) {
   const [questions, setQuestions] = useState([]);
   const [choices, setChoices] = useState({});
   const [revealById, setRevealById] = useState({});
+  const [revealFailedIds, setRevealFailedIds] = useState({});
   const [answersById, setAnswersById] = useState({});
   const [selectedChoiceId, setSelectedChoiceId] = useState(null);
   const [textAnswer, setTextAnswer] = useState("");
@@ -245,11 +247,26 @@ export default function GameQuestion({ code }) {
   useEffect(() => {
     if (!feedbackQuestion || !accessToken || revealById[feedbackQuestion.id]) return;
     let cancelled = false;
-    getReveal(feedbackQuestion.id, accessToken)
-      .then((reveal) => {
-        if (!cancelled) setRevealById((prev) => ({ ...prev, [reveal.question_id]: reveal }));
-      })
-      .catch(() => {});
+    // The window has only just closed for the caller's clock; the server may
+    // still consider it open for a moment. Retry a few times instead of
+    // swallowing the error, which used to leave the screen on "loading
+    // results" until the host started the next question.
+    let attempt = 0;
+    const run = () => {
+      getReveal(feedbackQuestion.id, accessToken)
+        .then((reveal) => {
+          if (!cancelled) setRevealById((prev) => ({ ...prev, [reveal.question_id]: reveal }));
+        })
+        .catch(() => {
+          attempt += 1;
+          if (!cancelled && attempt <= 5) {
+            setTimeout(run, 1000 * attempt);
+          } else if (!cancelled) {
+            setRevealFailedIds((prev) => ({ ...prev, [feedbackQuestion.id]: true }));
+          }
+        });
+    };
+    run();
     return () => {
       cancelled = true;
     };
@@ -290,6 +307,24 @@ export default function GameQuestion({ code }) {
     }
   }, [activeQuestion]);
 
+  /**
+   * Autosave for page exercises: the server keeps the latest placements, so a
+   * student who runs out of time (or closes the tab) is still graded on the
+   * work they had done. Failures are silent — the next change retries.
+   */
+  const saveProgress = useCallback(
+    (questionId, canonical) => {
+      if (!competitionId || !accessToken) return;
+      const elapsed = stageStartRef.current ? Date.now() - stageStartRef.current : 0;
+      saveProgressAnswer(competitionId, questionId, accessToken, canonical, elapsed)
+        .then((answer) => {
+          setAnswersById((prev) => ({ ...prev, [questionId]: answer }));
+        })
+        .catch(() => {});
+    },
+    [competitionId, accessToken]
+  );
+
   // ---------- submit ----------
   const handleSubmit = async (overrideAnswerText) => {
     if (!activeQuestion || !accessToken) return;
@@ -313,11 +348,23 @@ export default function GameQuestion({ code }) {
     setError("");
     try {
       const elapsed = stageStartRef.current ? Date.now() - stageStartRef.current : 0;
-      const answer = await submitAnswer(competitionId, activeQuestion.id, accessToken, {
-        choiceId,
-        answerText,
-        responseTimeMs: elapsed,
-      });
+      // Page exercises autosave as the student works, so a row already exists;
+      // submit_answer locks the first answer and would silently discard the
+      // final placements. Upsert through the same progress RPC instead.
+      const answer =
+        activeQuestion.type === "page_words"
+          ? await saveProgressAnswer(
+              competitionId,
+              activeQuestion.id,
+              accessToken,
+              answerText,
+              elapsed
+            )
+          : await submitAnswer(competitionId, activeQuestion.id, accessToken, {
+              choiceId,
+              answerText,
+              responseTimeMs: elapsed,
+            });
       setAnswersById((prev) => ({ ...prev, [activeQuestion.id]: answer }));
       setSubmittedIds((prev) => ({ ...prev, [activeQuestion.id]: true }));
       submittedRef.current.ids = { ...submittedRef.current.ids, [activeQuestion.id]: true };
@@ -464,6 +511,7 @@ export default function GameQuestion({ code }) {
             disabled={!isActive || wasSubmitted}
             solution={!isActive && reveal ? reveal.correct_answer_text : null}
             onSubmit={(canonical) => handleSubmit(canonical)}
+            onProgress={(canonical) => saveProgress(currentQuestion.id, canonical)}
           />
         )}
 
@@ -615,9 +663,24 @@ export default function GameQuestion({ code }) {
         )}
 
         {!isActive && !reveal && (
-          <p className="text-center text-sm text-ink-muted">
-            {wasSubmitted ? t("game.revealingAnswer") : t("game.loadingResults")}
-          </p>
+          <div className="space-y-2 text-center">
+            {revealFailedIds[currentQuestion.id] ? (
+              // Reveal is unavailable — say what was recorded rather than
+              // pretending something is still loading.
+              <p className="text-sm text-ink-muted">
+                {myAnswer
+                  ? t("game.answerRecorded", {
+                      points: Math.round((myAnswer.points ?? 0) + (myAnswer.bonus_points ?? 0)),
+                    })
+                  : t("game.noAnswerSubmitted")}
+              </p>
+            ) : (
+              <p className="text-sm text-ink-muted">
+                {wasSubmitted ? t("game.revealingAnswer") : t("game.loadingResults")}
+              </p>
+            )}
+            <p className="text-xs text-ink-faint">{t("game.waitingForQuestion")}</p>
+          </div>
         )}
       </Card>
 

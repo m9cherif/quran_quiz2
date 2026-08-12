@@ -473,6 +473,7 @@ moveDown: string;
       expected: string;
     };
   game: {
+    answerRecorded: string;
     lobbyTitle: string;
     lobbySub: string;
     waitingForPlayers: string;
@@ -550,6 +551,8 @@ moveDown: string;
     switchToLight: string;
   };
   pw: {
+    submitPartial: string;
+    autosaveHint: string;
     autoFill: string;
     hideCount: string;
     annotatedWords: string;

@@ -482,6 +482,7 @@ const ar: Messages = {
       expected: "المتوقعة",
     },
     game: {
+      answerRecorded: "تم تسجيل إجابتك: {points} نقطة.",
       lobbyTitle: "قاعة الانتظار",
       lobbySub: "جهّز جهازك — سيبدأ المضيف الأسئلة قريبًا.",
       waitingForPlayers: "بانتظار اللاعبين",
@@ -555,6 +556,8 @@ const ar: Messages = {
       thirdPlace: "الثالث",
     },
     pw: {
+      submitPartial: "إرسال {placed} من {total}",
+      autosaveHint: "يُحفظ عملك أولًا بأول — ويُحتسب حتى لو انتهى الوقت.",
       autoFill: "تعبئة من بيانات الصفحة",
       hideCount: "عدد الكلمات المخفية",
       annotatedWords: "{count} كلمة محددة في هذه الصفحة",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -18,6 +18,7 @@ export default function PageWordsPlay({
   question,
   chips,
   onSubmit,
+  onProgress,
   submitting,
   disabled = false,
   solution = null,
@@ -46,6 +47,23 @@ export default function PageWordsPlay({
   const allPlaced = placedCount === regions.length && regions.length > 0;
 
   const firstEmpty = placements.findIndex((p) => p === null);
+  const canonical = placements.map((p) => (p === null ? -1 : p)).join("|");
+
+  /**
+   * Push every change to the server shortly after it happens, so the grade
+   * reflects what was on screen when the timer ran out — pressing "submit" is
+   * a confirmation, not the only way the work is saved.
+   */
+  const savedRef = useRef("");
+  useEffect(() => {
+    if (disabled || !onProgress || placedCount === 0) return;
+    if (savedRef.current === canonical) return;
+    const id = setTimeout(() => {
+      savedRef.current = canonical;
+      onProgress(canonical);
+    }, 600);
+    return () => clearTimeout(id);
+  }, [canonical, placedCount, disabled, onProgress]);
 
   const placeChip = (regionIndex, chipIndex) => {
     if (disabled || chipIndex === null || regionIndex === null || regionIndex < 0) return;
@@ -235,15 +253,19 @@ export default function PageWordsPlay({
 
           <p className="text-xs text-ink-muted">{t("pw.playHint")}</p>
 
+          {/* Partial work counts, so the button is never a dead end. */}
           <Button
             size="lg"
             className="w-full"
             loading={submitting}
-            disabled={!allPlaced}
-            onClick={() => onSubmit(placements.map((p) => (p === null ? -1 : p)).join("|"))}
+            disabled={placedCount === 0}
+            onClick={() => onSubmit(canonical)}
           >
-            {t("game.submitAnswer")}
+            {allPlaced
+              ? t("game.submitAnswer")
+              : t("pw.submitPartial", { placed: placedCount, total: regions.length })}
           </Button>
+          <p className="text-center text-xs text-ink-muted">{t("pw.autosaveHint")}</p>
         </>
       )}
     </div>
