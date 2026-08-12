@@ -44,7 +44,7 @@ export default function LoginPage() {
       const profile = await getProfile(data.user.id);
       if (profile) dispatch(setUser(profile));
       dispatch(setAuthStatus("authenticated"));
-      router.push(profile?.role === "host" ? "/host/games" : "/");
+      router.push(profile?.role === "host" ? "/host/quizzes" : "/student/dashboard");
     } catch (err) {
       console.error("Login failed:", err);
       setError(t("auth.serverUnreachable"));

@@ -69,7 +69,7 @@ export default function RegisterPage() {
         router.push("/login");
         return;
       }
-      router.push(role === "host" ? "/host/games" : "/");
+      router.push(role === "host" ? "/host/quizzes" : "/student/dashboard");
     } catch (err) {
       console.error("Signup failed:", err);
       setError(t("auth.serverUnreachable"));

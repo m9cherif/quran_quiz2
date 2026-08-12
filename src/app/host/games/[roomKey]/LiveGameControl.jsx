@@ -19,8 +19,9 @@ import { getSupabase } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { deleteQuiz, saveQuestion, setQuizStatus } from "@/services/quizzes";
 import {
-  beginQuestion,
+  advanceGame,
   endQuestion,
+  getAnswerMatrix,
   getGameByCode,
   getHostQuestionFull,
   getLeaderboard,
@@ -28,6 +29,8 @@ import {
   listGameQuestions,
   listParticipants,
 } from "@/services/games";
+import JoinQr from "@/components/host/JoinQr";
+import { downloadTextFile, slugify, toCsv } from "@/lib/export";
 
 function emptyNewQuestion() {
   return {
@@ -88,8 +91,14 @@ export default function LiveGameControl({ roomKey }) {
   const [savingQuestion, setSavingQuestion] = useState(false);
   const [newQuestion, setNewQuestion] = useState(emptyNewQuestion);
   const [now, setNow] = useState(Date.now());
+  const [autoAdvance, setAutoAdvance] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [joinUrl, setJoinUrl] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
   const channelRef = useRef(null);
   const roomChannelRef = useRef(null);
+  const boardTimerRef = useRef(null);
+  const autoAdvanceRef = useRef(null);
 
   const loadAll = useCallback(async (code, fetchReveal = true) => {
     const competition = await getGameByCode(code);
@@ -205,9 +214,15 @@ export default function LiveGameControl({ roomKey }) {
         (payload) => {
           const row = payload.new;
           setAnswers((prev) => ({ ...prev, [`${row.participant_id}:${row.question_id}`]: true }));
-          getLeaderboard(game.id)
-            .then(setLeaderboard)
-            .catch(() => {});
+          // A full class answers within a second or two of each other; refetch
+          // the board once the burst settles instead of once per answer.
+          if (boardTimerRef.current) clearTimeout(boardTimerRef.current);
+          boardTimerRef.current = setTimeout(() => {
+            boardTimerRef.current = null;
+            getLeaderboard(game.id)
+              .then(setLeaderboard)
+              .catch(() => {});
+          }, 800);
         }
       )
       .subscribe();
@@ -223,6 +238,10 @@ export default function LiveGameControl({ roomKey }) {
     const timer = setInterval(() => setNow(Date.now()), 500);
     return () => {
       clearInterval(timer);
+      if (boardTimerRef.current) {
+        clearTimeout(boardTimerRef.current);
+        boardTimerRef.current = null;
+      }
       client.removeChannel(channel);
       client.removeChannel(roomChannel);
       channelRef.current = null;
@@ -273,6 +292,28 @@ export default function LiveGameControl({ roomKey }) {
       .catch(() => {});
   };
 
+  // Deep link students can scan or paste; origin is only known in the browser.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setJoinUrl(`${window.location.origin}/join/${roomKey}`);
+  }, [roomKey]);
+
+  const copyJoinLink = () => {
+    navigator.clipboard
+      .writeText(joinUrl)
+      .then(() => {
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 2000);
+      })
+      .catch(() => {
+        toast({
+          title: t("host.copyFailed"),
+          variant: "error",
+          description: t("host.couldNotCopy"),
+        });
+      });
+  };
+
   const copyCode = () => {
     navigator.clipboard
       .writeText(String(roomKey))
@@ -305,21 +346,22 @@ export default function LiveGameControl({ roomKey }) {
     }
   };
 
-  const startGame = () =>
-    run("start", async () => {
-      await setQuizStatus(game.id, "running");
-      if (upNext) await beginQuestion(upNext.id);
+  // One RPC closes the open question, opens the next and flips the game to
+  // running — the old end→begin pair could strand a round if the second call
+  // failed, and cost two round trips on every advance.
+  const advance = useCallback(
+    async (refresh = true) => {
+      const result = await advanceGame(game.id);
       nudgeStudents();
-    });
+      if (refresh) await loadAll(String(roomKey), false).catch(() => {});
+      return result;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [game?.id, roomKey, loadAll]
+  );
 
-  const nextQuestion = () =>
-    run("next", async () => {
-      if (current && new Date(current.ends_at).getTime() > now) {
-        await endQuestion(current.id);
-      }
-      if (upNext) await beginQuestion(upNext.id);
-      nudgeStudents();
-    });
+  const startGame = () => run("start", () => advance());
+  const nextQuestion = () => run("next", () => advance());
 
   const endCurrent = () =>
     run("end", async () => {
@@ -339,6 +381,48 @@ export default function LiveGameControl({ roomKey }) {
       nudgeStudents();
     });
 
+  /** Download every player × question result as CSV (owner-scoped RPC). */
+  const exportResults = async () => {
+    setExporting(true);
+    try {
+      const rows = await getAnswerMatrix(game.id);
+      const csv = toCsv(
+        [
+          t("host.csvPlayer"),
+          t("host.csvQuestionNo"),
+          t("host.csvQuestion"),
+          t("host.csvAnswer"),
+          t("host.csvCorrect"),
+          t("common.points"),
+          t("host.csvResponseMs"),
+        ],
+        rows.map((r) => [
+          r.display_name,
+          r.position_number,
+          r.question_text,
+          r.answer_text ?? "",
+          r.is_correct === null ? "" : r.is_correct ? "1" : "0",
+          r.points ?? "",
+          r.response_time_ms ?? "",
+        ])
+      );
+      downloadTextFile(
+        `${slugify(game.title || game.name, "results")}-${game.code}.csv`,
+        csv,
+        "text/csv"
+      );
+    } catch (err) {
+      console.error("Export failed:", err);
+      toast({
+        title: t("host.exportFailed"),
+        description: err instanceof Error ? err.message : t("common.tryAgain"),
+        variant: "error",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const cancelGame = () =>
     run("cancel", async () => {
       await setQuizStatus(game.id, "cancelled");
@@ -355,6 +439,22 @@ export default function LiveGameControl({ roomKey }) {
       });
       router.push("/host/games");
     });
+
+  // Auto-advance: once the open window closes, roll straight into the next
+  // question. The ref makes each question fire exactly once even though the
+  // clock ticks twice a second.
+  useEffect(() => {
+    if (!autoAdvance || phase !== "active" || !game || !upNext) return;
+    const endsAt = current?.ends_at ? new Date(current.ends_at).getTime() : null;
+    if (endsAt !== null && endsAt > now) return;
+    if (autoAdvanceRef.current === upNext.id) return;
+
+    autoAdvanceRef.current = upNext.id;
+    advance().catch((err) => {
+      console.error("Auto-advance failed:", err);
+      autoAdvanceRef.current = null;
+    });
+  }, [autoAdvance, phase, game, current, upNext, now, advance]);
 
   const patchNewQuestion = (patch) => setNewQuestion((prev) => ({ ...prev, ...patch }));
 
@@ -426,7 +526,11 @@ export default function LiveGameControl({ roomKey }) {
         pageNumber: null,
         juzNumber: null,
         hizbNumber: null,
-        choices: filled.map((c, i) => ({ text: c.text, position: i + 1, isCorrect: c.isCorrect })),
+        choices: filled.map((c, i) => ({
+          text: c.text,
+          position: i + 1,
+          is_correct: Boolean(c.isCorrect),
+        })),
       });
       toast({ title: t("host.questionAdded"), variant: "success" });
       setAddOpen(false);
@@ -505,6 +609,18 @@ export default function LiveGameControl({ roomKey }) {
           )}
           {phase === "active" && (
             <>
+              <label className="inline-flex cursor-pointer select-none items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink-muted">
+                <input
+                  type="checkbox"
+                  checked={autoAdvance}
+                  onChange={(e) => {
+                    autoAdvanceRef.current = null;
+                    setAutoAdvance(e.target.checked);
+                  }}
+                  className="h-4 w-4 accent-primary"
+                />
+                {t("host.autoAdvance")}
+              </label>
               <Button variant="outline" onClick={openAddQuestion}>
                 {t("host.addQuestion")}
               </Button>
@@ -652,11 +768,22 @@ export default function LiveGameControl({ roomKey }) {
 
         {(phase === "finished" || phase === "cancelled") && (
           <Card className="space-y-5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-semibold text-ink">{t("host.results")}</h2>
-              <Badge variant="neutral">
-                {leaderboard.length} {t("common.players")}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="neutral">
+                  {leaderboard.length} {t("common.players")}
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={exporting}
+                  onClick={exportResults}
+                  disabled={leaderboard.length === 0}
+                >
+                  {t("host.exportCsv")}
+                </Button>
+              </div>
             </div>
 
             {leaderboard.length >= 3 && (
@@ -744,10 +871,10 @@ export default function LiveGameControl({ roomKey }) {
 
         <div className="space-y-4">
           <Card padding="lg">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-semibold text-ink">{t("host.shareCode")}</h2>
-              <Badge variant="success" dot>
-                {t("host.lobbyOpen")}
+              <Badge variant={statusInfo.variant} dot>
+                {statusInfo.label}
               </Badge>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -760,7 +887,23 @@ export default function LiveGameControl({ roomKey }) {
               <Button variant="outline" onClick={copyCode}>
                 {copied ? t("host.copied") : t("common.copy")}
               </Button>
+              {joinUrl && (
+                <Button variant="ghost" onClick={copyJoinLink}>
+                  {linkCopied ? t("host.copied") : t("host.copyLink")}
+                </Button>
+              )}
             </div>
+
+            {joinUrl && (phase === "lobby" || phase === "active" || phase === "paused") && (
+              <div className="mt-4 flex flex-wrap items-center gap-4">
+                <JoinQr value={joinUrl} size={132} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-ink">{t("host.scanToJoin")}</p>
+                  <p className="mt-1 break-all text-xs text-ink-muted">{joinUrl}</p>
+                </div>
+              </div>
+            )}
+
             <p className="mt-3 text-sm text-ink-muted">
               {t("host.studentsGoJoin", { path: "/join" })}
             </p>

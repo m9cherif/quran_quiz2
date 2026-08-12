@@ -41,10 +41,11 @@ export interface SaveQuestionInput {
   pageNumber: number | null;
   juzNumber: number | null;
   hizbNumber: number | null;
+  /** Keys must stay snake_case — save_question reads `is_correct`. */
   choices: Array<{
     text: string;
     position: number;
-    isCorrect: boolean;
+    is_correct: boolean;
   }>;
 }
 
@@ -138,6 +139,30 @@ export async function listQuizQuestions(competitionId: string): Promise<Question
     .order("position", { ascending: true });
   if (error) throw error;
   return (data as QuestionListItem[]) ?? [];
+}
+
+/**
+ * Whole deck incl. hidden columns in one owner-scoped call.
+ * The editor used to issue one get_question_full per question (N+1); on a
+ * 40-question quiz that was 41 round trips before the first paint.
+ */
+export async function getQuizQuestionsFull(
+  competitionId: string
+): Promise<Array<QuizQuestionFull & { started_at: string | null }>> {
+  const { data, error } = await getSupabase().rpc("get_quiz_questions_full", {
+    p_competition_id: competitionId,
+  });
+  if (error) throw error;
+  return (data as Array<QuizQuestionFull & { started_at: string | null }>) ?? [];
+}
+
+/** Create a full quiz (questions + choices) from an exported JSON payload. */
+export async function importQuiz(payload: unknown): Promise<string> {
+  const { data, error } = await getSupabase().rpc("import_quiz", {
+    p_payload: payload as never,
+  });
+  if (error) throw error;
+  return data as string;
 }
 
 /** Full question incl. hidden columns — RPC-scoped to the owner. */

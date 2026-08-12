@@ -2,9 +2,7 @@ import { configureStore, combineReducers } from "@reduxjs/toolkit";
 import { persistStore, persistReducer } from "redux-persist";
 import storage from "redux-persist/lib/storage";
 import userReducer from "./Slices/userSlice";
-import roomReducer from "./Slices/roomSlice";
 import participantReducer from "./Slices/participantSlice";
-import leaderBoardReducer from "./Slices/leaderBoardSlice";
 
 const persistConfig = {
     key: "root",
@@ -13,14 +11,13 @@ const persistConfig = {
     // re-fetched from the DB on every load (stale persisted roles caused
     // wrongful "access restricted" redirects). Session tokens live in
     // Supabase's own storage, so this is purely a UI-state refresh.
-    blacklist: ["user"],
+    // Only the anonymous player identity survives a reload.
+    whitelist: ["participant"],
 };
 
 const rootReducer = combineReducers({
     user: userReducer,
-    room_key: roomReducer,
     participant: participantReducer,
-    leaderBoard: leaderBoardReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

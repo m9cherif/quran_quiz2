@@ -62,6 +62,27 @@ export async function beginQuestion(questionId: string): Promise<void> {
   if (error) throw error;
 }
 
+export interface AdvanceResult {
+  closed_question_id: string | null;
+  started_question_id: string | null;
+  started_position: number | null;
+  ends_at: string | null;
+  has_more: boolean;
+}
+
+/**
+ * Close the open question and open the next one in a single statement
+ * (host only). Replaces the end→begin pair, so the round cannot be left
+ * half-advanced if the second call fails, and costs one round trip.
+ */
+export async function advanceGame(competitionId: string): Promise<AdvanceResult> {
+  const { data, error } = await getSupabase().rpc("advance_game", {
+    p_competition_id: competitionId,
+  });
+  if (error) throw error;
+  return data as AdvanceResult;
+}
+
 /** Force-close the current question early (host only). */
 export async function endQuestion(questionId: string): Promise<void> {
   const { error } = await getSupabase().rpc("end_question", { p_question_id: questionId });
@@ -210,11 +231,17 @@ export async function getReveal(
   return data as RevealPayload;
 }
 
-/** Ranked leaderboard for the game (aggregates only). */
+/**
+ * Ranked leaderboard for the game (aggregates only).
+ * The RPC admits the owner (session) or a participant (token header), so
+ * students must pass their access token — otherwise the call is rejected.
+ */
 export async function getLeaderboard(
-  competitionId: string
+  competitionId: string,
+  accessToken?: string | null
 ): Promise<LeaderboardRow[]> {
-  const { data, error } = await getSupabase().rpc("game_leaderboard", {
+  const client = accessToken ? getParticipantClient(accessToken) : getSupabase();
+  const { data, error } = await client.rpc("game_leaderboard", {
     p_competition_id: competitionId,
   });
   if (error) throw error;
@@ -246,4 +273,23 @@ export async function getQuestionStats(competitionId: string): Promise<QuestionS
   });
   if (error) throw error;
   return (data as QuestionStatRow[]) ?? [];
+}
+
+export interface AnswerMatrixRow {
+  display_name: string;
+  position_number: number;
+  question_text: string;
+  answer_text: string | null;
+  is_correct: boolean | null;
+  points: number | null;
+  response_time_ms: number | null;
+}
+
+/** Every player × question result — host only; backs the CSV export. */
+export async function getAnswerMatrix(competitionId: string): Promise<AnswerMatrixRow[]> {
+  const { data, error } = await getSupabase().rpc("game_answer_matrix", {
+    p_competition_id: competitionId,
+  });
+  if (error) throw error;
+  return (data as AnswerMatrixRow[]) ?? [];
 }

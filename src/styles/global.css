@@ -2,210 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Hide scrollbar but allow scrolling */
-::-webkit-scrollbar {
+/*
+ * Everything visual lives in the design tokens (styles/tokens.css) and the
+ * component kit. The legacy glass/gradient/floating-circle classes that came
+ * from the original SPA were removed with the components that used them.
+ */
+
+@layer base {
+  /* Long question text should break instead of overflowing narrow phones. */
+  body {
+    text-wrap: pretty;
+  }
+
+  /* Arabic content: keep generous line height for diacritics. */
+  :root[dir="rtl"] body,
+  [dir="rtl"] {
+    line-height: 1.85;
+  }
+}
+
+@layer utilities {
+  /* Opt-in scrollbar hiding for horizontal chip rows (never global). */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
     display: none;
-    /* Hides the scrollbar */
-}
-
-.border-1:hover {
-    box-shadow: rgba(226, 77, 231, 0.2) 0px 7px 29px 0px;
-}
-
-.border-2 {
-    border-radius: 1rem;
-    border-color: white;
-    padding: 2rem;
-    box-shadow: rgba(153, 0, 255, 0.2) 0px 7px 29px 0px;
-}
-
-.border-3 {
-    box-shadow: rgba(226, 77, 231, 0.2) 0px 7px 29px 0px;
-}
-.error-border-1{
-    box-shadow: rgba(231, 77, 105, 0.2) 0px 7px 29px 0px;
-}
-.ok-border-1{
-    box-shadow: rgba(77, 231, 131, 0.2) 0px 7px 29px 0px;
-}
-
-.bg-animated-gradien-1 {
-    background: radial-gradient(ellipse at bottom, #321d3f 0%, #0c090f 100%);
-    overflow: hidden;
-}
-
-.bg-glass-1 {
-    background: rgba(255, 255, 255, 0.32);
-    border-radius: 16px;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(14.1px);
-    -webkit-backdrop-filter: blur(14.1px);
-}
-
-.area {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    background-color: #4158D0;
-    background-image: linear-gradient(43deg, #4158D0 0%, #C850C0 46%, #FFCC70 100%);
-    overflow: hidden;
-}
-
-.circles {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    /* Constrain animated items */
-}
-
-.circles li {
-    position: absolute;
-    display: block;
-    list-style: none;
-    width: 20px;
-    height: 20px;
-    background: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
-    border-radius: 20%;
-    animation: animate 25s linear infinite;
-    bottom: -150px;
-}
-
-.circles li:nth-child(1) {
-    left: 25%;
-    width: 80px;
-    height: 80px;
-    animation-delay: 0s;
-}
-
-
-.circles li:nth-child(2) {
-    left: 10%;
-    width: 20px;
-    height: 20px;
-    animation-delay: 2s;
-    animation-duration: 12s;
-}
-
-.circles li:nth-child(3) {
-    left: 70%;
-    width: 20px;
-    height: 20px;
-    animation-delay: 4s;
-}
-
-.circles li:nth-child(4) {
-    left: 40%;
-    width: 60px;
-    height: 60px;
-    animation-delay: 0s;
-    animation-duration: 18s;
-}
-
-.circles li:nth-child(5) {
-    left: 65%;
-    width: 20px;
-    height: 20px;
-    animation-delay: 0s;
-}
-
-.circles li:nth-child(6) {
-    left: 75%;
-    width: 110px;
-    height: 110px;
-    animation-delay: 3s;
-}
-
-.circles li:nth-child(7) {
-    left: 35%;
-    width: 150px;
-    height: 150px;
-    animation-delay: 7s;
-}
-
-.circles li:nth-child(8) {
-    left: 50%;
-    width: 25px;
-    height: 25px;
-    animation-delay: 15s;
-    animation-duration: 45s;
-}
-
-.circles li:nth-child(9) {
-    left: 20%;
-    width: 15px;
-    height: 15px;
-    animation-delay: 2s;
-    animation-duration: 35s;
-}
-
-.circles li:nth-child(10) {
-    left: 85%;
-    width: 150px;
-    height: 150px;
-    animation-delay: 0s;
-    animation-duration: 20s;
-}
-
-
-
-/* Keyframes */
-@keyframes animate {
-    0% {
-        transform: translateY(0) rotate(0deg);
-        opacity: 1;
-    }
-
-    100% {
-        transform: translateY(-1000px) rotate(720deg);
-        opacity: 0.1;
-    }
-}
-
-/* About Us component styles */
-/* About Us Section Styles */
-.about-us-section {
-    position: relative;
-    /* Ensures child elements with absolute positioning are scoped here */
-    background-size: cover;
-    /* Makes the background image cover the section */
-    background-repeat: no-repeat;
-    /* Prevent background from repeating */
-    background-position: center;
-    /* Centers the background image */
-    overflow: hidden;
-    /* Prevents elements from spilling outside the section */
-}
-
-/* Gradient Background Layer */
-.about-us-section .bg-gradient-to-b {
-    z-index: -1;
-    /* Ensures the gradient stays behind content */
-}
-
-/* Content Container Styling */
-.about-us-section .content-container {
-    z-index: 10;
-    /* Ensures the main content appears above the gradient */
-}
-
-/* Email Input Styling */
-.about-us-section input[type="email"] {
-    padding-left: 2.5rem;
-    /* Creates space for the email icon */
-}
-
-.about-us-section input[type="email"]:focus {
-    outline: none;
-    /* Removes default focus outline */
-}
-
-.about-us-section button[type="submit"] {
-    right: 10px;
-    /* Positions the submit button correctly */
-    bottom: 10px;
-    /* Aligns the button within the input */
+  }
 }

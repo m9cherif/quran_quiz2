@@ -1,9 +1,10 @@
+import LiveGameControl from "./LiveGameControl";
+
 export const metadata = {
   title: "Live game",
 };
 
-import LiveGameControl from "./LiveGameControl";
-
-export default function HostGamePage({ params }) {
-  return <LiveGameControl roomKey={String(params?.roomKey ?? "")} />;
+export default async function HostGamePage({ params }) {
+  const { roomKey } = await params;
+  return <LiveGameControl roomKey={String(roomKey ?? "")} />;
 }

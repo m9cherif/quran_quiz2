@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import EmptyState from "@/components/ui/EmptyState";
 import { listMyLiveGames } from "@/services/quizzes";
-import { getGameAnalytics } from "@/services/analytics";
+import { getGameAnalytics, getHostOverview } from "@/services/analytics";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 function formatDuration(ms) {
@@ -39,6 +39,7 @@ export default function HostAnalytics() {
   const [analytics, setAnalytics] = useState(null);
   const [analyticsError, setAnalyticsError] = useState(false);
   const [analyticsKey, setAnalyticsKey] = useState(0);
+  const [overview, setOverview] = useState(null);
 
   const getStatusInfo = (status) => {
     const variants = {
@@ -57,6 +58,21 @@ export default function HostAnalytics() {
     };
     return { variant: variants[status] ?? "neutral", label: labels[status] ?? status };
   };
+
+  // Cross-game totals: one owner-scoped call, independent of the picker.
+  useEffect(() => {
+    let cancelled = false;
+    getHostOverview()
+      .then((data) => {
+        if (!cancelled) setOverview(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load host overview:", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,26 +159,37 @@ export default function HostAnalytics() {
         </Button>
       </div>
 
-      {gamesCount > 0 && (
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard label={t("host.gamesLaunched")} value={gamesCount} />
+      <section aria-label={t("host.allTimeHeading")} className="mt-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">
+          {t("host.allTimeHeading")}
+        </h2>
+        <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           <StatCard
-            label={t("host.playersHeading")}
-            value={analytics ? analytics.participants_count : "—"}
-            hint={analytics ? t("host.inGame", { code: analytics.code }) : undefined}
+            label={t("host.gamesLaunched")}
+            value={overview ? overview.games_total : gamesCount}
+            hint={overview ? t("host.gamesLiveNow", { count: overview.games_live }) : undefined}
           />
           <StatCard
-            label={t("host.statQuestions")}
-            value={analytics ? analytics.questions_count : "—"}
-            hint={analytics ? t("host.inGame", { code: analytics.code }) : undefined}
+            label={t("host.statStudentsReached")}
+            value={overview ? overview.students_reached : "—"}
+            hint={overview ? t("host.acrossPlayers", { count: overview.players_total }) : undefined}
           />
           <StatCard
             label={t("host.statAnswers")}
-            value={analytics ? analytics.answers_count : "—"}
-            hint={analytics ? t("host.inGame", { code: analytics.code }) : undefined}
+            value={overview ? overview.answers_total : "—"}
+          />
+          <StatCard
+            label={t("host.averageAccuracy")}
+            value={overview ? `${overview.avg_accuracy}%` : "—"}
+            hint={t("host.allGames")}
+          />
+          <StatCard
+            label={t("host.statQuestions")}
+            value={overview ? overview.questions_total : "—"}
+            hint={overview ? t("host.quizzesDrafted", { count: overview.quizzes_total }) : undefined}
           />
         </div>
-      )}
+      </section>
 
       <div className="mt-6 flex flex-wrap gap-2">
         {games.map((game) => {

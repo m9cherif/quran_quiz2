@@ -1,12 +1,12 @@
 /** @type {import('tailwindcss').Config} */
-// const flowbite = require("flowbite-react/tailwind");
-
 module.exports = {
+  // ThemeProvider stamps the resolved theme on <html data-theme="...">, so
+  // "system" and an explicit choice go through exactly one selector.
+  darkMode: ["selector", '[data-theme="dark"]'],
   content: [
-    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-    "./node_modules/flowbite/**/*.js",
+    "./src/lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
@@ -75,5 +75,5 @@ module.exports = {
       },
     },
   },
-  plugins: [require("flowbite/plugin")],
+  plugins: [],
 };

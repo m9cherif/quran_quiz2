@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { signOut } from "@/lib/auth/client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import LocaleSwitcher from "@/components/ui/LocaleSwitcher";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 const NAV = {
   public: [
@@ -79,7 +80,8 @@ export function AppHeader({ variant = "public" }) {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <LocaleSwitcher className="mr-1" />
+          <ThemeToggle />
+          <LocaleSwitcher className="me-1" />
           {variant === "public" && (
             <>
               <Link
@@ -96,10 +98,10 @@ export function AppHeader({ variant = "public" }) {
               </Link>
             </>
           )}
-          {variant === "host" && user && (
+          {variant !== "public" && user && (
             <div className="flex items-center gap-2 text-sm text-ink-muted">
               <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-medium text-primary">
-                {t("nav.host")}
+                {variant === "host" ? t("nav.host") : user.name}
               </span>
               <button
                 type="button"
@@ -141,7 +143,8 @@ export function AppHeader({ variant = "public" }) {
           className="border-t border-border bg-surface px-4 pb-4 pt-2 md:hidden"
         >
           <ul className="flex flex-col gap-1">
-            <li className="flex justify-end pb-1">
+            <li className="flex items-center justify-end gap-2 pb-1">
+              <ThemeToggle />
               <LocaleSwitcher />
             </li>
             {links.map((link) => (

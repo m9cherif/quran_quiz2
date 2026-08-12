@@ -7,19 +7,22 @@ import ToastProvider from "@/components/ui/Toast";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import AuthProvider from "@/components/auth/AuthProvider";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
+import { ThemeProvider } from "@/lib/theme/ThemeProvider";
 
 export default function Providers({ children }) {
   return (
     <Provider store={store}>
-      <I18nProvider>
-        <PersistGate loading={null} persistor={persistor}>
-          <AuthProvider>
-          <ErrorBoundary>
-            <ToastProvider>{children}</ToastProvider>
-          </ErrorBoundary>
-        </AuthProvider>
-      </PersistGate>
-      </I18nProvider>
+      <ThemeProvider>
+        <I18nProvider>
+          <PersistGate loading={null} persistor={persistor}>
+            <AuthProvider>
+              <ErrorBoundary>
+                <ToastProvider>{children}</ToastProvider>
+              </ErrorBoundary>
+            </AuthProvider>
+          </PersistGate>
+        </I18nProvider>
+      </ThemeProvider>
     </Provider>
   );
 }

@@ -14,13 +14,13 @@ import Select from "@/components/ui/Select";
 import EmptyState from "@/components/ui/EmptyState";
 import {
   deleteQuestion,
-  getQuestionFull,
   getQuiz,
-  listQuizQuestions,
+  getQuizQuestionsFull,
   saveQuestion,
   setQuizStatus,
   updateQuizMeta,
 } from "@/services/quizzes";
+import { downloadTextFile, slugify } from "@/lib/export";
 import { Dialog } from "@/components/ui/Dialog";
 import { listMyClasses } from "@/services/classes";
 import {
@@ -68,6 +68,9 @@ export function QuizEditor({ quizId }) {
   const [classes, setClasses] = useState([]);
 
   const isDraft = quiz?.status === "draft";
+  // save_question accepts edits until a question actually starts, so the
+  // editor stays usable for a lobby that is open and for a live game.
+  const canEdit = ["draft", "waiting", "running", "paused"].includes(quiz?.status);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -79,37 +82,36 @@ export function QuizEditor({ quizId }) {
         setState("error");
         return;
       }
-      const items = await listQuizQuestions(quizId);
-      const full = [];
-      for (const item of items) {
-        try {
-          const f = await getQuestionFull(item.id);
-          full.push({
-            id: f.id,
-            position: f.position,
-            text: f.text,
-            type: f.type,
-            duration_seconds: f.duration_seconds,
-            points: f.points,
-            negative_points: f.negative_points,
-            explanation: f.explanation,
-            correct_answer_text: f.correct_answer_text,
-            surah_number: f.surah_number,
-            ayah_number: f.ayah_number,
-            page_number: f.page_number,
-            juz_number: f.juz_number,
-            hizb_number: f.hizb_number,
-            choices: f.choices.map((c) => ({
-              id: c.id,
-              text: c.text,
-              position: c.position,
-              is_correct: c.is_correct,
-            })),
-          });
-        } catch {
-          // skip questions that can't be read (should not happen for owner)
-        }
-      }
+      // One owner-scoped call for the whole deck (was one RPC per question).
+      const rows = await getQuizQuestionsFull(quizId);
+      const full = rows.map((f) => ({
+        id: f.id,
+        position: f.position,
+        text: f.text,
+        type: f.type,
+        duration_seconds: f.duration_seconds,
+        points: f.points,
+        negative_points: f.negative_points,
+        explanation: f.explanation,
+        correct_answer_text: f.correct_answer_text,
+        // Locked once its window has opened — the DB refuses edits and
+        // rewriting the choices would orphan answers already submitted.
+        started: Boolean(f.started_at),
+        surah_number: f.surah_number,
+        ayah_number: f.ayah_number,
+        page_number: f.page_number,
+        juz_number: f.juz_number,
+        hizb_number: f.hizb_number,
+        // The form and the validator both read `isCorrect`; the RPC returns
+        // `is_correct`. Mapping it through is what makes an existing MCQ show
+        // its correct option (and stops "pick a correct answer" on save).
+        choices: (f.choices ?? []).map((c) => ({
+          id: c.id,
+          text: c.text,
+          position: c.position,
+          isCorrect: Boolean(c.is_correct),
+        })),
+      }));
       setQuiz({
         ...competition,
         default_points: competition.default_points,
@@ -169,6 +171,8 @@ export function QuizEditor({ quizId }) {
   const moveQuestion = (index, delta) => {
     const target = index + delta;
     if (target < 0 || target >= questions.length) return;
+    // A question that already ran keeps its slot in the transcript.
+    if (questions[index]?.started || questions[target]?.started) return;
     setQuestions((prev) => {
       const next = [...prev];
       [next[index], next[target]] = [next[target], next[index]];
@@ -187,6 +191,10 @@ export function QuizEditor({ quizId }) {
 
   const removeQuestion = (index) => {
     const question = questions[index];
+    if (question?.started) {
+      toast({ title: t("editor.questionLocked"), variant: "warning" });
+      return;
+    }
     setQuestions((prev) => {
       const next = prev.filter((_, i) => i !== index).map((q, i) => ({ ...q, position: i + 1 }));
       setSelected(Math.max(0, index - 1));
@@ -239,66 +247,56 @@ export function QuizEditor({ quizId }) {
       }
       setDeletedIds([]);
 
-      for (let i = 0; i < questions.length; i++) {
-        const q = questions[i];
+      // Work on a copy: mutating the state array in place made React skip the
+      // re-render that surfaces the ids the RPC just handed back.
+      const saved = questions.map((q, i) => ({ ...q, position: i + 1 }));
+
+      const persist = (q, position) =>
+        saveQuestion({
+          competitionId: quiz.id,
+          questionId: q.id,
+          position,
+          text: q.text,
+          type: q.type,
+          durationSeconds: q.duration_seconds,
+          points: q.points,
+          negativePoints: q.negative_points,
+          explanation: q.explanation,
+          correctAnswerText: q.correct_answer_text,
+          surahNumber: q.surah_number,
+          ayahNumber: q.ayah_number,
+          pageNumber: q.page_number,
+          juzNumber: q.juz_number,
+          hizbNumber: q.hizb_number,
+          choices: q.choices
+            .filter((c) => c.text.trim())
+            .map((c, j) => ({ text: c.text, position: j + 1, is_correct: Boolean(c.isCorrect) })),
+        });
+
+      for (let i = 0; i < saved.length; i++) {
+        // Questions that already ran are immutable server-side; leave them be.
+        if (saved[i].started) continue;
         try {
-          const id = await saveQuestion({
-            competitionId: quiz.id,
-            questionId: q.id,
-            position: i + 1,
-            text: q.text,
-            type: q.type,
-            durationSeconds: q.duration_seconds,
-            points: q.points,
-            negativePoints: q.negative_points,
-            explanation: q.explanation,
-            correctAnswerText: q.correct_answer_text,
-            surahNumber: q.surah_number,
-            ayahNumber: q.ayah_number,
-            pageNumber: q.page_number,
-            juzNumber: q.juz_number,
-            hizbNumber: q.hizb_number,
-            choices: q.choices
-              .filter((c) => c.text.trim())
-              .map((c, j) => ({ text: c.text, position: j + 1, isCorrect: c.isCorrect })),
-          });
-          questions[i] = { ...q, id };
+          saved[i] = { ...saved[i], id: await persist(saved[i], i + 1) };
         } catch (err) {
           console.error("save failed on question", i + 1, err);
-          if (err?.code === "23505") {
-            // position collision — renumber everything and retry once
-            const revert = questions.map((q) => ({ ...q }));
-            for (let k = 0; k < questions.length; k++) {
-              const retry = await saveQuestion({
-                competitionId: quiz.id,
-                questionId: revert[k].id,
-                position: k + 1,
-                text: revert[k].text,
-                type: revert[k].type,
-                durationSeconds: revert[k].duration_seconds,
-                points: revert[k].points,
-                negativePoints: revert[k].negative_points,
-                explanation: revert[k].explanation,
-                correctAnswerText: revert[k].correct_answer_text,
-                surahNumber: revert[k].surah_number,
-                ayahNumber: revert[k].ayah_number,
-                pageNumber: revert[k].page_number,
-                juzNumber: revert[k].juz_number,
-                hizbNumber: revert[k].hizb_number,
-                choices: revert[k].choices
-                  .filter((c) => c.text.trim())
-                  .map((c, j) => ({ text: c.text, position: j + 1, isCorrect: c.isCorrect })),
-              });
-              revert[k] = { ...revert[k], id: retry };
-            }
-            setQuestions(revert);
-          } else {
-            throw err;
+          if (err?.code !== "23505") throw err;
+          // Position collision with a row still holding that slot: park every
+          // unsaved question beyond the end, then lay them down in order.
+          const offset = saved.length + 100;
+          for (let k = 0; k < saved.length; k++) {
+            if (saved[k].started || !saved[k].id) continue;
+            await persist(saved[k], offset + k);
           }
+          for (let k = 0; k < saved.length; k++) {
+            if (saved[k].started) continue;
+            saved[k] = { ...saved[k], id: await persist(saved[k], k + 1) };
+          }
+          break;
         }
       }
 
-      setQuestions((prev) => prev.map((q, i) => ({ ...q, position: i + 1 })));
+      setQuestions(saved);
       setDirty(false);
       toast({
         title: t("editor.savedToastTitle"),
@@ -315,6 +313,44 @@ export function QuizEditor({ quizId }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  /** Download the quiz as JSON — re-importable from the library. */
+  const exportQuiz = () => {
+    if (!quiz) return;
+    const payload = {
+      name: quiz.name,
+      description: quiz.description ?? null,
+      language: quiz.language ?? "en",
+      category: quiz.category ?? null,
+      difficulty: quiz.difficulty ?? null,
+      default_points: quiz.default_points ?? 10,
+      default_negative_points: quiz.default_negative_points ?? -2,
+      speed_bonus_enabled: Boolean(quiz.speed_bonus_enabled),
+      questions: questions.map((q) => ({
+        text: q.text,
+        type: q.type,
+        duration_seconds: q.duration_seconds,
+        points: q.points,
+        negative_points: q.negative_points,
+        explanation: q.explanation,
+        correct_answer_text: q.correct_answer_text,
+        surah_number: q.surah_number,
+        ayah_number: q.ayah_number,
+        page_number: q.page_number,
+        juz_number: q.juz_number,
+        hizb_number: q.hizb_number,
+        choices: q.choices
+          .filter((c) => c.text.trim())
+          .map((c) => ({ text: c.text, is_correct: Boolean(c.isCorrect) })),
+      })),
+    };
+    downloadTextFile(
+      `${slugify(quiz.name, "quiz")}.quiz.json`,
+      JSON.stringify(payload, null, 2),
+      "application/json"
+    );
+    toast({ title: t("editor.exportDone"), variant: "success" });
   };
 
   const launchGame = async () => {
@@ -398,7 +434,10 @@ export function QuizEditor({ quizId }) {
               {t("editor.launched")}
             </Badge>
           )}
-          <Button loading={saving} onClick={saveAll} disabled={!dirty || (!isDraft && quiz?.status !== "waiting")}>
+          <Button variant="outline" onClick={exportQuiz} disabled={!quiz}>
+            {t("editor.exportJson")}
+          </Button>
+          <Button loading={saving} onClick={saveAll} disabled={!dirty || !canEdit}>
             {t("editor.saveChanges")}
           </Button>
         </div>
@@ -523,7 +562,10 @@ export function QuizEditor({ quizId }) {
                 <span className="text-sm font-medium text-ink">
                   {index + 1}. {question.text || t("editor.untitledQuestion")}
                 </span>
-                {errors[index] && <Badge variant="danger">{t("editor.incomplete")}</Badge>}
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {question.started && <Badge variant="neutral">{t("editor.alreadyPlayed")}</Badge>}
+                  {errors[index] && <Badge variant="danger">{t("editor.incomplete")}</Badge>}
+                </span>
               </div>
               <span className="mt-0.5 block text-xs text-ink-muted">
                 {typeLabel(question.type)} · {question.duration_seconds}s ·{" "}

@@ -1,7 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { messages } from "./dictionaries";
+import {
+  defaultLocale,
+  defaultMessages,
+  loadMessages,
+  peekMessages,
+} from "./dictionaries";
 
 const STORAGE_KEY = "quizcast-locale";
 
@@ -17,7 +22,7 @@ function detectLocale() {
   const nav = typeof navigator !== "undefined" ? navigator.language : "";
   if (nav.toLowerCase().startsWith("ar")) return "ar";
   if (nav.toLowerCase().startsWith("fr")) return "fr";
-  return "en";
+  return defaultLocale;
 }
 
 function resolvePath(node, path) {
@@ -32,37 +37,67 @@ function resolvePath(node, path) {
 }
 
 /**
- * I18nProvider — lightweight locale context (en / ar / fr).
+ * I18nProvider — locale context (en / ar / fr).
  * Persists the choice to localStorage, sets <html lang|dir>, and exposes
- *   { locale, setLocale, t(key, params?) }.
+ *   { locale, setLocale, t(key, params?), dir }.
  * t() resolves dotted keys ("nav.home") with {name} interpolation.
+ *
+ * The locale is detected in an effect (not during render) so the first client
+ * render matches the server HTML; ar/fr dictionaries are code-split and
+ * awaited before the switch is applied, so strings never flash as raw keys.
  */
 export function I18nProvider({ children }) {
-  const [locale, setLocaleState] = useState(() =>
-    typeof window === "undefined" ? "en" : detectLocale()
-  );
+  const [locale, setLocaleState] = useState(defaultLocale);
+  const [messages, setMessages] = useState(defaultMessages);
 
-  const apply = useCallback((next) => {
-    if (typeof document !== "undefined") {
-      document.documentElement.lang = next;
-      document.documentElement.dir = next === "ar" ? "rtl" : "ltr";
-    }
+  // Restore the saved/preferred locale once, on the client.
+  useEffect(() => {
+    const detected = detectLocale();
+    if (detected === defaultLocale) return;
+    let active = true;
+    loadMessages(detected)
+      .then((dict) => {
+        if (!active) return;
+        setMessages(dict);
+        setLocaleState(detected);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
-    apply(locale);
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = locale;
+      document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
+    }
     try {
       localStorage.setItem(STORAGE_KEY, locale);
     } catch {
       // ignore storage failures
     }
-  }, [locale, apply]);
+  }, [locale]);
 
-  const setLocale = useCallback((next) => setLocaleState(next), []);
+  const setLocale = useCallback((next) => {
+    if (next === defaultLocale) {
+      setMessages(defaultMessages);
+      setLocaleState(next);
+      return;
+    }
+    // Show the new locale only once its chunk is in memory.
+    setMessages(peekMessages(next));
+    loadMessages(next)
+      .then((dict) => {
+        setMessages(dict);
+        setLocaleState(next);
+      })
+      .catch(() => {});
+  }, []);
 
   const t = useCallback(
     (key, params) => {
-      let value = resolvePath(messages[locale], key);
+      let value = resolvePath(messages, key);
       if (params) {
         for (const [name, val] of Object.entries(params)) {
           value = value.replace(`{${name}}`, String(val));
@@ -70,7 +105,7 @@ export function I18nProvider({ children }) {
       }
       return value;
     },
-    [locale]
+    [messages]
   );
 
   const value = useMemo(

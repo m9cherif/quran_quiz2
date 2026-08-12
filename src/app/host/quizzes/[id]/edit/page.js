@@ -1,10 +1,11 @@
+import QuizEditor from "@/components/quiz/QuizEditor";
+
 export const metadata = {
   title: "Edit quiz",
 };
 
-import QuizEditor from "@/components/quiz/QuizEditor";
-
-export default function EditQuizPage({ params }) {
-  const id = typeof params?.id === "string" ? params.id : "";
-  return <QuizEditor key={id} quizId={id} />;
+export default async function EditQuizPage({ params }) {
+  const { id } = await params;
+  const quizId = typeof id === "string" ? id : "";
+  return <QuizEditor key={quizId} quizId={quizId} />;
 }

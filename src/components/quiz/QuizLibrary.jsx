@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -10,7 +10,13 @@ import Input from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
-import { archiveQuiz, deleteQuiz, duplicateQuiz, listMyQuizzes } from "@/services/quizzes";
+import {
+  archiveQuiz,
+  deleteQuiz,
+  duplicateQuiz,
+  importQuiz,
+  listMyQuizzes,
+} from "@/services/quizzes";
 import QuizCard from "./QuizCard";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
@@ -31,6 +37,8 @@ export function QuizLibrary() {
   const [busy, setBusy] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -107,6 +115,39 @@ export function QuizLibrary() {
     }
   };
 
+  /** Import a quiz exported from this app (or hand-written JSON). */
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    if (file.size > 2_000_000) {
+      toast({ title: t("editor.importTooBig"), variant: "error" });
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const payload = JSON.parse(await file.text());
+      const id = await importQuiz(payload);
+      toast({
+        title: t("editor.importDone"),
+        description: t("editor.importDoneDesc"),
+        variant: "success",
+      });
+      router.push(`/host/quizzes/${id}/edit`);
+    } catch (err) {
+      console.error("Import failed:", err);
+      toast({
+        title: t("editor.importFailed"),
+        description:
+          err instanceof SyntaxError ? t("editor.importInvalidJson") : t("common.tryAgain"),
+        variant: "error",
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const archive = async (quiz) => {
     setBusy(quiz.id);
     try {
@@ -157,7 +198,23 @@ export function QuizLibrary() {
           <h1 className="text-2xl font-bold text-ink">{t("nav.myQuizzes")}</h1>
           <p className="mt-0.5 text-sm text-ink-muted">{t("host.librarySub")}</p>
         </div>
-        <Button href="/host/quizzes/new">{t("nav.newQuiz")}</Button>
+        <div className="flex flex-wrap gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+          <Button
+            variant="outline"
+            loading={importing}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {t("editor.importJson")}
+          </Button>
+          <Button href="/host/quizzes/new">{t("nav.newQuiz")}</Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

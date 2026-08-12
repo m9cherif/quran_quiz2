@@ -54,9 +54,15 @@
   --duration-base: 200ms;
 }
 
+/*
+ * Dark palette. Applied in two ways:
+ *   1. before hydration / with JS off — the OS preference, but only while the
+ *      user has not stamped an explicit choice on <html data-theme>;
+ *   2. after hydration — whatever ThemeProvider resolved (system|light|dark).
+ */
 @media (prefers-color-scheme: dark) {
-:root {
-  color-scheme: light dark;
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
     --color-primary: 129 140 248;
     --color-primary-strong: 165 180 252;
     --color-primary-soft: 49 46 129;
@@ -96,8 +102,8 @@
   }
 }
 
-/* Class-based dark mode (for a future toggle) — mirrors the media query above. */
-.dark {
+/* Explicit choice from the theme switcher — wins over the OS preference. */
+:root[data-theme="dark"] {
   color-scheme: dark;
   --color-primary: 129 140 248;
   --color-primary-strong: 165 180 252;
