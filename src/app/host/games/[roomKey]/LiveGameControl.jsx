@@ -17,7 +17,14 @@ import Textarea from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
 import { getSupabase } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import { deleteQuiz, saveQuestion, setQuizStatus } from "@/services/quizzes";
+import {
+  deleteQuiz,
+  savePageWordsQuestion,
+  saveQuestion,
+  setQuizStatus,
+} from "@/services/quizzes";
+import PageWordsEditor from "@/components/quiz/PageWordsEditor";
+import { AVAILABLE_PAGES } from "@/lib/quran/pages";
 import {
   advanceGame,
   endQuestion,
@@ -41,6 +48,10 @@ function emptyNewQuestion() {
     negativePoints: null,
     explanation: "",
     correctAnswerText: "",
+    // page_words only — PageWordsEditor reads these snake_case fields.
+    page_number: AVAILABLE_PAGES[0],
+    regions: [],
+    words: [],
     choices: [
       { text: "", position: 1, isCorrect: false },
       { text: "", position: 2, isCorrect: false },
@@ -494,6 +505,53 @@ export default function LiveGameControl({ roomKey }) {
     const text = q.text.trim();
     const filled = q.choices.filter((c) => c.text.trim());
     let error = "";
+
+    // Page exercises carry no question text: the page and its boxes are the
+    // question, so they validate (and save) through their own path.
+    if (q.type === "page_words") {
+      const regions = q.regions ?? [];
+      const words = q.words ?? [];
+      if (regions.length === 0) {
+        setAddError(t("pw.needBox"));
+        return;
+      }
+      if (words.length !== regions.length || words.some((w) => !String(w ?? "").trim())) {
+        setAddError(t("pw.incomplete"));
+        return;
+      }
+      setSavingQuestion(true);
+      setAddError("");
+      try {
+        await savePageWordsQuestion({
+          competitionId: game.id,
+          questionId: null,
+          position: questions.length + 1,
+          pageNumber: q.page_number ?? AVAILABLE_PAGES[0],
+          durationSeconds: q.durationSeconds,
+          points: q.points,
+          negativePoints: q.negativePoints,
+          explanation: q.explanation || null,
+          surahNumber: null,
+          ayahNumber: null,
+          juzNumber: null,
+          hizbNumber: null,
+          regions,
+          words: words.map((w, i) => ({ text: w, region: i })),
+        });
+        toast({ title: t("host.questionAdded"), variant: "success" });
+        setAddOpen(false);
+        setNewQuestion(emptyNewQuestion());
+        nudgeStudents();
+        await loadAll(String(roomKey), false).catch(() => {});
+      } catch (err) {
+        console.error("Add page question failed:", err);
+        setAddError(err instanceof Error ? err.message : t("common.tryAgain"));
+      } finally {
+        setSavingQuestion(false);
+      }
+      return;
+    }
+
     if (!text) {
       error = t("editor.missingText");
     } else if (q.type === "mcq") {
@@ -1049,13 +1107,25 @@ export default function LiveGameControl({ roomKey }) {
             <Select
               label={t("editor.typeLabel")}
               value={newQuestion.type}
-              onChange={(e) => patchNewQuestion({ type: e.target.value })}
+              onChange={(e) => {
+                const type = e.target.value;
+                // Page exercises need a workable default window; 15s is far
+                // too short to place a set of words.
+                patchNewQuestion({
+                  type,
+                  durationSeconds:
+                    type === "page_words" && newQuestion.durationSeconds <= 15
+                      ? 120
+                      : newQuestion.durationSeconds,
+                });
+              }}
             >
               {[
                 ["mcq", "typeMcq"],
                 ["true_false", "typeTrueFalse"],
                 ["text", "typeText"],
                 ["number", "typeNumber"],
+                ["page_words", "typePageWords"],
               ].map(([value, key]) => (
                 <option key={value} value={value}>
                   {t(`editor.${key}`)}
@@ -1075,14 +1145,18 @@ export default function LiveGameControl({ roomKey }) {
             />
           </div>
 
-          <Textarea
-            label={t("editor.questionText")}
-            required
-            rows={2}
-            value={newQuestion.text}
-            onChange={(e) => patchNewQuestion({ text: e.target.value })}
-            placeholder={t("editor.questionTextPlaceholder")}
-          />
+          {newQuestion.type === "page_words" ? (
+            <PageWordsEditor question={newQuestion} onChange={setNewQuestion} />
+          ) : (
+            <Textarea
+              label={t("editor.questionText")}
+              required
+              rows={2}
+              value={newQuestion.text}
+              onChange={(e) => patchNewQuestion({ text: e.target.value })}
+              placeholder={t("editor.questionTextPlaceholder")}
+            />
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
