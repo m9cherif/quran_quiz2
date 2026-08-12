@@ -62,6 +62,85 @@ export function sortRegions(regions: PageRegion[]): PageRegion[] {
   });
 }
 
+/** One annotated word: pixel box on the page image plus its text. */
+export interface AnnotatedWord {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  text: string;
+  aya: number | null;
+  hidden: boolean;
+}
+
+let indexPromise: Promise<Record<string, number>> | null = null;
+const pageCache = new Map<number, AnnotatedWord[]>();
+
+/** page -> word count, for every page that ships an annotation file. */
+export function loadAnnotationIndex(): Promise<Record<string, number>> {
+  if (!indexPromise) {
+    indexPromise = fetch("/annotations/index.json")
+      .then((r) => (r.ok ? r.json() : {}))
+      .catch(() => ({}));
+  }
+  return indexPromise;
+}
+
+/** Words of one page, in reading order (empty when the page has no file). */
+export async function loadPageAnnotations(page: number): Promise<AnnotatedWord[]> {
+  const cached = pageCache.get(page);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`/annotations/${page}.json`);
+    const words: AnnotatedWord[] = res.ok ? await res.json() : [];
+    pageCache.set(page, words);
+    return words;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Convert pixel boxes from the workbook into the normalised 0..1 form the
+ * question stores, using the rendered image's natural size.
+ */
+export function normaliseWords(
+  words: AnnotatedWord[],
+  naturalWidth: number,
+  naturalHeight: number
+): { regions: PageRegion[]; texts: string[] } {
+  if (!naturalWidth || !naturalHeight) return { regions: [], texts: [] };
+  const regions: PageRegion[] = [];
+  const texts: string[] = [];
+  for (const w of words) {
+    regions.push({
+      x1: clamp01(w.x1 / naturalWidth),
+      y1: clamp01(w.y1 / naturalHeight),
+      x2: clamp01(w.x2 / naturalWidth),
+      y2: clamp01(w.y2 / naturalHeight),
+    });
+    texts.push(w.text);
+  }
+  return { regions, texts };
+}
+
+/**
+ * Compare Arabic words the way a learner types them: ignore diacritics,
+ * tatweel and the alef/ya/ta-marbuta spelling variants, so a correct answer
+ * typed without harakat still counts.
+ */
+export function normaliseArabic(value: string): string {
+  return value
+    .trim()
+    .replace(/[ً-ْٰۖ-ۭ]/g, "") // harakat + quranic marks
+    .replace(/ـ/g, "") // tatweel
+    .replace(/[آأإٱ]/g, "ا") // آ أ إ ٱ -> ا
+    .replace(/ة/g, "ه") // ة -> ه
+    .replace(/ى/g, "ي") // ى -> ي
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
 /** CSS box for a region, as percentages of the image element. */
 export function regionStyle(region: PageRegion) {
   return {

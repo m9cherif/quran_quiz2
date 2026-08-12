@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import {
   AVAILABLE_PAGES,
+  loadAnnotationIndex,
+  loadPageAnnotations,
+  normaliseWords,
   pageImageUrl,
   regionFromPoints,
   regionStyle,
@@ -29,6 +32,10 @@ export default function PageWordsEditor({ question, onChange }) {
   const imgRef = useRef(null);
   const [draft, setDraft] = useState(null); // in-progress drag, normalised
   const [selected, setSelected] = useState(0);
+  const [annotationIndex, setAnnotationIndex] = useState({});
+  const [hideCount, setHideCount] = useState(8);
+  const [filling, setFilling] = useState(false);
+  const [fillError, setFillError] = useState("");
 
   const page = question.page_number ?? AVAILABLE_PAGES[0];
   const regions = question.regions ?? [];
@@ -36,6 +43,71 @@ export default function PageWordsEditor({ question, onChange }) {
   const imageUrl = pageImageUrl(page);
 
   const set = (patch) => onChange({ ...question, ...patch });
+
+  useEffect(() => {
+    let active = true;
+    loadAnnotationIndex().then((idx) => {
+      if (active) setAnnotationIndex(idx ?? {});
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const annotatedCount = annotationIndex[String(page)] ?? 0;
+
+  /**
+   * Pull the word boxes for this page straight from the published annotation
+   * data, so the host does not have to trace them by hand. Words flagged
+   * `hidden` in the workbook win; otherwise a random sample is taken, which is
+   * what the desktop version's "Aléatoire (N mots)" mode did.
+   */
+  const autoFill = async () => {
+    setFilling(true);
+    setFillError("");
+    try {
+      const all = await loadPageAnnotations(page);
+      const img = imgRef.current;
+      if (!all.length) {
+        setFillError(t("pw.noAnnotations"));
+        return;
+      }
+      if (!img?.naturalWidth) {
+        setFillError(t("pw.imageNotReady"));
+        return;
+      }
+
+      const marked = all.filter((w) => w.hidden);
+      let chosen;
+      if (marked.length > 0) {
+        chosen = marked;
+      } else {
+        const pool = [...all];
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        chosen = pool.slice(0, Math.max(1, Math.min(hideCount, pool.length)));
+      }
+
+      // Keep the page's own reading order, not the shuffled sample order.
+      const order = new Map(all.map((w, i) => [w, i]));
+      chosen.sort((a, b) => order.get(a) - order.get(b));
+
+      const { regions: nextRegions, texts } = normaliseWords(
+        chosen,
+        img.naturalWidth,
+        img.naturalHeight
+      );
+      set({ regions: nextRegions, words: texts });
+      setSelected(0);
+    } catch (err) {
+      console.error("Auto-fill failed:", err);
+      setFillError(t("pw.autoFillFailed"));
+    } finally {
+      setFilling(false);
+    }
+  };
 
   const pointOf = (event) => {
     const rect = imgRef.current?.getBoundingClientRect();
@@ -124,6 +196,32 @@ export default function PageWordsEditor({ question, onChange }) {
             set({ points: e.target.value === "" ? null : Number(e.target.value) })
           }
         />
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-surface-2 p-3">
+        <div className="w-28">
+          <Input
+            label={t("pw.hideCount")}
+            type="number"
+            min={1}
+            max={40}
+            value={hideCount}
+            onChange={(e) => setHideCount(Math.max(1, Number(e.target.value) || 1))}
+          />
+        </div>
+        <Button loading={filling} onClick={autoFill} disabled={annotatedCount === 0}>
+          {t("pw.autoFill")}
+        </Button>
+        <p className="flex-1 text-xs text-ink-muted">
+          {annotatedCount > 0
+            ? t("pw.annotatedWords", { count: annotatedCount })
+            : t("pw.noAnnotations")}
+        </p>
+        {fillError && (
+          <p className="w-full text-sm text-danger" role="alert">
+            {fillError}
+          </p>
+        )}
       </div>
 
       <div>

@@ -550,6 +550,17 @@ moveDown: string;
     switchToLight: string;
   };
   pw: {
+    autoFill: string;
+    hideCount: string;
+    annotatedWords: string;
+    noAnnotations: string;
+    imageNotReady: string;
+    autoFillFailed: string;
+    typeForBox: string;
+    typeNext: string;
+    typePlaceholder: string;
+    place: string;
+    noSuchWord: string;
     pageLabel: string;
     pageOption: string;
     drawHint: string;

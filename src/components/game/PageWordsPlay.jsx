@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import { pageImageUrl, regionStyle } from "@/lib/quran/pages";
+import { normaliseArabic, pageImageUrl, regionStyle } from "@/lib/quran/pages";
 
 /**
  * PageWordsPlay — the student half of the "mots cachés" exercise.
@@ -29,6 +29,9 @@ export default function PageWordsPlay({
   );
   const [placements, setPlacements] = useState(() => regions.map(() => null));
   const [activeChip, setActiveChip] = useState(null);
+  const [activeRegion, setActiveRegion] = useState(null);
+  const [typed, setTyped] = useState("");
+  const [typeError, setTypeError] = useState("");
   const imageUrl = pageImageUrl(question.page_number);
 
   const solutionByRegion = useMemo(() => {
@@ -42,8 +45,10 @@ export default function PageWordsPlay({
   const placedCount = placements.filter((p) => p !== null).length;
   const allPlaced = placedCount === regions.length && regions.length > 0;
 
+  const firstEmpty = placements.findIndex((p) => p === null);
+
   const placeChip = (regionIndex, chipIndex) => {
-    if (disabled || chipIndex === null) return;
+    if (disabled || chipIndex === null || regionIndex === null || regionIndex < 0) return;
     setPlacements((prev) =>
       prev.map((p, i) => {
         if (i === regionIndex) return chipIndex;
@@ -51,11 +56,58 @@ export default function PageWordsPlay({
       })
     );
     setActiveChip(null);
+    setActiveRegion(null);
+    setTyped("");
+    setTypeError("");
   };
 
   const clearRegion = (regionIndex) => {
     if (disabled) return;
     setPlacements((prev) => prev.map((p, i) => (i === regionIndex ? null : p)));
+  };
+
+  /** Tapping a box: fill it if a chip is armed, otherwise arm the box itself. */
+  const handleRegionTap = (regionIndex) => {
+    if (activeChip !== null) {
+      placeChip(regionIndex, activeChip);
+      return;
+    }
+    setActiveRegion((prev) => (prev === regionIndex ? null : regionIndex));
+    setTyped("");
+    setTypeError("");
+  };
+
+  /** Tapping a chip: drop it into the armed box, else the first empty one. */
+  const handleChipTap = (chipIndex) => {
+    const target = activeRegion !== null ? activeRegion : firstEmpty;
+    if (target >= 0) {
+      placeChip(target, chipIndex);
+      return;
+    }
+    setActiveChip((prev) => (prev === chipIndex ? null : chipIndex));
+  };
+
+  /**
+   * Typing route: match what the student wrote against the remaining words,
+   * ignoring harakat and spelling variants, and place that chip.
+   */
+  const submitTyped = (event) => {
+    event.preventDefault();
+    if (disabled) return;
+    const target = activeRegion !== null ? activeRegion : firstEmpty;
+    if (target < 0) return;
+
+    const needle = normaliseArabic(typed);
+    if (!needle) return;
+
+    const match = chips.findIndex(
+      (chip, i) => !usedChips.has(i) && normaliseArabic(chip.text) === needle
+    );
+    if (match === -1) {
+      setTypeError(t("pw.noSuchWord"));
+      return;
+    }
+    placeChip(target, match);
   };
 
   const chipLabel = (index) => chips[index]?.text ?? "";
@@ -90,7 +142,7 @@ export default function PageWordsPlay({
               key={`r-${i}`}
               type="button"
               disabled={disabled && !graded}
-              onClick={() => (filled && !graded ? clearRegion(i) : placeChip(i, activeChip))}
+              onClick={() => (filled && !graded ? clearRegion(i) : handleRegionTap(i))}
               onDragOver={(e) => {
                 if (!disabled) e.preventDefault();
               }}
@@ -107,7 +159,9 @@ export default function PageWordsPlay({
                     : "border-rose-500 bg-rose-100 text-rose-900"
                   : filled
                     ? "border-primary bg-primary-soft text-primary"
-                    : "border-dashed border-rose-400 bg-white text-slate-400 hover:bg-slate-50"
+                    : activeRegion === i
+                      ? "border-solid border-primary bg-primary/20 text-primary ring-2 ring-primary"
+                      : "border-dashed border-rose-400 bg-white text-slate-400 hover:bg-slate-50"
               }`}
               style={regionStyle(region)}
             >
@@ -134,7 +188,7 @@ export default function PageWordsPlay({
                   type="button"
                   draggable={!used}
                   onDragStart={(e) => e.dataTransfer.setData("text/plain", String(index))}
-                  onClick={() => setActiveChip(activeChip === index ? null : index)}
+                  onClick={() => handleChipTap(index)}
                   disabled={used}
                   className={`rounded-lg border px-3 py-2 text-base font-semibold transition-colors disabled:opacity-40 ${
                     activeChip === index
@@ -148,6 +202,36 @@ export default function PageWordsPlay({
               );
             })}
           </div>
+
+          <form onSubmit={submitTyped} className="space-y-1.5">
+            <label htmlFor="pw-typed" className="block text-sm font-medium text-ink">
+              {activeRegion !== null
+                ? t("pw.typeForBox", { n: activeRegion + 1 })
+                : t("pw.typeNext")}
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="pw-typed"
+                dir="rtl"
+                value={typed}
+                onChange={(e) => {
+                  setTyped(e.target.value);
+                  setTypeError("");
+                }}
+                placeholder={t("pw.typePlaceholder")}
+                autoComplete="off"
+                className="h-11 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-base text-ink outline-none focus:border-primary focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-focus-ring"
+              />
+              <Button type="submit" variant="outline" disabled={!typed.trim()}>
+                {t("pw.place")}
+              </Button>
+            </div>
+            {typeError && (
+              <p className="text-sm text-danger" role="alert">
+                {typeError}
+              </p>
+            )}
+          </form>
 
           <p className="text-xs text-ink-muted">{t("pw.playHint")}</p>
 
