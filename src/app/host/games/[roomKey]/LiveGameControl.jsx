@@ -442,7 +442,7 @@ export default function LiveGameControl({ roomKey }) {
               {reveal && reveal.id === current.id && !activeEnds && (
                 <div className="rounded-md border-s-4 border-s-success bg-surface-2 px-4 py-3">
                   <p className="text-sm font-semibold text-success-strong">{t("host.correctAnswer")}</p>
-                  {reveal.choices.length > 0 ? (
+                  {reveal.choices?.length > 0 ? (
                     <ul className="mt-1.5 space-y-1">
                       {reveal.choices.map((c) => (
                         <li
