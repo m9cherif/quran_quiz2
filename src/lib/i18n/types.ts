@@ -172,6 +172,9 @@ signInToTrack: string;
       classesLoadFailed: string;
     };
   host: {
+    playAgain: string;
+    playAgainReady: string;
+    playAgainFailed: string;
     share: string;
     shareText: string;
     addTime: string;
@@ -736,6 +739,25 @@ moveDown: string;
     palette: string;
     help: string;
     escape: string;
+  },
+  avatar: {
+    label: string;
+  },
+  classBoard: {
+    open: string;
+    title: string;
+    desc: string;
+    empty: string;
+  },
+  bulk: {
+    open: string;
+    title: string;
+    desc: string;
+    label: string;
+    hint: string;
+    add: string;
+    added: string;
+    nothingParsed: string;
   },
 
 }

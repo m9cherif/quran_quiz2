@@ -17,6 +17,7 @@ import {
   removeClassMember,
 } from "@/services/classes";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { classLeaderboard } from "@/services/classes";
 
 function copyCode(code, toast, t) {
   navigator.clipboard?.writeText(code).then(
@@ -50,6 +51,20 @@ export default function HostClasses() {
   const [creating, setCreating] = useState(false);
   const [membersClass, setMembersClass] = useState(null);
   const [members, setMembers] = useState(null);
+  const [boardClass, setBoardClass] = useState(null);
+  const [board, setBoard] = useState(null);
+
+  /** Standings across every game this class has run. */
+  const openBoard = (cls) => {
+    setBoardClass(cls);
+    setBoard(null);
+    classLeaderboard(cls.id)
+      .then(setBoard)
+      .catch((err) => {
+        console.error("Class leaderboard failed:", err);
+        setBoard([]);
+      });
+  };
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [archiving, setArchiving] = useState(false);
 
@@ -241,6 +256,9 @@ export default function HostClasses() {
                 </button>
               </div>
               <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" icon="chart" onClick={() => openBoard(cls)}>
+                  {t("classBoard.open")}
+                </Button>
                 <Button variant="ghost" size="sm" onClick={() => setMembersClass(cls)}>
                   {t("host.membersLabel")}
                 </Button>
@@ -254,6 +272,41 @@ export default function HostClasses() {
           ))}
         </ul>
       )}
+
+      <Dialog
+        open={boardClass !== null}
+        onClose={() => setBoardClass(null)}
+        size="lg"
+        title={boardClass ? `${t("classBoard.title")} — ${boardClass.name}` : t("classBoard.title")}
+        description={t("classBoard.desc")}
+        footer={
+          <Button variant="ghost" icon="close" onClick={() => setBoardClass(null)}>
+            {t("common.close")}
+          </Button>
+        }
+      >
+        {board === null ? (
+          <Skeleton className="h-40 w-full" />
+        ) : board.length === 0 ? (
+          <p className="py-6 text-center text-sm text-ink-muted">{t("classBoard.empty")}</p>
+        ) : (
+          <ol className="stagger space-y-1.5">
+            {board.map((row, i) => (
+              <li
+                key={row.student}
+                className="flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2 text-sm"
+              >
+                <span className="w-6 text-center text-xs font-bold text-ink-faint">{i + 1}</span>
+                <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.student}</span>
+                <span className="text-xs text-ink-muted">
+                  {row.games_played} · {row.correct_count}/{row.answered_count} · {row.accuracy}%
+                </span>
+                <span className="font-semibold text-ink">{Math.round(row.total_points)}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Dialog>
 
       <Dialog
         open={membersClass !== null}

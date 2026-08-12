@@ -258,6 +258,7 @@ export default function GameResult({ code }) {
                     {row.rank}
                   </span>
                   <span className="font-medium text-ink">
+                    {row.avatar && <span className="me-1.5">{row.avatar}</span>}
                     {row.display_name}
                     {isMe && (
                       <span className="ms-2 text-xs font-semibold">({t("game.you")})</span>

@@ -72,6 +72,62 @@ export function QuizEditor({ quizId }) {
   const [launching, setLaunching] = useState(false);
   const [classes, setClasses] = useState([]);
   const [savedAt, setSavedAt] = useState(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+
+  /**
+   * Paste a whole set at once: one question per line, options separated by
+   * "|", the correct one marked with a trailing "*". A line with no options
+   * becomes a free-text question whose answer is the first field after the
+   * question mark — the fastest path from a worksheet to a quiz.
+   */
+  const applyBulk = () => {
+    const parsed = bulkText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const parts = line.split("|").map((p) => p.trim()).filter(Boolean);
+        const [text, ...rest] = parts;
+        if (!text) return null;
+
+        if (rest.length === 0) return null;
+        if (rest.length === 1) {
+          // "question | answer" — a typed answer, not a choice list.
+          return {
+            ...emptyQuestion(1),
+            type: "text",
+            text,
+            correct_answer_text: rest[0].replace(/\*$/, "").trim(),
+            choices: [],
+          };
+        }
+        const choices = rest.map((option, i) => ({
+          id: null,
+          text: option.replace(/\*$/, "").trim(),
+          position: i + 1,
+          isCorrect: option.endsWith("*"),
+        }));
+        // No marker means the first option is treated as the answer.
+        if (!choices.some((c) => c.isCorrect)) choices[0].isCorrect = true;
+        return { ...emptyQuestion(1), type: "mcq", text, choices };
+      })
+      .filter(Boolean);
+
+    if (parsed.length === 0) {
+      toast({ title: t("bulk.nothingParsed"), variant: "error" });
+      return;
+    }
+
+    setQuestions((prev) => {
+      const base = prev.filter((q) => q.text.trim() || q.id);
+      return [...base, ...parsed].map((q, i) => ({ ...q, position: i + 1 }));
+    });
+    setDirty(true);
+    setBulkOpen(false);
+    setBulkText("");
+    toast({ title: t("bulk.added", { count: parsed.length }), variant: "success" });
+  };
   const [questionFilter, setQuestionFilter] = useState("");
 
   const isDraft = quiz?.status === "draft";
@@ -653,6 +709,9 @@ export function QuizEditor({ quizId }) {
           <Button variant="outline" size="sm" onClick={() => setPreview((v) => !v)} disabled={!current}>
             {preview ? t("editor.backToEditing") : t("editor.preview")}
           </Button>
+          <Button size="sm" variant="outline" icon="upload" onClick={() => setBulkOpen(true)}>
+            {t("bulk.open")}
+          </Button>
           <Button size="sm" onClick={addQuestion} icon="plus">
             {t("editor.addQuestion")}
           </Button>
@@ -732,6 +791,33 @@ export function QuizEditor({ quizId }) {
           ) : null}
         </div>
       </div>
+
+      <Dialog
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        size="lg"
+        title={t("bulk.title")}
+        description={t("bulk.desc")}
+        footer={
+          <>
+            <Button variant="ghost" icon="close" onClick={() => setBulkOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button icon="plus" onClick={applyBulk} disabled={!bulkText.trim()}>
+              {t("bulk.add")}
+            </Button>
+          </>
+        }
+      >
+        <Textarea
+          label={t("bulk.label")}
+          rows={8}
+          value={bulkText}
+          onChange={(e) => setBulkText(e.target.value)}
+          placeholder={"ما هي أول سورة؟ | الفاتحة* | البقرة | الناس\n2 + 2 = ? | 4* | 5"}
+          hint={t("bulk.hint")}
+        />
+      </Dialog>
 
       <Dialog
         open={launchOpen}

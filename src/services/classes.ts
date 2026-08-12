@@ -80,6 +80,24 @@ export async function listClassMembers(classId: string): Promise<ClassMember[]> 
   return (data as ClassMember[]) ?? [];
 }
 
+export interface ClassLeaderboardRow {
+  student: string;
+  games_played: number;
+  total_points: number;
+  correct_count: number;
+  answered_count: number;
+  accuracy: number;
+}
+
+/** Standings across every game attached to a class (owner only). */
+export async function classLeaderboard(classId: string): Promise<ClassLeaderboardRow[]> {
+  const { data, error } = await getSupabase().rpc("class_leaderboard", {
+    p_class_id: classId,
+  });
+  if (error) throw error;
+  return (data as ClassLeaderboardRow[]) ?? [];
+}
+
 /** Remove a member (owner). */
 export async function removeClassMember(classId: string, profileId: string): Promise<void> {
   const { error } = await getSupabase().rpc("remove_class_member", {

@@ -181,6 +181,9 @@ const en: Messages = {
       classesLoadFailed: "Couldn't load your classes",
     },
     host: {
+      playAgain: "Play again",
+      playAgainReady: "New game ready",
+      playAgainFailed: "Could not start a new game",
       share: "Share",
       shareText: "Join my quiz with code {code}",
       addTime: "+30s",
@@ -753,6 +756,25 @@ const en: Messages = {
       palette: "Quick jump",
       help: "This help",
       escape: "Close anything open",
+    },
+    avatar: {
+      label: "Pick a symbol (optional)",
+    },
+    classBoard: {
+      open: "Standings",
+      title: "Class standings",
+      desc: "Every student across all games attached to this class.",
+      empty: "No games have been played by this class yet.",
+    },
+    bulk: {
+      open: "Paste many",
+      title: "Add questions in bulk",
+      desc: "One question per line. Separate the options with | and mark the correct one with *.",
+      label: "Questions",
+      hint: "Two fields make a typed answer; three or more make a multiple choice.",
+      add: "Add questions",
+      added: "{count} questions added",
+      nothingParsed: "Nothing could be read from that text.",
     },
 
 };

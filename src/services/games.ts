@@ -137,6 +137,19 @@ export async function getMyParticipant(
   return (data as Participant | null) ?? null;
 }
 
+/** Student: choose my own emoji avatar (token-scoped to me). */
+export async function setMyAvatar(
+  competitionId: string,
+  accessToken: string,
+  avatar: string
+): Promise<void> {
+  const { error } = await getParticipantClient(accessToken).rpc("set_my_avatar", {
+    p_competition_id: competitionId,
+    p_avatar: avatar,
+  });
+  if (error) throw error;
+}
+
 /** Presence heartbeat: mark myself online with a server timestamp. */
 export async function updatePresence(competitionId: string, accessToken: string): Promise<void> {
   const { error } = await getParticipantClient(accessToken).rpc("update_presence", {

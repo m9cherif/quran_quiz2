@@ -8,7 +8,8 @@ import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { removeParticipant, setParticipant } from "@/store/Slices/participantSlice";
-import { joinGame } from "@/services/games";
+import { joinGame, setMyAvatar } from "@/services/games";
+import AvatarPicker from "@/components/game/AvatarPicker";
 import { joinClass } from "@/services/classes";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
@@ -21,6 +22,7 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
 export function JoinGameForm({ defaultCode = "" }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState(defaultCode.toUpperCase());
+  const [avatar, setAvatar] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -49,6 +51,11 @@ export function JoinGameForm({ defaultCode = "" }) {
     setIsLoading(true);
     try {
       const participant = await joinGame(trimmedCode, trimmedName, profileId);
+      // The avatar is a second, token-scoped write: join_competition issues the
+      // token, so it cannot carry the avatar in the same call.
+      if (avatar) {
+        setMyAvatar(participant.competition_id, participant.access_token, avatar).catch(() => {});
+      }
       dispatch(
         setParticipant({
           id: participant.id,
@@ -171,6 +178,8 @@ export function JoinGameForm({ defaultCode = "" }) {
           }
           error={error || undefined}
         />
+        <AvatarPicker value={avatar} onChange={setAvatar} />
+
         <Button type="submit" loading={isLoading} className="w-full" size="lg" icon="send">
           {t("join.joinButton")}
         </Button>

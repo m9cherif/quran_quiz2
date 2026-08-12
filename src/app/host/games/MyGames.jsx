@@ -7,7 +7,8 @@ import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import EmptyState from "@/components/ui/EmptyState";
-import { listMyLiveGames, setQuizStatus } from "@/services/quizzes";
+import { useRouter } from "next/navigation";
+import { duplicateQuiz, getQuiz, listMyLiveGames, setQuizStatus } from "@/services/quizzes";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
@@ -20,6 +21,8 @@ export default function MyGames() {
   const { t } = useI18n();
   const [games, setGames] = useState(null);
   const [error, setError] = useState(false);
+  const [replaying, setReplaying] = useState(null);
+  const router = useRouter();
 
   const statusBadge = (status) => {
     const map = {
@@ -46,6 +49,25 @@ export default function MyGames() {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * Run the same quiz again as a brand new game: the finished one keeps its
+   * results, and the copy gets a fresh code and an empty lobby.
+   */
+  const playAgain = async (game) => {
+    setReplaying(game.id);
+    try {
+      const newId = await duplicateQuiz(game.id);
+      await setQuizStatus(newId, "waiting");
+      const fresh = await getQuiz(newId);
+      toast({ title: t("host.playAgainReady"), variant: "success" });
+      router.push(`/host/games/${fresh?.code ?? ""}`);
+    } catch (err) {
+      console.error("Play again failed:", err);
+      toast({ title: t("host.playAgainFailed"), description: t("common.tryAgain"), variant: "error" });
+      setReplaying(null);
+    }
+  };
 
   const cancel = async (game) => {
     try {
@@ -132,6 +154,17 @@ export default function MyGames() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {(game.status === "finished" || game.status === "cancelled") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="refresh"
+                    loading={replaying === game.id}
+                    onClick={() => playAgain(game)}
+                  >
+                    {t("host.playAgain")}
+                  </Button>
+                )}
                 {(game.status === "waiting" || game.status === "paused" || game.status === "running") && (
                   <Button variant="ghost" size="sm" onClick={() => cancel(game)}>
                     {t("host.cancel")}

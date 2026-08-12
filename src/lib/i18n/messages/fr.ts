@@ -181,6 +181,9 @@ const fr: Messages = {
       classesLoadFailed: "Impossible de charger vos classes",
     },
     host: {
+      playAgain: "Rejouer",
+      playAgainReady: "Nouvelle partie prête",
+      playAgainFailed: "Impossible de lancer une nouvelle partie",
       share: "Partager",
       shareText: "Rejoignez mon quiz avec le code {code}",
       addTime: "+30 s",
@@ -752,6 +755,25 @@ const fr: Messages = {
       palette: "Accès rapide",
       help: "Cette aide",
       escape: "Fermer ce qui est ouvert",
+    },
+    avatar: {
+      label: "Choisissez un symbole (facultatif)",
+    },
+    classBoard: {
+      open: "Classement",
+      title: "Classement de la classe",
+      desc: "Tous les élèves, sur toutes les parties de cette classe.",
+      empty: "Cette classe n'a encore joué aucune partie.",
+    },
+    bulk: {
+      open: "Coller en lot",
+      title: "Ajouter des questions en lot",
+      desc: "Une question par ligne. Séparez les options par | et marquez la bonne avec *.",
+      label: "Questions",
+      hint: "Deux champs donnent une réponse à saisir ; trois ou plus, un QCM.",
+      add: "Ajouter",
+      added: "{count} questions ajoutées",
+      nothingParsed: "Rien n'a pu être lu dans ce texte.",
     },
 
 };
