@@ -646,6 +646,9 @@ const en: Messages = {
       aria: "Accent colour",
     },
     call: {
+      relayNone: "No relay available — calls may fail on restricted networks.",
+      relayPublic: "Using the free public relay — fine for testing, set your own for a class.",
+      relayConfigured: "Relay: {source}",
       title: "Voice & camera",
       blurb: "Talk with the class while you play.",
       join: "Join call",

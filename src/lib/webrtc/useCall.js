@@ -15,11 +15,13 @@ import { getSupabase } from "@/lib/supabase/client";
  * camera light goes out and no frames are sent, but the connection is
  * untouched. If the camera is refused we fall back to audio only.
  *
- * Connectivity uses public STUN. On networks that need a relay (strict
- * corporate/mobile NATs) a TURN server would have to be configured — that is
- * the known limit of running this without a media service.
+ * Connectivity: STUN handles ordinary networks, and TURN relays the traffic
+ * when a firewall blocks peer-to-peer. Both come from /api/turn, which keeps
+ * the provider API key server-side and mints short-lived credentials.
  */
-const ICE_SERVERS = [
+import { getIceConfig } from "./iceServers";
+
+const FALLBACK_ICE = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
 ];
 
@@ -37,6 +39,8 @@ export function useCall({ competitionId, role, displayName, enabled }) {
   const [forcedMute, setForcedMute] = useState(false);
 
   const selfIdRef = useRef(randomId());
+  const iceServersRef = useRef(FALLBACK_ICE);
+  const [relaySource, setRelaySource] = useState("");
   const localStreamRef = useRef(null);
   const channelRef = useRef(null);
   const pcsRef = useRef(new Map()); // peerId -> RTCPeerConnection
@@ -67,7 +71,11 @@ export function useCall({ competitionId, role, displayName, enabled }) {
       const existing = pcsRef.current.get(peerId);
       if (existing) return existing;
 
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const pc = new RTCPeerConnection({
+        iceServers: iceServersRef.current,
+        // A handful of candidates is plenty and speeds up connection setup.
+        iceCandidatePoolSize: 2,
+      });
       pcsRef.current.set(peerId, pc);
 
       const stream = localStreamRef.current;
@@ -91,14 +99,27 @@ export function useCall({ competitionId, role, displayName, enabled }) {
       };
 
       pc.onconnectionstatechange = () => {
-        if (["failed", "closed", "disconnected"].includes(pc.connectionState)) {
+        // "disconnected" is often a passing blip (wifi handover, a tunnel
+        // re-forming); give it a moment before tearing the tile down.
+        if (pc.connectionState === "failed") {
+          if (role === "host" && typeof pc.restartIce === "function") {
+            pc.restartIce();
+            // Re-offer so the restarted candidates actually reach the peer.
+            pc.createOffer({ iceRestart: true })
+              .then((offer) => pc.setLocalDescription(offer))
+              .then(() => send("offer", { to: peerId, sdp: pc.localDescription }))
+              .catch(() => dropPeer(peerId));
+          } else {
+            dropPeer(peerId);
+          }
+        } else if (pc.connectionState === "closed") {
           dropPeer(peerId);
         }
       };
 
       return pc;
     },
-    [dropPeer, send]
+    [dropPeer, role, send]
   );
 
   const leave = useCallback(() => {
@@ -120,6 +141,13 @@ export function useCall({ competitionId, role, displayName, enabled }) {
     setConnecting(true);
     setError("");
     try {
+      // Relay credentials must be in hand before the first peer connection is
+      // built, or that peer would be created STUN-only and fail on a network
+      // that needs TURN.
+      const ice = await getIceConfig();
+      iceServersRef.current = ice.iceServers;
+      setRelaySource(ice.source);
+
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -163,7 +191,11 @@ export function useCall({ competitionId, role, displayName, enabled }) {
         .on("broadcast", { event: "answer" }, async ({ payload }) => {
           if (payload?.to !== selfIdRef.current) return;
           const pc = pcsRef.current.get(payload.from);
-          if (pc && !pc.currentRemoteDescription) await pc.setRemoteDescription(payload.sdp);
+          // Accept the answer whenever we are waiting for one — including the
+          // second time round after an ICE restart.
+          if (pc && pc.signalingState === "have-local-offer") {
+            await pc.setRemoteDescription(payload.sdp);
+          }
         })
         .on("broadcast", { event: "ice" }, async ({ payload }) => {
           if (payload?.to !== selfIdRef.current) return;
@@ -228,6 +260,7 @@ export function useCall({ competitionId, role, displayName, enabled }) {
   return {
     joined,
     connecting,
+    relaySource,
     micOn,
     camOn,
     hasCamera,

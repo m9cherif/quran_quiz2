@@ -645,6 +645,9 @@ const fr: Messages = {
       aria: "Couleur d'accent",
     },
     call: {
+      relayNone: "Aucun relais — les appels peuvent échouer sur réseaux restreints.",
+      relayPublic: "Relais public gratuit — bien pour tester, configurez le vôtre pour une classe.",
+      relayConfigured: "Relais : {source}",
       title: "Voix et caméra",
       blurb: "Parlez avec la classe pendant la partie.",
       join: "Rejoindre l'appel",

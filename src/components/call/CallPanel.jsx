@@ -61,7 +61,7 @@ function VideoTile({ stream, label, muted = false, self = false, onMute, muteLab
 export default function CallPanel({ call, role, selfLabel, className = "" }) {
   const { t } = useI18n();
   const {
-    joined, connecting, micOn, camOn, hasCamera, forcedMute, error,
+    joined, connecting, micOn, camOn, hasCamera, forcedMute, error, relaySource,
     peers, localStream, join, leave, toggleMic, toggleCam, muteParticipant,
   } = call;
 
@@ -147,6 +147,17 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
 
       {peers.length === 0 && (
         <p className="mt-3 text-center text-xs text-ink-muted">{t("call.waiting")}</p>
+      )}
+
+      {/* Only the host needs to know how traffic is getting through. */}
+      {role === "host" && relaySource && (
+        <p className="mt-3 text-center text-[11px] text-ink-faint">
+          {relaySource === "stun-only"
+            ? t("call.relayNone")
+            : relaySource === "public"
+              ? t("call.relayPublic")
+              : t("call.relayConfigured", { source: relaySource })}
+        </p>
       )}
     </div>
   );

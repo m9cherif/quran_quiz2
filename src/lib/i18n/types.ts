@@ -629,6 +629,9 @@ moveDown: string;
     aria: string;
   },
   call: {
+    relayNone: string;
+    relayPublic: string;
+    relayConfigured: string;
     title: string;
     blurb: string;
     join: string;
