@@ -89,6 +89,7 @@ export default function LiveGameControl({ roomKey }) {
   const [newQuestion, setNewQuestion] = useState(emptyNewQuestion);
   const [now, setNow] = useState(Date.now());
   const channelRef = useRef(null);
+  const roomChannelRef = useRef(null);
 
   const loadAll = useCallback(async (code, fetchReveal = true) => {
     const competition = await getGameByCode(code);
@@ -213,11 +214,19 @@ export default function LiveGameControl({ roomKey }) {
 
     channelRef.current = channel;
 
+    const roomChannel = client
+      .channel(`room-${game.id}`)
+      .on("broadcast", { event: "deck-updated" }, () => {})
+      .subscribe();
+    roomChannelRef.current = roomChannel;
+
     const timer = setInterval(() => setNow(Date.now()), 500);
     return () => {
       clearInterval(timer);
       client.removeChannel(channel);
+      client.removeChannel(roomChannel);
       channelRef.current = null;
+      roomChannelRef.current = null;
     };
   }, [state, game]);
 
@@ -258,6 +267,12 @@ export default function LiveGameControl({ roomKey }) {
             ? "cancelled"
             : "lobby";
 
+  const nudgeStudents = () => {
+    roomChannelRef.current
+      ?.send({ type: "broadcast", event: "deck-updated", payload: {} })
+      .catch(() => {});
+  };
+
   const copyCode = () => {
     navigator.clipboard
       .writeText(String(roomKey))
@@ -294,6 +309,7 @@ export default function LiveGameControl({ roomKey }) {
     run("start", async () => {
       await setQuizStatus(game.id, "running");
       if (upNext) await beginQuestion(upNext.id);
+      nudgeStudents();
     });
 
   const nextQuestion = () =>
@@ -302,11 +318,13 @@ export default function LiveGameControl({ roomKey }) {
         await endQuestion(current.id);
       }
       if (upNext) await beginQuestion(upNext.id);
+      nudgeStudents();
     });
 
   const endCurrent = () =>
     run("end", async () => {
       if (current) await endQuestion(current.id);
+      nudgeStudents();
     });
 
   const pauseGame = () => run("pause", () => setQuizStatus(game.id, "paused"));
@@ -318,6 +336,7 @@ export default function LiveGameControl({ roomKey }) {
         await endQuestion(current.id);
       }
       await setQuizStatus(game.id, "finished");
+      nudgeStudents();
     });
 
   const cancelGame = () =>
@@ -412,6 +431,7 @@ export default function LiveGameControl({ roomKey }) {
       toast({ title: t("host.questionAdded"), variant: "success" });
       setAddOpen(false);
       setNewQuestion(emptyNewQuestion());
+      nudgeStudents();
       await loadAll(String(roomKey), false).catch(() => {});
     } catch (err) {
       console.error("Add question failed:", err);

@@ -176,7 +176,15 @@ export default function GameQuestion({ params }) {
   // ---------- realtime: questions + competitions ----------
   useEffect(() => {
     if (!game || !competitionId) return;
-    const channel = getSupabase()
+    const client = getSupabase();
+    const roomChannel = client
+      .channel(`room-${competitionId}`)
+      .on("broadcast", { event: "deck-updated" }, () => {
+        setNowEpoch(Date.now());
+        loadDeck();
+      })
+      .subscribe();
+    const channel = client
       .channel(`student-game-${competitionId}`)
       .on(
         "postgres_changes",
@@ -211,11 +219,27 @@ export default function GameQuestion({ params }) {
           });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "questions",
+          filter: `competition_id=eq.${competitionId}`,
+        },
+        (payload) => {
+          if (!payload?.new?.id) return;
+          setQuestions((prev) =>
+            prev.some((q) => q.id === payload.new.id) ? prev : [...prev, payload.new]
+          );
+        }
+      )
       .subscribe();
     return () => {
       channel.unsubscribe();
+      roomChannel.unsubscribe();
     };
-  }, [competitionId, game]);
+  }, [competitionId, game, loadDeck]);
 
   // ---------- reveal fetch when a question closes ----------
   useEffect(() => {
@@ -260,6 +284,9 @@ export default function GameQuestion({ params }) {
     if (stageQuestionRef.current !== activeQuestion.id) {
       stageQuestionRef.current = activeQuestion.id;
       stageStartRef.current = Date.now();
+      setSelectedChoiceId(null);
+      setTextAnswer("");
+      setError("");
     }
   }, [activeQuestion]);
 
