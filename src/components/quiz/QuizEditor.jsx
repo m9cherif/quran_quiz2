@@ -16,11 +16,13 @@ import {
   deleteQuestion,
   getQuiz,
   getQuizQuestionsFull,
+  savePageWordsQuestion,
   saveQuestion,
   setQuizStatus,
   updateQuizMeta,
 } from "@/services/quizzes";
 import { downloadTextFile, slugify } from "@/lib/export";
+import { AVAILABLE_PAGES } from "@/lib/quran/pages";
 import { Dialog } from "@/components/ui/Dialog";
 import { listMyClasses } from "@/services/classes";
 import {
@@ -49,6 +51,7 @@ export function QuizEditor({ quizId }) {
       text: t("editor.typeText"),
       number: t("editor.typeNumber"),
       audio: t("editor.typeAudio"),
+      page_words: t("editor.typePageWords"),
     };
     return labels[type] ?? type;
   };
@@ -85,6 +88,17 @@ export function QuizEditor({ quizId }) {
       // One owner-scoped call for the whole deck (was one RPC per question).
       const rows = await getQuizQuestionsFull(quizId);
       const full = rows.map((f) => ({
+        // page_words: rebuild "word per box" from the stored solution
+        // (solution[i] = index of the chip that belongs in box i).
+        ...(f.type === "page_words"
+          ? {
+              regions: Array.isArray(f.regions) ? f.regions : [],
+              words: String(f.correct_answer_text ?? "")
+                .split("|")
+                .filter((v) => v !== "")
+                .map((chipIndex) => (f.choices ?? [])[Number(chipIndex)]?.text ?? ""),
+            }
+          : { regions: [], words: [] }),
         id: f.id,
         position: f.position,
         text: f.text,
@@ -252,7 +266,24 @@ export function QuizEditor({ quizId }) {
       const saved = questions.map((q, i) => ({ ...q, position: i + 1 }));
 
       const persist = (q, position) =>
-        saveQuestion({
+        q.type === "page_words"
+          ? savePageWordsQuestion({
+              competitionId: quiz.id,
+              questionId: q.id,
+              position,
+              pageNumber: q.page_number ?? AVAILABLE_PAGES[0],
+              durationSeconds: q.duration_seconds ?? 120,
+              points: q.points,
+              negativePoints: q.negative_points,
+              explanation: q.explanation,
+              surahNumber: q.surah_number,
+              ayahNumber: q.ayah_number,
+              juzNumber: q.juz_number,
+              hizbNumber: q.hizb_number,
+              regions: q.regions ?? [],
+              words: (q.words ?? []).map((text, i) => ({ text, region: i })),
+            })
+          : saveQuestion({
           competitionId: quiz.id,
           questionId: q.id,
           position,
@@ -560,7 +591,10 @@ export function QuizEditor({ quizId }) {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium text-ink">
-                  {index + 1}. {question.text || t("editor.untitledQuestion")}
+                  {index + 1}.{" "}
+                  {question.type === "page_words"
+                    ? t("pw.pageOption", { page: question.page_number ?? "—" })
+                    : question.text || t("editor.untitledQuestion")}
                 </span>
                 <span className="flex shrink-0 items-center gap-1.5">
                   {question.started && <Badge variant="neutral">{t("editor.alreadyPlayed")}</Badge>}

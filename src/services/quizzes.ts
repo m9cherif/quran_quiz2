@@ -156,6 +156,51 @@ export async function getQuizQuestionsFull(
   return (data as Array<QuizQuestionFull & { started_at: string | null }>) ?? [];
 }
 
+export interface PageWordsInput {
+  competitionId: string;
+  questionId?: string | null;
+  position: number;
+  pageNumber: number;
+  durationSeconds: number;
+  points: number | null;
+  negativePoints: number | null;
+  explanation: string | null;
+  surahNumber?: number | null;
+  ayahNumber?: number | null;
+  juzNumber?: number | null;
+  hizbNumber?: number | null;
+  /** Box geometry, normalised 0..1, in reading order. */
+  regions: Array<{ x1: number; y1: number; x2: number; y2: number }>;
+  /** One word per region: { text, region: <index into regions> }. */
+  words: Array<{ text: string; region: number }>;
+}
+
+/**
+ * Save a "hidden words on a page" exercise. The RPC shuffles the chips and
+ * derives the solution server-side, so the answer key never round-trips
+ * through the browser.
+ */
+export async function savePageWordsQuestion(input: PageWordsInput): Promise<string> {
+  const { data, error } = await getSupabase().rpc("save_page_words_question", {
+    p_competition_id: input.competitionId,
+    p_question_id: input.questionId ?? null,
+    p_position: input.position,
+    p_page_number: input.pageNumber,
+    p_regions: input.regions as never,
+    p_words: input.words as never,
+    p_duration_seconds: input.durationSeconds,
+    p_points: input.points,
+    p_negative_points: input.negativePoints,
+    p_explanation: input.explanation,
+    p_surah_number: input.surahNumber ?? null,
+    p_ayah_number: input.ayahNumber ?? null,
+    p_juz_number: input.juzNumber ?? null,
+    p_hizb_number: input.hizbNumber ?? null,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
 /** Create a full quiz (questions + choices) from an exported JSON payload. */
 export async function importQuiz(payload: unknown): Promise<string> {
   const { data, error } = await getSupabase().rpc("import_quiz", {

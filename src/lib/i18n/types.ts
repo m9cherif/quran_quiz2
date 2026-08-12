@@ -343,6 +343,7 @@ signInToTrack: string;
     pickAnotherGame: string;
   };
   editor: {
+    typePageWords: string;
     exportJson: string;
     exportDone: string;
     importJson: string;
@@ -547,6 +548,22 @@ moveDown: string;
   theme: {
     switchToDark: string;
     switchToLight: string;
+  };
+  pw: {
+    pageLabel: string;
+    pageOption: string;
+    drawHint: string;
+    boxCount: string;
+    wordLabel: string;
+    wordPlaceholder: string;
+    removeBox: string;
+    incomplete: string;
+    needBox: string;
+    progress: string;
+    playTitle: string;
+    playHint: string;
+    boxAria: string;
+    wordsAria: string;
   };
 }
 

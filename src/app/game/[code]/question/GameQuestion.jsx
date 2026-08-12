@@ -20,6 +20,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import PageWordsPlay from "@/components/game/PageWordsPlay";
 
 /**
  * GameQuestion — student answer screen driven by server timestamps.
@@ -290,13 +291,18 @@ export default function GameQuestion({ code }) {
   }, [activeQuestion]);
 
   // ---------- submit ----------
-  const handleSubmit = async () => {
+  const handleSubmit = async (overrideAnswerText) => {
     if (!activeQuestion || !accessToken) return;
     if (submittedRef.current.ids?.[activeQuestion.id]) return;
 
     const hasChoices = activeQuestion.type === "mcq" || activeQuestion.type === "true_false";
     const choiceId = hasChoices ? selectedChoiceId ?? undefined : undefined;
-    const answerText = hasChoices ? undefined : textAnswer.trim();
+    const answerText =
+      typeof overrideAnswerText === "string"
+        ? overrideAnswerText
+        : hasChoices
+          ? undefined
+          : textAnswer.trim();
 
     if (!choiceId && !answerText) {
       setError(t("game.pickAnswerError"));
@@ -441,9 +447,27 @@ export default function GameQuestion({ code }) {
       )}
 
       <Card padding="lg" className="space-y-5">
-        <h1 className="text-lg font-semibold leading-relaxed text-ink">{currentQuestion.text}</h1>
+        {currentQuestion.type === "page_words" ? (
+          <h1 className="text-lg font-semibold leading-relaxed text-ink">
+            {t("pw.playTitle")}
+          </h1>
+        ) : (
+          <h1 className="text-lg font-semibold leading-relaxed text-ink">{currentQuestion.text}</h1>
+        )}
 
-        {isActive && !wasSubmitted && (
+        {currentQuestion.type === "page_words" && (
+          <PageWordsPlay
+            key={currentQuestion.id}
+            question={currentQuestion}
+            chips={questionChoices}
+            submitting={submitting}
+            disabled={!isActive || wasSubmitted}
+            solution={!isActive && reveal ? reveal.correct_answer_text : null}
+            onSubmit={(canonical) => handleSubmit(canonical)}
+          />
+        )}
+
+        {isActive && !wasSubmitted && currentQuestion.type !== "page_words" && (
           <>
             {(currentQuestion.type === "mcq" || currentQuestion.type === "true_false") && (
               <div role="group" aria-label={t("game.answerChoicesLabel")} className="grid gap-2.5">
@@ -521,7 +545,7 @@ export default function GameQuestion({ code }) {
           </div>
         )}
 
-        {!isActive && reveal && (
+        {!isActive && reveal && currentQuestion.type !== "page_words" && (
           <div className="space-y-4">
             <div
               className={`rounded-md p-4 text-sm font-semibold ${

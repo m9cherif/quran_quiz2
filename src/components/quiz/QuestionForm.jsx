@@ -9,12 +9,16 @@ import Textarea from "@/components/ui/Textarea";
 import { cn } from "@/lib/cn";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
+import PageWordsEditor from "./PageWordsEditor";
+import { AVAILABLE_PAGES } from "@/lib/quran/pages";
+
 const QUESTION_TYPES = [
   { value: "mcq", key: "typeMcq" },
   { value: "true_false", key: "typeTrueFalse" },
   { value: "text", key: "typeText" },
   { value: "number", key: "typeNumber" },
   { value: "audio", key: "typeAudio" },
+  { value: "page_words", key: "typePageWords" },
 ];
 
 function buildInitialChoices() {
@@ -32,6 +36,8 @@ export function emptyQuestion(position = 1) {
     position,
     text: "",
     type: "mcq",
+    regions: [],
+    words: [],
     duration_seconds: 15,
     points: null,
     negative_points: null,
@@ -56,6 +62,21 @@ export function questionPoints(question, defaults) {
 
 export function validateQuestion(question, t = (key) => key) {
   const errors = {};
+  if (question.type === "page_words") {
+    // Geometry + one word per box is the whole contract for this type; the
+    // question "text" is generated, so it is not authored here.
+    const regions = question.regions ?? [];
+    const words = question.words ?? [];
+    if (regions.length === 0) {
+      errors.regions = t("pw.needBox");
+    } else if (
+      words.length !== regions.length ||
+      words.some((w) => !String(w ?? "").trim())
+    ) {
+      errors.regions = t("pw.incomplete");
+    }
+    return errors;
+  }
   if (!question.text.trim()) errors.text = t("editor.missingText");
   if (question.type === "mcq") {
     const filled = question.choices.filter((c) => c.text.trim());
@@ -154,25 +175,49 @@ export function QuestionForm({
             </option>
           ))}
         </Select>
-        <Input
-          label={t("editor.duration")}
-          type="number"
-          min={1}
-          max={600}
-          required
-          value={question.duration_seconds}
-          onChange={(e) => set({ duration_seconds: Math.max(1, Number(e.target.value) || 1) })}
-        />
-        <Input
-          label={`${t("editor.pointsPerQuestion")} (${t("editor.default")} ${defaults.points})`}
-          type="number"
-          min={0}
-          value={question.points ?? ""}
-          placeholder={String(defaults.points)}
-          onChange={ref("points")}
-        />
+        {type !== "page_words" && (
+          <Input
+            label={t("editor.duration")}
+            type="number"
+            min={1}
+            max={600}
+            required
+            value={question.duration_seconds}
+            onChange={(e) => set({ duration_seconds: Math.max(1, Number(e.target.value) || 1) })}
+          />
+        )}
+        {type !== "page_words" && (
+          <Input
+            label={`${t("editor.pointsPerQuestion")} (${t("editor.default")} ${defaults.points})`}
+            type="number"
+            min={0}
+            value={question.points ?? ""}
+            placeholder={String(defaults.points)}
+            onChange={ref("points")}
+          />
+        )}
       </div>
 
+      {type === "page_words" && (
+        <>
+          <PageWordsEditor
+            question={{
+              ...question,
+              page_number: question.page_number ?? AVAILABLE_PAGES[0],
+              duration_seconds: question.duration_seconds ?? 120,
+            }}
+            onChange={onChange}
+          />
+          {errors.regions && (
+            <p className="text-sm text-danger" role="alert">
+              {errors.regions}
+            </p>
+          )}
+        </>
+      )}
+
+      {type !== "page_words" && (
+        <>
       <div className="grid gap-4 sm:grid-cols-2">
         <Input
           label={`${t("editor.negativePoints")} (${t("editor.default")} ${defaults.negative})`}
@@ -317,6 +362,8 @@ export function QuestionForm({
           <Input label={t("editor.hizb")} type="number" min={1} max={60} value={question.hizb_number ?? ""} onChange={ref("hizb_number")} />
         </div>
       </details>
+        </>
+      )}
     </Card>
   );
 }

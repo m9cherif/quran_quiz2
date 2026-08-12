@@ -14,6 +14,9 @@ export interface GameQuestionRow {
   negative_points: number | null;
   started_at: string | null;
   ends_at: string | null;
+  /** page_words exercises only: page image + normalised box geometry. */
+  page_number?: number | null;
+  regions?: Array<{ x1: number; y1: number; x2: number; y2: number }> | null;
 }
 
 /** Load the competition behind a room code (owner or visible to player). */
@@ -32,7 +35,7 @@ export async function listGameQuestions(competitionId: string): Promise<GameQues
   const { data, error } = await getSupabase()
     .from("questions")
     .select(
-      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at"
+      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at, page_number, regions"
     )
     .eq("competition_id", competitionId)
     .order("position", { ascending: true });
@@ -165,7 +168,7 @@ export async function listStudentQuestions(
   const { data, error } = await getParticipantClient(accessToken)
     .from("questions")
     .select(
-      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at"
+      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at, page_number, regions"
     )
     .eq("competition_id", competitionId)
     .order("position", { ascending: true });
