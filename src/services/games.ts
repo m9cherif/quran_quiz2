@@ -110,6 +110,35 @@ export interface RevealPayload {
   choices: { id: string; text: string }[];
 }
 
+export interface OpenGameRow {
+  id: string;
+  code: string;
+  title: string | null;
+  name: string;
+  language: string | null;
+  category: string | null;
+  created_at: string;
+}
+
+/**
+ * Games currently open for joining.
+ * RLS already exposes waiting competitions to anonymous readers, so this is a
+ * plain select — private ones and locked lobbies are filtered out so a game
+ * only appears in the list when its host actually wants walk-ins.
+ */
+export async function listOpenGames(): Promise<OpenGameRow[]> {
+  const { data, error } = await getSupabase()
+    .from("competitions")
+    .select("id, code, title, name, language, category, created_at")
+    .eq("status", "waiting")
+    .eq("join_locked", false)
+    .neq("visibility", "private")
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (error) throw error;
+  return (data as OpenGameRow[]) ?? [];
+}
+
 /** Join a waiting game by its public code. Returns the participant row. */
 export async function joinGame(
   code: string,

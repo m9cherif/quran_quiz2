@@ -40,6 +40,7 @@ const fr: Messages = {
       errorDesc: "Une erreur inattendue s'est produite lors du rendu de cette section.",
     },
     nav: {
+      practice: "Écouter et suivre",
       home: "Accueil",
       about: "À propos",
       myQuizzes: "Mes quiz",
@@ -774,6 +775,24 @@ const fr: Messages = {
       add: "Ajouter",
       added: "{count} questions ajoutées",
       nothingParsed: "Rien n'a pu être lu dans ce texte.",
+    },
+    openGames: {
+      title: "Parties ouvertes",
+      desc: "Touchez-en une pour remplir son code, ou saisissez un code ci-dessous.",
+      count: "{count} ouverte(s)",
+    },
+    recite: {
+      title: "Écouter et suivre",
+      subtitle: "Lancez une page et suivez chaque mot récité. Touchez un mot pour partir de là.",
+      play: "Écouter",
+      pause: "Pause",
+      restart: "Depuis le début",
+      loop: "Répéter",
+      hide: "Masquer les mots",
+      wordCount: "{count} mots",
+      none: "Aucune récitation publiée pour cette page.",
+      failed: "Impossible de charger la récitation.",
+      tapHint: "Touchez un mot de la page pour y amener la récitation.",
     },
 
 };

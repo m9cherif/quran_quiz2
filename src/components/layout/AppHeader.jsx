@@ -16,6 +16,7 @@ import SoundToggle from "@/components/ui/SoundToggle";
 const NAV = {
   public: [
     { href: "/", labelKey: "nav.home" },
+    { href: "/practice", labelKey: "nav.practice" },
     { href: "/about", labelKey: "nav.about" },
   ],
   host: [

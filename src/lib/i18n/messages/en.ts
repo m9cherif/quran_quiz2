@@ -40,6 +40,7 @@ const en: Messages = {
       errorDesc: "An unexpected error occurred while rendering this section.",
     },
     nav: {
+      practice: "Listen & follow",
       home: "Home",
       about: "About",
       myQuizzes: "My Quizzes",
@@ -775,6 +776,24 @@ const en: Messages = {
       add: "Add questions",
       added: "{count} questions added",
       nothingParsed: "Nothing could be read from that text.",
+    },
+    openGames: {
+      title: "Games open now",
+      desc: "Tap one to fill in its code, or type a code below.",
+      count: "{count} open",
+    },
+    recite: {
+      title: "Listen & follow",
+      subtitle: "Play a page and watch each word as it is recited. Tap any word to start from there.",
+      play: "Play",
+      pause: "Pause",
+      restart: "From the start",
+      loop: "Repeat",
+      hide: "Hide words",
+      wordCount: "{count} words",
+      none: "No recitation is published for this page yet.",
+      failed: "The recitation could not be loaded.",
+      tapHint: "Tap a word on the page to jump the recitation to it.",
     },
 
 };

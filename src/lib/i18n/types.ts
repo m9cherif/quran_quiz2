@@ -39,6 +39,7 @@ draft: string;
       errorDesc: string;
     };
   nav: {
+    practice: string;
     home: string;
     about: string;
     myQuizzes: string;
@@ -758,6 +759,24 @@ moveDown: string;
     add: string;
     added: string;
     nothingParsed: string;
+  },
+  openGames: {
+    title: string;
+    desc: string;
+    count: string;
+  },
+  recite: {
+    title: string;
+    subtitle: string;
+    play: string;
+    pause: string;
+    restart: string;
+    loop: string;
+    hide: string;
+    wordCount: string;
+    none: string;
+    failed: string;
+    tapHint: string;
   },
 
 }

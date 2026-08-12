@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/Toast";
 import { removeParticipant, setParticipant } from "@/store/Slices/participantSlice";
 import { joinGame, setMyAvatar } from "@/services/games";
 import AvatarPicker from "@/components/game/AvatarPicker";
+import OpenGamesList from "@/components/join/OpenGamesList";
 import { joinClass } from "@/services/classes";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
@@ -146,6 +147,8 @@ export function JoinGameForm({ defaultCode = "" }) {
           </div>
         </Card>
       )}
+
+      <OpenGamesList onPick={(picked) => setCode(picked)} selectedCode={code} />
 
       <Card padding="lg">
       <h1 className="text-xl font-semibold text-ink">{t("join.title")}</h1>

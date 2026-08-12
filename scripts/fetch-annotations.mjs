@@ -68,6 +68,9 @@ for (const file of listing) {
     if (!text) continue;
     words.push({
       x1, y1, x2, y2,
+      // The recitation timelines reference this id, so it has to survive the
+      // import or audio cannot be lined up with the boxes.
+      id: Number.isFinite(Number(row.id)) ? Number(row.id) : null,
       text,
       aya: Number.isFinite(Number(row.aya_no)) ? Number(row.aya_no) : null,
       hidden: row.hidden === true || row.hidden === 1 || row.hidden === "1",
