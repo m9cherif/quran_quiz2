@@ -31,12 +31,27 @@ export default function AudioQuestion({ src, disabled = false }) {
 
   if (!src) return null;
 
+  /**
+   * A "#t=start,end" fragment means only that slice should sound — generated
+   * questions use it to play a single ayah out of a whole-surah recording.
+   * Browsers honour the start reliably but not the end, so the stop is
+   * enforced here.
+   */
+  const clip = (() => {
+    const match = /#t=([\d.]+)(?:,([\d.]+))?/.exec(src);
+    if (!match) return null;
+    return { from: Number(match[1]) || 0, to: match[2] ? Number(match[2]) : null };
+  })();
+
   const toggle = () => {
     const el = audioRef.current;
     if (!el) return;
     if (playing) {
       el.pause();
       return;
+    }
+    if (clip && (el.currentTime < clip.from || (clip.to && el.currentTime >= clip.to))) {
+      el.currentTime = clip.from;
     }
     el.play()
       .then(() => setPlays((n) => n + 1))
@@ -46,7 +61,7 @@ export default function AudioQuestion({ src, disabled = false }) {
   const restart = () => {
     const el = audioRef.current;
     if (!el) return;
-    el.currentTime = 0;
+    el.currentTime = clip ? clip.from : 0;
     if (!playing) toggle();
   };
 
@@ -60,6 +75,9 @@ export default function AudioQuestion({ src, disabled = false }) {
         onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)}
         onError={() => setFailed(true)}
+        onTimeUpdate={(e) => {
+          if (clip?.to && e.currentTarget.currentTime >= clip.to) e.currentTarget.pause();
+        }}
       />
       {failed ? (
         <p className="text-sm text-danger" role="alert">

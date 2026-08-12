@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { pageImageUrl, regionStyle } from "@/lib/quran/pages";
 import { audioUrl, loadTimeline, timeOfWord, wordAt } from "@/lib/quran/recitation";
+import { readBookmark, saveBookmark } from "@/lib/quran/progress";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5];
@@ -34,6 +35,8 @@ export default function RecitationPlayer({ page, words = [], className = "" }) {
   const [loop, setLoop] = useState(false);
   const [failed, setFailed] = useState(false);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [activeAyah, setActiveAyah] = useState(null);
+  const [resumeAt, setResumeAt] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -61,12 +64,20 @@ export default function RecitationPlayer({ page, words = [], className = "" }) {
       if (el) {
         const ms = el.currentTime * 1000;
         setCurrentWord(wordAt(timeline, ms));
-        const endMs = timeline.start + timeline.duration;
-        if (timeline.duration > 0 && ms >= endMs) {
+
+        // A selected ayah owns the transport until it is cleared.
+        if (activeAyah && ms >= activeAyah.to) {
           if (loop) {
-            el.currentTime = timeline.start / 1000;
+            el.currentTime = activeAyah.from / 1000;
           } else {
             el.pause();
+            setActiveAyah(null);
+          }
+        } else if (!activeAyah && timeline.duration > 0) {
+          const endMs = timeline.start + timeline.duration;
+          if (ms >= endMs) {
+            if (loop) el.currentTime = timeline.start / 1000;
+            else el.pause();
           }
         }
       }
@@ -80,11 +91,58 @@ export default function RecitationPlayer({ page, words = [], className = "" }) {
     if (audioRef.current) audioRef.current.playbackRate = speed;
   }, [speed]);
 
+  // Remember where this page was left, and offer to resume next visit.
+  useEffect(() => {
+    if (!playing) return;
+    const id = setInterval(() => {
+      const el = audioRef.current;
+      if (el) saveBookmark(page, el.currentTime);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [playing, page]);
+
+  useEffect(() => {
+    const mark = readBookmark();
+    setResumeAt(mark && mark.page === page && mark.seconds > 5 ? mark.seconds : null);
+  }, [page, timeline]);
+
   const byId = useMemo(() => {
     const map = new Map();
     for (const word of words) if (word.id != null) map.set(word.id, word);
     return map;
   }, [words]);
+
+  /**
+   * Ayah ranges in audio time. Looping a single ayah is the drill that
+   * actually builds memorisation — a whole page is too long to repeat.
+   */
+  const ayahs = useMemo(() => {
+    if (!timeline) return [];
+    const groups = new Map();
+    for (const word of words) {
+      if (!word.aya || word.id == null) continue;
+      const at = timeOfWord(timeline, word.id);
+      if (at == null) continue;
+      const found = groups.get(word.aya) ?? { aya: word.aya, from: at, to: at };
+      found.from = Math.min(found.from, at);
+      found.to = Math.max(found.to, at);
+      groups.set(word.aya, found);
+    }
+    const list = [...groups.values()].sort((a, b) => a.from - b.from);
+    // An ayah ends where the next begins; the last runs to the recording end.
+    return list.map((item, i) => ({
+      ...item,
+      to: i + 1 < list.length ? list[i + 1].from : timeline.start + timeline.duration,
+    }));
+  }, [words, timeline]);
+
+  const playAyah = (ayah) => {
+    const el = audioRef.current;
+    if (!el) return;
+    setActiveAyah(ayah);
+    el.currentTime = ayah.from / 1000;
+    el.play().catch(() => setFailed(true));
+  };
 
   const seekToWord = (word) => {
     if (!timeline || word.id == null) return;
@@ -188,6 +246,54 @@ export default function RecitationPlayer({ page, words = [], className = "" }) {
 
         <Badge variant="info">{t("recite.wordCount", { count: timeline.events.length })}</Badge>
       </div>
+
+      {ayahs.length > 0 && (
+        <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-1">
+          <span className="shrink-0 text-xs font-semibold text-ink-muted">{t("recite.ayahs")}</span>
+          {activeAyah && (
+            <button
+              type="button"
+              onClick={() => setActiveAyah(null)}
+              className="press shrink-0 rounded-md border border-border px-2 py-1 text-xs text-ink-muted"
+            >
+              {t("recite.wholePage")}
+            </button>
+          )}
+          {ayahs.map((ayah) => (
+            <button
+              key={ayah.aya}
+              type="button"
+              onClick={() => playAyah(ayah)}
+              aria-pressed={activeAyah?.aya === ayah.aya}
+              className={`press shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                activeAyah?.aya === ayah.aya
+                  ? "border-primary bg-primary-soft text-primary"
+                  : "border-border bg-surface text-ink-muted hover:text-ink"
+              }`}
+            >
+              {ayah.aya}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {resumeAt !== null && !playing && (
+        <button
+          type="button"
+          onClick={() => {
+            const el = audioRef.current;
+            if (!el) return;
+            el.currentTime = resumeAt;
+            setResumeAt(null);
+            el.play().catch(() => setFailed(true));
+          }}
+          className="press w-full rounded-md border border-primary bg-primary-soft px-4 py-2 text-sm font-medium text-primary"
+        >
+          {t("recite.resume", {
+            time: `${Math.floor(resumeAt / 60)}:${String(Math.floor(resumeAt % 60)).padStart(2, "0")}`,
+          })}
+        </button>
+      )}
 
       {failed && (
         <p className="text-sm text-danger" role="alert">

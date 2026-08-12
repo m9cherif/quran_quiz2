@@ -24,6 +24,7 @@ import {
 } from "@/services/quizzes";
 import { downloadTextFile, slugify } from "@/lib/export";
 import { printQuizSheet } from "@/lib/printSheet";
+import GenerateFromPage from "./GenerateFromPage";
 import { AVAILABLE_PAGES } from "@/lib/quran/pages";
 import { Dialog } from "@/components/ui/Dialog";
 import { listMyClasses } from "@/services/classes";
@@ -73,6 +74,7 @@ export function QuizEditor({ quizId }) {
   const [classes, setClasses] = useState([]);
   const [savedAt, setSavedAt] = useState(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [genOpen, setGenOpen] = useState(false);
   const [bulkText, setBulkText] = useState("");
 
   /**
@@ -709,6 +711,9 @@ export function QuizEditor({ quizId }) {
           <Button variant="outline" size="sm" onClick={() => setPreview((v) => !v)} disabled={!current}>
             {preview ? t("editor.backToEditing") : t("editor.preview")}
           </Button>
+          <Button size="sm" variant="outline" icon="bolt" onClick={() => setGenOpen(true)}>
+            {t("gen.open")}
+          </Button>
           <Button size="sm" variant="outline" icon="upload" onClick={() => setBulkOpen(true)}>
             {t("bulk.open")}
           </Button>
@@ -791,6 +796,32 @@ export function QuizEditor({ quizId }) {
           ) : null}
         </div>
       </div>
+
+      <GenerateFromPage
+        open={genOpen}
+        onClose={() => setGenOpen(false)}
+        onGenerate={(generated) => {
+          setQuestions((prev) => {
+            const base = prev.filter((q) => q.text.trim() || q.id);
+            const built = generated.map((g) => ({
+              ...emptyQuestion(1),
+              type: g.type,
+              text: g.text,
+              duration_seconds: g.duration_seconds,
+              correct_answer_text: g.correct_answer_text,
+              audio_url: g.audio_url,
+              page_number: g.page_number,
+              ayah_number: g.ayah_number,
+              regions: g.regions,
+              words: g.words,
+              choices: [],
+            }));
+            return [...base, ...built].map((q, i) => ({ ...q, position: i + 1 }));
+          });
+          setDirty(true);
+          toast({ title: t("gen.added", { count: generated.length }), variant: "success" });
+        }}
+      />
 
       <Dialog
         open={bulkOpen}

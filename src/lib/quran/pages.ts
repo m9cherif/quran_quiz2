@@ -68,6 +68,8 @@ export interface AnnotatedWord {
   y1: number;
   x2: number;
   y2: number;
+  /** Workbook word id — what the recitation timelines reference. */
+  id: number | null;
   text: string;
   aya: number | null;
   hidden: boolean;

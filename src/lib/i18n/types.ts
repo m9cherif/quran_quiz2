@@ -766,6 +766,9 @@ moveDown: string;
     count: string;
   },
   recite: {
+    ayahs: string;
+    wholePage: string;
+    resume: string;
     title: string;
     subtitle: string;
     play: string;
@@ -777,6 +780,25 @@ moveDown: string;
     none: string;
     failed: string;
     tapHint: string;
+  },
+  gen: {
+    open: string;
+    title: string;
+    desc: string;
+    run: string;
+    count: string;
+    wordsPer: string;
+    kindHidden: string;
+    kindContinue: string;
+    kindListen: string;
+    hasWords: string;
+    noWords: string;
+    hasAudio: string;
+    noAudio: string;
+    noData: string;
+    noImage: string;
+    nothing: string;
+    added: string;
   },
 
 }
