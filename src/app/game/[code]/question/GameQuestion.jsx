@@ -25,6 +25,8 @@ import AudioQuestion from "@/components/game/AudioQuestion";
 import Confetti from "@/components/ui/Confetti";
 import { ReactionBar, ReactionLayer, useReactions } from "@/components/game/Reactions";
 import { playCue } from "@/lib/sound";
+import CallPanel from "@/components/call/CallPanel";
+import { useCall } from "@/lib/webrtc/useCall";
 import PageWordsPlay from "@/components/game/PageWordsPlay";
 
 /**
@@ -439,6 +441,13 @@ export default function GameQuestion({ code }) {
 
   const { floating, send: sendReaction } = useReactions(competitionId);
 
+  const call = useCall({
+    competitionId,
+    role: "student",
+    displayName: participant?.displayName ?? "",
+    enabled: Boolean(game?.calls_enabled),
+  });
+
   const myAnswer = currentQuestion ? answersById[currentQuestion.id] : null;
   const reveal = currentQuestion ? revealById[currentQuestion.id] : null;
   const questionChoices = currentQuestion ? choices[currentQuestion.id] || [] : [];
@@ -783,6 +792,15 @@ export default function GameQuestion({ code }) {
           </div>
         )}
       </Card>
+
+      {game?.calls_enabled && (
+        <CallPanel
+          call={call}
+          role="student"
+          selfLabel={participant?.displayName || t("game.you")}
+          className="mt-4"
+        />
+      )}
 
       <ReactionBar onSend={sendReaction} className="mt-4" />
 

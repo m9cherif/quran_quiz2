@@ -23,6 +23,8 @@ export interface QuizMetaInput {
   speed_bonus_enabled?: boolean;
   visibility?: "public" | "unlisted" | "private";
   class_id?: string | null;
+  /** Host switch for the voice/camera room. */
+  calls_enabled?: boolean;
 }
 
 export interface SaveQuestionInput {

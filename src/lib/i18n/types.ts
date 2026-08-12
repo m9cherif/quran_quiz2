@@ -628,6 +628,29 @@ moveDown: string;
   accent: {
     aria: string;
   },
+  call: {
+    title: string;
+    blurb: string;
+    join: string;
+    leave: string;
+    live: string;
+    micOn: string;
+    micOff: string;
+    camOn: string;
+    camOff: string;
+    noCamera: string;
+    you: string;
+    student: string;
+    mute: string;
+    mutedByHost: string;
+    waiting: string;
+    denied: string;
+    failed: string;
+    roomTitle: string;
+    roomHint: string;
+    open: string;
+    closed: string;
+  },
 
 }
 

@@ -644,6 +644,29 @@ const fr: Messages = {
     accent: {
       aria: "Couleur d'accent",
     },
+    call: {
+      title: "Voix et caméra",
+      blurb: "Parlez avec la classe pendant la partie.",
+      join: "Rejoindre l'appel",
+      leave: "Quitter",
+      live: "{count} en appel",
+      micOn: "Micro activé",
+      micOff: "Micro coupé",
+      camOn: "Caméra activée",
+      camOff: "Caméra coupée",
+      noCamera: "Aucune caméra sur cet appareil",
+      you: "vous",
+      student: "Élève",
+      mute: "Couper",
+      mutedByHost: "L'hôte a coupé votre micro. Touchez Micro pour reparler.",
+      waiting: "En attente d'autres participants…",
+      denied: "Permission micro refusée. Autorisez-la dans le navigateur pour rejoindre.",
+      failed: "Impossible de démarrer l'appel sur cet appareil.",
+      roomTitle: "Salle voix et caméra",
+      roomHint: "Les élèves ne voient l'appel qu'une fois ouvert.",
+      open: "Ouverte",
+      closed: "Fermée",
+    },
 
 };
 

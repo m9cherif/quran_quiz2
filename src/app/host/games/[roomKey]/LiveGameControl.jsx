@@ -29,6 +29,9 @@ import PresenterMode from "@/components/host/PresenterMode";
 import { useReactions } from "@/components/game/Reactions";
 import { AVAILABLE_PAGES } from "@/lib/quran/pages";
 import { getChoiceDistribution } from "@/services/games";
+import CallPanel from "@/components/call/CallPanel";
+import { useCall } from "@/lib/webrtc/useCall";
+import { updateQuizMeta } from "@/services/quizzes";
 import {
   advanceGame,
   endQuestion,
@@ -480,6 +483,22 @@ export default function LiveGameControl({ roomKey }) {
   // Emoji from the room, shown in presenter mode.
   const { floating } = useReactions(game?.id, { listen: true });
 
+  const callsEnabled = Boolean(game?.calls_enabled);
+  const call = useCall({
+    competitionId: game?.id,
+    role: "host",
+    displayName: game?.title || game?.name || "Host",
+    enabled: callsEnabled,
+  });
+
+  /** Opening the room is the host's call — students are never prompted first. */
+  const toggleCalls = (next) =>
+    run("calls", async () => {
+      await updateQuizMeta(game.id, { calls_enabled: next });
+      setGame((prev) => (prev ? { ...prev, calls_enabled: next } : prev));
+      nudgeStudents();
+    });
+
   // Live answer spread for the open question; refreshed with the answer count.
   useEffect(() => {
     if (!current?.id) {
@@ -852,6 +871,32 @@ export default function LiveGameControl({ roomKey }) {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-4">
+          <Card className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-ink">{t("call.roomTitle")}</h2>
+                <p className="mt-0.5 text-xs text-ink-muted">{t("call.roomHint")}</p>
+              </div>
+              <label className="inline-flex cursor-pointer select-none items-center gap-2 text-sm font-medium text-ink-muted">
+                <input
+                  type="checkbox"
+                  checked={callsEnabled}
+                  disabled={busyAction === "calls"}
+                  onChange={(e) => toggleCalls(e.target.checked)}
+                  className="h-4 w-4 accent-primary"
+                />
+                {callsEnabled ? t("call.open") : t("call.closed")}
+              </label>
+            </div>
+            {callsEnabled && (
+              <CallPanel
+                call={call}
+                role="host"
+                selfLabel={game?.title || game?.name || t("nav.host")}
+              />
+            )}
+          </Card>
+
           {phase === "lobby" && <HostDashboard game={game} />}
 
           {current ? (

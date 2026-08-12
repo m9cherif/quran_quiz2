@@ -645,6 +645,29 @@ const en: Messages = {
     accent: {
       aria: "Accent colour",
     },
+    call: {
+      title: "Voice & camera",
+      blurb: "Talk with the class while you play.",
+      join: "Join call",
+      leave: "Leave",
+      live: "{count} on the call",
+      micOn: "Mic on",
+      micOff: "Mic off",
+      camOn: "Camera on",
+      camOff: "Camera off",
+      noCamera: "No camera available on this device",
+      you: "you",
+      student: "Student",
+      mute: "Mute",
+      mutedByHost: "The host muted your microphone. Tap Mic to speak again.",
+      waiting: "Waiting for others to join…",
+      denied: "Microphone permission was refused. Allow it in your browser to join.",
+      failed: "Could not start the call on this device.",
+      roomTitle: "Voice & camera room",
+      roomHint: "Students only see the call once you open it.",
+      open: "Open",
+      closed: "Closed",
+    },
 
 };
 
