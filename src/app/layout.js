@@ -3,6 +3,7 @@ import "../styles/tokens.css";
 import "../styles/global.css";
 import Providers from "./providers";
 import { themeBootScript } from "@/lib/theme/ThemeProvider";
+import { accentBootScript } from "@/components/ui/AccentPicker";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -51,7 +52,7 @@ export default function RootLayout({ children }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         {/* Applies the saved theme before first paint (no white flash). */}
-        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript + accentBootScript }} />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>{children}</Providers>

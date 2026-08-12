@@ -172,6 +172,9 @@ const ar: Messages = {
       classesLoadFailed: "تعذّر تحميل صفوفك",
     },
     host: {
+      answerSpread: "توزيع الإجابات",
+      showSpread: "إظهار",
+      hideSpread: "إخفاء",
       autoAdvance: "الانتقال التلقائي",
       copyLink: "نسخ الرابط",
       scanToJoin: "امسح الرمز للانضمام",
@@ -352,6 +355,14 @@ const ar: Messages = {
       pickAnotherGame: "حاول مجددًا، أو اختر لعبة أخرى.",
     },
     editor: {
+      typeOrdering: "الترتيب",
+      hintLabel: "تلميح (اختياري)",
+      hintHelp: "يمكن للطلاب إظهاره أثناء فتح السؤال.",
+      showHint: "أظهر تلميحًا",
+      printSheet: "طباعة ورقة",
+      answerKey: "مفتاح الإجابات",
+      noAnswerSet: "— لا توجد إجابة —",
+      printedFrom: "طُبع من منصة مسابقات القرآن",
       typePageWords: "الكلمات المخفية في صفحة",
       exportJson: "تصدير JSON",
       exportDone: "تم تصدير الاختبار",
@@ -587,6 +598,45 @@ const ar: Messages = {
     theme: {
       switchToDark: "التبديل إلى الوضع الداكن",
       switchToLight: "التبديل إلى الوضع الفاتح",
+    },
+    ord: {
+      hint: "اضغط الكلمات بالترتيب الصحيح.",
+      progress: "{placed} من {total}",
+      emptySlot: "فارغ",
+      poolAria: "الكلمات المطلوب ترتيبها",
+      editorHint: "أدخل الأجزاء بالترتيب الصحيح — تُخلط للطلاب.",
+      itemCount: "{count} عناصر",
+      itemPlaceholder: "جزء…",
+      addItem: "إضافة عنصر",
+      needTwo: "سؤال الترتيب يحتاج عنصرين على الأقل.",
+    },
+    audioQ: {
+      play: "تشغيل",
+      pause: "إيقاف",
+      playAgain: "تشغيل مرة أخرى",
+      restart: "من البداية",
+      notPlayed: "لم يُشغَّل بعد",
+      playCount: "شُغِّل {count} مرة",
+      failed: "تعذّر تحميل الصوت.",
+      urlLabel: "رابط الصوت",
+      urlHint: "رابط مباشر لملف mp3 أو ogg.",
+      needUrl: "سؤال الصوت يحتاج رابطًا.",
+    },
+    presenter: {
+      open: "وضع العرض",
+      exit: "خروج (Esc)",
+      joinAt: "انضم بالرمز",
+      answered: "أجاب {count} من {total}",
+    },
+    react: {
+      aria: "أرسل تفاعلًا",
+    },
+    sound: {
+      turnOn: "تشغيل الأصوات",
+      turnOff: "إيقاف الأصوات",
+    },
+    accent: {
+      aria: "لون الواجهة",
     },
 
 };

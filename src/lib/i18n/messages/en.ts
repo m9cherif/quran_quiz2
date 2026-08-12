@@ -175,6 +175,9 @@ const en: Messages = {
       classesLoadFailed: "Couldn't load your classes",
     },
     host: {
+      answerSpread: "Answer spread",
+      showSpread: "Show",
+      hideSpread: "Hide",
       autoAdvance: "Auto-advance",
       copyLink: "Copy link",
       scanToJoin: "Scan to join",
@@ -359,6 +362,14 @@ const en: Messages = {
       pickAnotherGame: "Try again, or pick another game.",
     },
     editor: {
+      typeOrdering: "Put in order",
+      hintLabel: "Hint (optional)",
+      hintHelp: "Students can reveal this while the question is open.",
+      showHint: "Show a hint",
+      printSheet: "Print sheet",
+      answerKey: "Answer key",
+      noAnswerSet: "— no answer set —",
+      printedFrom: "Printed from Quran Quiz Platform",
       typePageWords: "Hidden words on a page",
       exportJson: "Export JSON",
       exportDone: "Quiz exported",
@@ -594,6 +605,45 @@ const en: Messages = {
     theme: {
       switchToDark: "Switch to dark mode",
       switchToLight: "Switch to light mode",
+    },
+    ord: {
+      hint: "Tap the words in the right order.",
+      progress: "{placed} of {total} placed",
+      emptySlot: "empty",
+      poolAria: "Words to order",
+      editorHint: "Enter the fragments in the CORRECT order — they are shuffled for students.",
+      itemCount: "{count} items",
+      itemPlaceholder: "fragment…",
+      addItem: "Add item",
+      needTwo: "An ordering question needs at least two items.",
+    },
+    audioQ: {
+      play: "Play",
+      pause: "Pause",
+      playAgain: "Play again",
+      restart: "From the start",
+      notPlayed: "not played yet",
+      playCount: "played {count}×",
+      failed: "This audio could not be loaded.",
+      urlLabel: "Audio link",
+      urlHint: "A direct link to an mp3 or ogg file.",
+      needUrl: "An audio question needs a link.",
+    },
+    presenter: {
+      open: "Presenter",
+      exit: "Exit (Esc)",
+      joinAt: "Join with the code",
+      answered: "{count} of {total} answered",
+    },
+    react: {
+      aria: "Send a reaction",
+    },
+    sound: {
+      turnOn: "Turn sounds on",
+      turnOff: "Turn sounds off",
+    },
+    accent: {
+      aria: "Accent colour",
     },
 
 };

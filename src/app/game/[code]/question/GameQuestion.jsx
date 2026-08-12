@@ -20,6 +20,11 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import OrderingPlay from "@/components/game/OrderingPlay";
+import AudioQuestion from "@/components/game/AudioQuestion";
+import Confetti from "@/components/ui/Confetti";
+import { ReactionBar, ReactionLayer, useReactions } from "@/components/game/Reactions";
+import { playCue } from "@/lib/sound";
 import PageWordsPlay from "@/components/game/PageWordsPlay";
 
 /**
@@ -46,6 +51,8 @@ export default function GameQuestion({ code }) {
   const [choices, setChoices] = useState({});
   const [revealById, setRevealById] = useState({});
   const [revealFailedIds, setRevealFailedIds] = useState({});
+  const [hintShown, setHintShown] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
   const [answersById, setAnswersById] = useState({});
   const [selectedChoiceId, setSelectedChoiceId] = useState(null);
   const [textAnswer, setTextAnswer] = useState("");
@@ -242,6 +249,34 @@ export default function GameQuestion({ code }) {
     };
   }, [competitionId, game, loadDeck]);
 
+  // Celebrate a correct answer once the result is known, and tick the last
+  // five seconds so heads come up before the window shuts.
+  const gradedRef = useRef(null);
+  useEffect(() => {
+    if (!currentQuestion || isActive) return;
+    const answer = answersById[currentQuestion.id];
+    if (!answer || gradedRef.current === currentQuestion.id) return;
+    gradedRef.current = currentQuestion.id;
+    if (answer.is_correct) {
+      setCelebrate(true);
+      playCue("correct");
+      setTimeout(() => setCelebrate(false), 2400);
+    } else {
+      playCue("wrong");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQuestion, isActive, answersById]);
+
+  const tickRef = useRef(0);
+  useEffect(() => {
+    if (!isActive || !currentQuestion?.ends_at) return;
+    const left = Math.ceil(remainingMs(currentQuestion.ends_at, nowEpoch) / 1000);
+    if (left > 0 && left <= 5 && tickRef.current !== left) {
+      tickRef.current = left;
+      playCue("tick");
+    }
+  }, [isActive, currentQuestion, nowEpoch]);
+
   // ---------- reveal fetch when a question closes ----------
   useEffect(() => {
     if (!feedbackQuestion || !accessToken || revealById[feedbackQuestion.id]) return;
@@ -303,6 +338,8 @@ export default function GameQuestion({ code }) {
       setSelectedChoiceId(null);
       setTextAnswer("");
       setError("");
+      setHintShown(false);
+      setCelebrate(false);
     }
   }, [activeQuestion]);
 
@@ -400,6 +437,8 @@ export default function GameQuestion({ code }) {
     }
   };
 
+  const { floating, send: sendReaction } = useReactions(competitionId);
+
   const myAnswer = currentQuestion ? answersById[currentQuestion.id] : null;
   const reveal = currentQuestion ? revealById[currentQuestion.id] : null;
   const questionChoices = currentQuestion ? choices[currentQuestion.id] || [] : [];
@@ -480,7 +519,9 @@ export default function GameQuestion({ code }) {
   const isCorrect = myAnswer?.is_correct ?? false;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-4 py-8">
+    <div className="relative mx-auto flex min-h-screen max-w-xl flex-col justify-center px-4 py-8">
+      <Confetti fire={celebrate} />
+      <ReactionLayer floating={floating} />
       <div className="mb-4 flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-ink-muted">
           {t("game.questionOf", { position: currentQuestion.position, total: questions.length })}
@@ -522,6 +563,39 @@ export default function GameQuestion({ code }) {
           <h1 className="text-lg font-semibold leading-relaxed text-ink">{currentQuestion.text}</h1>
         )}
 
+        {currentQuestion.type === "audio" && (
+          <AudioQuestion src={currentQuestion.audio_url} disabled={!isActive} />
+        )}
+
+        {/* A hint unlocks once half the window has gone: help for whoever is
+            stuck, without handing it to everyone immediately. */}
+        {currentQuestion.hint && isActive && !wasSubmitted && (
+          hintShown ? (
+            <p className="rounded-md border-s-4 border-s-warning bg-warning-soft px-4 py-3 text-sm text-warning-strong">
+              💡 {currentQuestion.hint}
+            </p>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={() => setHintShown(true)}>
+              {t("editor.showHint")}
+            </Button>
+          )
+        )}
+
+        {currentQuestion.type === "ordering" && (
+          <OrderingPlay
+            key={currentQuestion.id}
+            question={currentQuestion}
+            chips={questionChoices}
+            submitting={submitting}
+            disabled={!isActive || wasSubmitted}
+            solution={!isActive && reveal ? reveal.correct_answer_text : null}
+            onSubmit={(canonical) => handleSubmit(canonical)}
+            onProgress={(canonical) =>
+              saveProgress(currentQuestion.id, { answerText: canonical })
+            }
+          />
+        )}
+
         {currentQuestion.type === "page_words" && (
           <PageWordsPlay
             key={currentQuestion.id}
@@ -537,7 +611,10 @@ export default function GameQuestion({ code }) {
           />
         )}
 
-        {isActive && !wasSubmitted && currentQuestion.type !== "page_words" && (
+        {isActive &&
+          !wasSubmitted &&
+          currentQuestion.type !== "page_words" &&
+          currentQuestion.type !== "ordering" && (
           <>
             {(currentQuestion.type === "mcq" || currentQuestion.type === "true_false") && (
               <div role="group" aria-label={t("game.answerChoicesLabel")} className="grid gap-2.5">
@@ -706,6 +783,8 @@ export default function GameQuestion({ code }) {
           </div>
         )}
       </Card>
+
+      <ReactionBar onSend={sendReaction} className="mt-4" />
 
       <button
         type="button"

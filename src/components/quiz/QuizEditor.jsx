@@ -16,12 +16,14 @@ import {
   deleteQuestion,
   getQuiz,
   getQuizQuestionsFull,
+  saveOrderingQuestion,
   savePageWordsQuestion,
   saveQuestion,
   setQuizStatus,
   updateQuizMeta,
 } from "@/services/quizzes";
 import { downloadTextFile, slugify } from "@/lib/export";
+import { printQuizSheet } from "@/lib/printSheet";
 import { AVAILABLE_PAGES } from "@/lib/quran/pages";
 import { Dialog } from "@/components/ui/Dialog";
 import { listMyClasses } from "@/services/classes";
@@ -99,6 +101,17 @@ export function QuizEditor({ quizId }) {
                 .map((chipIndex) => (f.choices ?? [])[Number(chipIndex)]?.text ?? ""),
             }
           : { regions: [], words: [] }),
+        // ordering: the same trick — solution[i] is the display index of the
+        // fragment that belongs at slot i, so it rebuilds the authored order.
+        items:
+          f.type === "ordering"
+            ? String(f.correct_answer_text ?? "")
+                .split("|")
+                .filter((v) => v !== "")
+                .map((idx) => (f.choices ?? [])[Number(idx)]?.text ?? "")
+            : ["", ""],
+        audio_url: f.audio_url ?? null,
+        hint: f.hint ?? null,
         id: f.id,
         position: f.position,
         text: f.text,
@@ -266,7 +279,22 @@ export function QuizEditor({ quizId }) {
       const saved = questions.map((q, i) => ({ ...q, position: i + 1 }));
 
       const persist = (q, position) =>
-        q.type === "page_words"
+        q.type === "ordering"
+          ? saveOrderingQuestion({
+              competitionId: quiz.id,
+              questionId: q.id,
+              position,
+              text: q.text,
+              items: (q.items ?? []).map((i) => String(i ?? "").trim()).filter(Boolean),
+              durationSeconds: q.duration_seconds ?? 60,
+              points: q.points,
+              negativePoints: q.negative_points,
+              explanation: q.explanation,
+              hint: q.hint ?? null,
+              surahNumber: q.surah_number,
+              ayahNumber: q.ayah_number,
+            })
+          : q.type === "page_words"
           ? savePageWordsQuestion({
               competitionId: quiz.id,
               questionId: q.id,
@@ -302,6 +330,8 @@ export function QuizEditor({ quizId }) {
           choices: q.choices
             .filter((c) => c.text.trim())
             .map((c, j) => ({ text: c.text, position: j + 1, is_correct: Boolean(c.isCorrect) })),
+          audioUrl: q.audio_url ?? null,
+          hint: q.hint ?? null,
         });
 
       for (let i = 0; i < saved.length; i++) {
@@ -344,6 +374,20 @@ export function QuizEditor({ quizId }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  /** Paper fallback: the questions plus a separate answer key. */
+  const printSheet = () => {
+    if (!quiz) return;
+    printQuizSheet(quiz, questions, {
+      answerKey: t("editor.answerKey"),
+      question: t("editor.questions"),
+      points: t("common.points"),
+      seconds: t("editor.seconds"),
+      hint: t("editor.hintLabel"),
+      noAnswer: t("editor.noAnswerSet"),
+      printedFrom: t("editor.printedFrom"),
+    });
   };
 
   /** Download the quiz as JSON — re-importable from the library. */
@@ -465,6 +509,9 @@ export function QuizEditor({ quizId }) {
               {t("editor.launched")}
             </Badge>
           )}
+          <Button variant="outline" onClick={printSheet} disabled={!quiz}>
+            {t("editor.printSheet")}
+          </Button>
           <Button variant="outline" onClick={exportQuiz} disabled={!quiz}>
             {t("editor.exportJson")}
           </Button>

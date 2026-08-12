@@ -16,6 +16,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import Confetti from "@/components/ui/Confetti";
 
 /**
  * GameResult — final screen for students once the host finishes the game:
@@ -163,7 +164,9 @@ export default function GameResult({ code }) {
   const topThree = leaderboard.slice(0, 3);
 
   return (
-    <div className="mx-auto min-h-screen max-w-xl px-4 py-10">
+    <div className="relative mx-auto min-h-screen max-w-xl px-4 py-10">
+      {/* A podium finish deserves a moment. */}
+      <Confetti fire={Boolean(myRow && myRow.rank <= 3)} pieces={140} duration={3200} />
       <Card padding="lg" className="text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary-soft text-primary">
           <svg aria-hidden="true" className="h-7 w-7" viewBox="0 0 24 24" fill="currentColor">

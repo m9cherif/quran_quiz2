@@ -166,6 +166,9 @@ signInToTrack: string;
       classesLoadFailed: string;
     };
   host: {
+    answerSpread: string;
+    showSpread: string;
+    hideSpread: string;
     autoAdvance: string;
     copyLink: string;
     scanToJoin: string;
@@ -343,6 +346,14 @@ signInToTrack: string;
     pickAnotherGame: string;
   };
   editor: {
+    typeOrdering: string;
+    hintLabel: string;
+    hintHelp: string;
+    showHint: string;
+    printSheet: string;
+    answerKey: string;
+    noAnswerSet: string;
+    printedFrom: string;
     typePageWords: string;
     exportJson: string;
     exportDone: string;
@@ -578,7 +589,46 @@ moveDown: string;
     playHint: string;
     boxAria: string;
     wordsAria: string;
-  };
+  };  ord: {
+    hint: string;
+    progress: string;
+    emptySlot: string;
+    poolAria: string;
+    editorHint: string;
+    itemCount: string;
+    itemPlaceholder: string;
+    addItem: string;
+    needTwo: string;
+  },
+  audioQ: {
+    play: string;
+    pause: string;
+    playAgain: string;
+    restart: string;
+    notPlayed: string;
+    playCount: string;
+    failed: string;
+    urlLabel: string;
+    urlHint: string;
+    needUrl: string;
+  },
+  presenter: {
+    open: string;
+    exit: string;
+    joinAt: string;
+    answered: string;
+  },
+  react: {
+    aria: string;
+  },
+  sound: {
+    turnOn: string;
+    turnOff: string;
+  },
+  accent: {
+    aria: string;
+  },
+
 }
 
 export const localeNames: Record<Locale, string> = {

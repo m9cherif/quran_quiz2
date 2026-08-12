@@ -300,6 +300,25 @@ export async function getQuestionStats(competitionId: string): Promise<QuestionS
   return (data as QuestionStatRow[]) ?? [];
 }
 
+export interface ChoiceDistributionRow {
+  choice_id: string;
+  choice_text: string;
+  position_number: number;
+  votes: number;
+  is_correct: boolean;
+}
+
+/** Live answer spread for one question — host only. */
+export async function getChoiceDistribution(
+  questionId: string
+): Promise<ChoiceDistributionRow[]> {
+  const { data, error } = await getSupabase().rpc("game_choice_distribution", {
+    p_question_id: questionId,
+  });
+  if (error) throw error;
+  return (data as ChoiceDistributionRow[]) ?? [];
+}
+
 export interface AnswerMatrixRow {
   display_name: string;
   position_number: number;

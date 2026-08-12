@@ -175,6 +175,9 @@ const fr: Messages = {
       classesLoadFailed: "Impossible de charger vos classes",
     },
     host: {
+      answerSpread: "Répartition des réponses",
+      showSpread: "Afficher",
+      hideSpread: "Masquer",
       autoAdvance: "Enchaînement auto",
       copyLink: "Copier le lien",
       scanToJoin: "Scannez pour rejoindre",
@@ -358,6 +361,14 @@ const fr: Messages = {
       pickAnotherGame: "Réessayez, ou choisissez un autre jeu.",
     },
     editor: {
+      typeOrdering: "Remettre en ordre",
+      hintLabel: "Indice (facultatif)",
+      hintHelp: "Les élèves peuvent l'afficher pendant la question.",
+      showHint: "Afficher un indice",
+      printSheet: "Imprimer",
+      answerKey: "Corrigé",
+      noAnswerSet: "— aucune réponse —",
+      printedFrom: "Imprimé depuis Quran Quiz Platform",
       typePageWords: "Mots cachés sur une page",
       exportJson: "Exporter en JSON",
       exportDone: "Quiz exporté",
@@ -593,6 +604,45 @@ const fr: Messages = {
     theme: {
       switchToDark: "Passer en mode sombre",
       switchToLight: "Passer en mode clair",
+    },
+    ord: {
+      hint: "Touchez les mots dans le bon ordre.",
+      progress: "{placed} sur {total} placés",
+      emptySlot: "vide",
+      poolAria: "Mots à ordonner",
+      editorHint: "Saisissez les fragments dans le BON ordre — ils sont mélangés pour les élèves.",
+      itemCount: "{count} éléments",
+      itemPlaceholder: "fragment…",
+      addItem: "Ajouter",
+      needTwo: "Une question d'ordre demande au moins deux éléments.",
+    },
+    audioQ: {
+      play: "Écouter",
+      pause: "Pause",
+      playAgain: "Réécouter",
+      restart: "Depuis le début",
+      notPlayed: "pas encore écouté",
+      playCount: "écouté {count}×",
+      failed: "Impossible de charger cet audio.",
+      urlLabel: "Lien audio",
+      urlHint: "Un lien direct vers un fichier mp3 ou ogg.",
+      needUrl: "Une question audio demande un lien.",
+    },
+    presenter: {
+      open: "Présentation",
+      exit: "Quitter (Échap)",
+      joinAt: "Rejoignez avec le code",
+      answered: "{count} sur {total} ont répondu",
+    },
+    react: {
+      aria: "Envoyer une réaction",
+    },
+    sound: {
+      turnOn: "Activer les sons",
+      turnOff: "Couper les sons",
+    },
+    accent: {
+      aria: "Couleur d'accent",
     },
 
 };

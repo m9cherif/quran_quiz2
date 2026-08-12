@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 import PageWordsEditor from "./PageWordsEditor";
+import OrderingEditor from "./OrderingEditor";
 import { AVAILABLE_PAGES } from "@/lib/quran/pages";
 
 const QUESTION_TYPES = [
@@ -19,6 +20,7 @@ const QUESTION_TYPES = [
   { value: "number", key: "typeNumber" },
   { value: "audio", key: "typeAudio" },
   { value: "page_words", key: "typePageWords" },
+  { value: "ordering", key: "typeOrdering" },
 ];
 
 function buildInitialChoices() {
@@ -38,6 +40,9 @@ export function emptyQuestion(position = 1) {
     type: "mcq",
     regions: [],
     words: [],
+    items: ["", ""],
+    audio_url: null,
+    hint: null,
     duration_seconds: 15,
     points: null,
     negative_points: null,
@@ -76,6 +81,15 @@ export function validateQuestion(question, t = (key) => key) {
       errors.regions = t("pw.incomplete");
     }
     return errors;
+  }
+  if (question.type === "ordering") {
+    const items = (question.items ?? []).filter((i) => String(i ?? "").trim());
+    if (!question.text.trim()) errors.text = t("editor.missingText");
+    if (items.length < 2) errors.items = t("ord.needTwo");
+    return errors;
+  }
+  if (question.type === "audio" && !String(question.audio_url ?? "").trim()) {
+    errors.audio = t("audioQ.needUrl");
   }
   if (!question.text.trim()) errors.text = t("editor.missingText");
   if (question.type === "mcq") {
@@ -214,6 +228,39 @@ export function QuestionForm({
             </p>
           )}
         </>
+      )}
+
+      {type === "ordering" && (
+        <>
+          <OrderingEditor question={question} onChange={onChange} />
+          {errors.items && (
+            <p className="text-sm text-danger" role="alert">
+              {errors.items}
+            </p>
+          )}
+        </>
+      )}
+
+      {type === "audio" && (
+        <Input
+          label={t("audioQ.urlLabel")}
+          type="url"
+          inputMode="url"
+          placeholder="https://…/recitation.mp3"
+          value={question.audio_url ?? ""}
+          onChange={(e) => set({ audio_url: e.target.value || null })}
+          error={errors.audio}
+          hint={t("audioQ.urlHint")}
+        />
+      )}
+
+      {type !== "page_words" && (
+        <Input
+          label={t("editor.hintLabel")}
+          value={question.hint ?? ""}
+          onChange={(e) => set({ hint: e.target.value || null })}
+          hint={t("editor.hintHelp")}
+        />
       )}
 
       {type !== "page_words" && (

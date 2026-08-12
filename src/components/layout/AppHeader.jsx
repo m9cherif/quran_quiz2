@@ -10,6 +10,8 @@ import { signOut } from "@/lib/auth/client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import LocaleSwitcher from "@/components/ui/LocaleSwitcher";
 import ThemeToggle from "@/components/ui/ThemeToggle";
+import AccentPicker from "@/components/ui/AccentPicker";
+import SoundToggle from "@/components/ui/SoundToggle";
 
 const NAV = {
   public: [
@@ -80,6 +82,8 @@ export function AppHeader({ variant = "public" }) {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
+          <AccentPicker className="me-1" />
+          <SoundToggle />
           <ThemeToggle />
           <LocaleSwitcher className="me-1" />
           {variant === "public" && (

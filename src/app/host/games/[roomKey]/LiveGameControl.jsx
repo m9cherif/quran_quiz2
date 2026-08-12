@@ -24,7 +24,11 @@ import {
   setQuizStatus,
 } from "@/services/quizzes";
 import PageWordsEditor from "@/components/quiz/PageWordsEditor";
+import OrderingEditor from "@/components/quiz/OrderingEditor";
+import PresenterMode from "@/components/host/PresenterMode";
+import { useReactions } from "@/components/game/Reactions";
 import { AVAILABLE_PAGES } from "@/lib/quran/pages";
+import { getChoiceDistribution } from "@/services/games";
 import {
   advanceGame,
   endQuestion,
@@ -48,6 +52,9 @@ function emptyNewQuestion() {
     negativePoints: null,
     explanation: "",
     correctAnswerText: "",
+    audioUrl: "",
+    hint: "",
+    items: ["", ""],
     // page_words only — PageWordsEditor reads these snake_case fields.
     page_number: AVAILABLE_PAGES[0],
     regions: [],
@@ -106,6 +113,9 @@ export default function LiveGameControl({ roomKey }) {
   const [exporting, setExporting] = useState(false);
   const [joinUrl, setJoinUrl] = useState("");
   const [linkCopied, setLinkCopied] = useState(false);
+  const [presenting, setPresenting] = useState(false);
+  const [distribution, setDistribution] = useState([]);
+  const [showDistribution, setShowDistribution] = useState(false);
   const channelRef = useRef(null);
   const roomChannelRef = useRef(null);
   const boardTimerRef = useRef(null);
@@ -467,6 +477,55 @@ export default function LiveGameControl({ roomKey }) {
     });
   }, [autoAdvance, phase, game, current, upNext, now, advance]);
 
+  // Emoji from the room, shown in presenter mode.
+  const { floating } = useReactions(game?.id, { listen: true });
+
+  // Live answer spread for the open question; refreshed with the answer count.
+  useEffect(() => {
+    if (!current?.id) {
+      setDistribution([]);
+      return;
+    }
+    let cancelled = false;
+    getChoiceDistribution(current.id)
+      .then((rows) => {
+        if (!cancelled) setDistribution(rows);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [current?.id, answeredCount]);
+
+  /**
+   * Room shortcuts: the host is usually stood at a screen, not a trackpad.
+   * Ignored while a dialog or a text field has focus.
+   */
+  useEffect(() => {
+    const onKey = (e) => {
+      if (addOpen || cancelOpen || deleteOpen) return;
+      const tag = e.target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target?.isContentEditable) {
+        return;
+      }
+      if (e.key === "n" || e.key === " ") {
+        e.preventDefault();
+        if (phase === "lobby") startGame();
+        else if (phase === "active" && upNext) nextQuestion();
+      } else if (e.key === "p") {
+        if (phase === "active") pauseGame();
+        else if (phase === "paused") resumeGame();
+      } else if (e.key === "f") {
+        setPresenting((v) => !v);
+      } else if (e.key === "d") {
+        setShowDistribution((v) => !v);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, upNext, addOpen, cancelOpen, deleteOpen, game?.id]);
+
   const patchNewQuestion = (patch) => setNewQuestion((prev) => ({ ...prev, ...patch }));
 
   const toggleNewChoice = (index) =>
@@ -505,6 +564,47 @@ export default function LiveGameControl({ roomKey }) {
     const text = q.text.trim();
     const filled = q.choices.filter((c) => c.text.trim());
     let error = "";
+
+    // Ordering questions are authored in the correct order and shuffled by the
+    // server, so they take their own save path too.
+    if (q.type === "ordering") {
+      const items = (q.items ?? []).map((i) => String(i ?? "").trim()).filter(Boolean);
+      if (!text) {
+        setAddError(t("editor.missingText"));
+        return;
+      }
+      if (items.length < 2) {
+        setAddError(t("ord.needTwo"));
+        return;
+      }
+      setSavingQuestion(true);
+      setAddError("");
+      try {
+        await saveOrderingQuestion({
+          competitionId: game.id,
+          questionId: null,
+          position: questions.length + 1,
+          text,
+          items,
+          durationSeconds: q.durationSeconds,
+          points: q.points,
+          negativePoints: q.negativePoints,
+          explanation: q.explanation || null,
+          hint: q.hint || null,
+        });
+        toast({ title: t("host.questionAdded"), variant: "success" });
+        setAddOpen(false);
+        setNewQuestion(emptyNewQuestion());
+        nudgeStudents();
+        await loadAll(String(roomKey), false).catch(() => {});
+      } catch (err) {
+        console.error("Add ordering question failed:", err);
+        setAddError(err instanceof Error ? err.message : t("common.tryAgain"));
+      } finally {
+        setSavingQuestion(false);
+      }
+      return;
+    }
 
     // Page exercises carry no question text: the page and its boxes are the
     // question, so they validate (and save) through their own path.
@@ -579,6 +679,8 @@ export default function LiveGameControl({ roomKey }) {
         negativePoints: q.negativePoints,
         explanation: q.explanation || null,
         correctAnswerText: q.type === "mcq" ? null : q.correctAnswerText,
+        audioUrl: q.audioUrl || null,
+        hint: q.hint || null,
         surahNumber: null,
         ayahNumber: null,
         pageNumber: null,
@@ -635,6 +737,23 @@ export default function LiveGameControl({ roomKey }) {
 
   return (
     <div className="space-y-5">
+      {presenting && (
+        <PresenterMode
+          game={game}
+          question={phase === "lobby" ? null : current}
+          questionCount={questions.length}
+          answeredCount={answeredCount}
+          playerCount={participants.length}
+          endsAt={activeEnds}
+          now={now}
+          joinUrl={joinUrl}
+          distribution={distribution}
+          showDistribution={showDistribution && !activeEnds}
+          floating={floating}
+          onClose={() => setPresenting(false)}
+        />
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" href="/host/games">
@@ -646,6 +765,9 @@ export default function LiveGameControl({ roomKey }) {
           </Badge>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setPresenting(true)} title="F">
+            {t("presenter.open")}
+          </Button>
           {phase === "lobby" && (
             <>
               <Button variant="outline" onClick={openAddQuestion}>
@@ -758,6 +880,47 @@ export default function LiveGameControl({ roomKey }) {
                   </Badge>
                 )}
               </div>
+
+              {distribution.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-ink">{t("host.answerSpread")}</h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowDistribution((v) => !v)}
+                      title="D"
+                    >
+                      {showDistribution ? t("host.hideSpread") : t("host.showSpread")}
+                    </Button>
+                  </div>
+                  {showDistribution &&
+                    distribution.map((row) => {
+                      const totalVotes = distribution.reduce((s, d) => s + Number(d.votes), 0);
+                      const pct = totalVotes ? Math.round((Number(row.votes) / totalVotes) * 100) : 0;
+                      return (
+                        <div key={row.choice_id}>
+                          <div className="flex items-center justify-between text-xs text-ink-muted">
+                            <span className="truncate text-ink" dir="auto">
+                              {row.choice_text}
+                            </span>
+                            <span>
+                              {row.votes} · {pct}%
+                            </span>
+                          </div>
+                          <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface-3">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                activeEnds ? "bg-primary" : row.is_correct ? "bg-success" : "bg-primary"
+                              }`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
 
               {reveal && reveal.id === current.id && !activeEnds && (
                 <div className="rounded-md border-s-4 border-s-success bg-surface-2 px-4 py-3">
@@ -1125,6 +1288,8 @@ export default function LiveGameControl({ roomKey }) {
                 ["true_false", "typeTrueFalse"],
                 ["text", "typeText"],
                 ["number", "typeNumber"],
+                ["audio", "typeAudio"],
+                ["ordering", "typeOrdering"],
                 ["page_words", "typePageWords"],
               ].map(([value, key]) => (
                 <option key={value} value={value}>
@@ -1148,14 +1313,41 @@ export default function LiveGameControl({ roomKey }) {
           {newQuestion.type === "page_words" ? (
             <PageWordsEditor question={newQuestion} onChange={setNewQuestion} />
           ) : (
-            <Textarea
-              label={t("editor.questionText")}
-              required
-              rows={2}
-              value={newQuestion.text}
-              onChange={(e) => patchNewQuestion({ text: e.target.value })}
-              placeholder={t("editor.questionTextPlaceholder")}
-            />
+            <>
+              <Textarea
+                label={t("editor.questionText")}
+                required
+                rows={2}
+                value={newQuestion.text}
+                onChange={(e) => patchNewQuestion({ text: e.target.value })}
+                placeholder={t("editor.questionTextPlaceholder")}
+              />
+
+              {newQuestion.type === "audio" && (
+                <Input
+                  label={t("audioQ.urlLabel")}
+                  type="url"
+                  placeholder="https://…/recitation.mp3"
+                  value={newQuestion.audioUrl ?? ""}
+                  onChange={(e) => patchNewQuestion({ audioUrl: e.target.value })}
+                  hint={t("audioQ.urlHint")}
+                />
+              )}
+
+              {newQuestion.type === "ordering" && (
+                <OrderingEditor
+                  question={{ ...newQuestion, items: newQuestion.items ?? ["", ""] }}
+                  onChange={setNewQuestion}
+                />
+              )}
+
+              <Input
+                label={t("editor.hintLabel")}
+                value={newQuestion.hint ?? ""}
+                onChange={(e) => patchNewQuestion({ hint: e.target.value })}
+                hint={t("editor.hintHelp")}
+              />
+            </>
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">

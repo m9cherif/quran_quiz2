@@ -47,6 +47,44 @@ export interface SaveQuestionInput {
     position: number;
     is_correct: boolean;
   }>;
+  audioUrl?: string | null;
+  hint?: string | null;
+}
+
+export interface OrderingQuestionInput {
+  competitionId: string;
+  questionId?: string | null;
+  position: number;
+  text: string;
+  /** Fragments in their CORRECT order; the server shuffles them for display. */
+  items: string[];
+  durationSeconds: number;
+  points: number | null;
+  negativePoints: number | null;
+  explanation: string | null;
+  hint: string | null;
+  surahNumber?: number | null;
+  ayahNumber?: number | null;
+}
+
+/** Save an ordering question; the answer key never reaches the browser. */
+export async function saveOrderingQuestion(input: OrderingQuestionInput): Promise<string> {
+  const { data, error } = await getSupabase().rpc("save_ordering_question", {
+    p_competition_id: input.competitionId,
+    p_position: input.position,
+    p_text: input.text,
+    p_items: input.items as never,
+    p_question_id: input.questionId ?? null,
+    p_duration_seconds: input.durationSeconds,
+    p_points: input.points,
+    p_negative_points: input.negativePoints,
+    p_explanation: input.explanation,
+    p_hint: input.hint,
+    p_surah_number: input.surahNumber ?? null,
+    p_ayah_number: input.ayahNumber ?? null,
+  });
+  if (error) throw error;
+  return data as string;
 }
 
 export interface QuestionListItem {
@@ -238,6 +276,8 @@ export async function saveQuestion(input: SaveQuestionInput): Promise<string> {
     p_juz_number: input.juzNumber,
     p_hizb_number: input.hizbNumber,
     p_choices: input.choices,
+    p_audio_url: input.audioUrl ?? null,
+    p_hint: input.hint ?? null,
   });
   if (error) throw error;
   return data as string;
