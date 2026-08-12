@@ -19,8 +19,11 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-DNS-Prefetch-Control", value: "on" },
           {
+            // The voice/camera room needs these on our own origin. An empty
+            // list ()  means "no origin may use it", which makes the browser
+            // reject getUserMedia without ever showing a permission prompt.
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+            value: "camera=(self), microphone=(self), geolocation=(), interest-cohort=()",
           },
         ],
       },
