@@ -398,7 +398,7 @@ export function QuizEditor({ quizId }) {
               {t("editor.launched")}
             </Badge>
           )}
-          <Button loading={saving} onClick={saveAll} disabled={!dirty || !isDraft}>
+          <Button loading={saving} onClick={saveAll} disabled={!dirty || (!isDraft && quiz?.status !== "waiting")}>
             {t("editor.saveChanges")}
           </Button>
         </div>

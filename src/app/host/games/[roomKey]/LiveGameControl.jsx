@@ -9,12 +9,15 @@ import Countdown from "@/components/ui/Countdown";
 import { Dialog } from "@/components/ui/Dialog";
 import EmptyState from "@/components/ui/EmptyState";
 import HostDashboard from "@/components/host/HostDashboard";
+import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
+import Textarea from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
 import { getSupabase } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import { deleteQuiz, setQuizStatus } from "@/services/quizzes";
+import { deleteQuiz, saveQuestion, setQuizStatus } from "@/services/quizzes";
 import {
   beginQuestion,
   endQuestion,
@@ -25,6 +28,24 @@ import {
   listGameQuestions,
   listParticipants,
 } from "@/services/games";
+
+function emptyNewQuestion() {
+  return {
+    type: "mcq",
+    text: "",
+    durationSeconds: 15,
+    points: null,
+    negativePoints: null,
+    explanation: "",
+    correctAnswerText: "",
+    choices: [
+      { text: "", position: 1, isCorrect: false },
+      { text: "", position: 2, isCorrect: false },
+      { text: "", position: 3, isCorrect: false },
+      { text: "", position: 4, isCorrect: false },
+    ],
+  };
+}
 
 export default function LiveGameControl({ roomKey }) {
   const router = useRouter();
@@ -62,6 +83,10 @@ export default function LiveGameControl({ roomKey }) {
   const [busyAction, setBusyAction] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addError, setAddError] = useState("");
+  const [savingQuestion, setSavingQuestion] = useState(false);
+  const [newQuestion, setNewQuestion] = useState(emptyNewQuestion);
   const [now, setNow] = useState(Date.now());
   const channelRef = useRef(null);
 
@@ -312,6 +337,90 @@ export default function LiveGameControl({ roomKey }) {
       router.push("/host/games");
     });
 
+  const patchNewQuestion = (patch) => setNewQuestion((prev) => ({ ...prev, ...patch }));
+
+  const toggleNewChoice = (index) =>
+    patchNewQuestion({
+      choices: newQuestion.choices.map((c, i) => ({
+        ...c,
+        isCorrect: i === index,
+      })),
+    });
+
+  const setNewChoiceText = (index, text) =>
+    patchNewQuestion({
+      choices: newQuestion.choices.map((c, i) => (i === index ? { ...c, text } : c)),
+    });
+
+  const addNewChoice = () =>
+    patchNewQuestion({
+      choices: [
+        ...newQuestion.choices,
+        {
+          text: "",
+          position: newQuestion.choices.length + 1,
+          isCorrect: false,
+        },
+      ],
+    });
+
+  const openAddQuestion = () => {
+    setNewQuestion(emptyNewQuestion());
+    setAddError("");
+    setAddOpen(true);
+  };
+
+  const submitNewQuestion = async () => {
+    const q = newQuestion;
+    const text = q.text.trim();
+    const filled = q.choices.filter((c) => c.text.trim());
+    let error = "";
+    if (!text) {
+      error = t("editor.missingText");
+    } else if (q.type === "mcq") {
+      if (filled.length < 2) error = t("editor.missingTwoChoices");
+      else if (!filled.some((c) => c.isCorrect)) error = t("editor.missingCorrectMarker");
+      else if (filled.filter((c) => c.isCorrect).length > 1) error = t("editor.onlyOneCorrect");
+    } else if (!(q.correctAnswerText ?? "").trim()) {
+      error = q.type === "true_false" ? t("editor.chooseCorrect") : t("editor.missingCorrectText");
+    }
+    if (error) {
+      setAddError(error);
+      return;
+    }
+    setSavingQuestion(true);
+    setAddError("");
+    try {
+      await saveQuestion({
+        competitionId: game.id,
+        questionId: null,
+        position: questions.length + 1,
+        text,
+        type: q.type,
+        durationSeconds: q.durationSeconds,
+        points: q.points,
+        negativePoints: q.negativePoints,
+        explanation: q.explanation || null,
+        correctAnswerText: q.type === "mcq" ? null : q.correctAnswerText,
+        surahNumber: null,
+        ayahNumber: null,
+        pageNumber: null,
+        juzNumber: null,
+        hizbNumber: null,
+        choices: filled.map((c, i) => ({ text: c.text, position: i + 1, isCorrect: c.isCorrect })),
+      });
+      toast({ title: t("host.questionAdded"), variant: "success" });
+      setAddOpen(false);
+      setNewQuestion(emptyNewQuestion());
+      await loadAll(String(roomKey), false).catch(() => {});
+    } catch (err) {
+      console.error("Add question failed:", err);
+      setAddError(err instanceof Error ? err.message : t("common.tryAgain"));
+    } finally {
+      setSavingQuestion(false);
+    }
+  };
+
   if (state === "loading") {
     return (
       <div className="grid gap-4 lg:grid-cols-2" aria-busy="true">
@@ -357,6 +466,9 @@ export default function LiveGameControl({ roomKey }) {
         <div className="flex flex-wrap gap-2">
           {phase === "lobby" && (
             <>
+              <Button variant="outline" onClick={openAddQuestion}>
+                {t("host.addQuestion")}
+              </Button>
               <Button
                 variant="outline"
                 href={`/host/quizzes/${game.id}/edit`}
@@ -373,6 +485,12 @@ export default function LiveGameControl({ roomKey }) {
           )}
           {phase === "active" && (
             <>
+              <Button variant="outline" onClick={openAddQuestion}>
+                {t("host.addQuestion")}
+              </Button>
+              <Button variant="outline" href={`/host/quizzes/${game.id}/edit`}>
+                {t("host.editQuestions")}
+              </Button>
               <Button variant="outline" loading={busyAction === "pause"} onClick={pauseGame}>
                 {t("host.pause")}
               </Button>
@@ -396,9 +514,17 @@ export default function LiveGameControl({ roomKey }) {
             </>
           )}
           {phase === "paused" && (
-            <Button loading={busyAction === "resume"} onClick={resumeGame}>
-              {t("host.resumeGame")}
-            </Button>
+            <>
+              <Button variant="outline" onClick={openAddQuestion}>
+                {t("host.addQuestion")}
+              </Button>
+              <Button variant="outline" href={`/host/quizzes/${game.id}/edit`}>
+                {t("host.editQuestions")}
+              </Button>
+              <Button loading={busyAction === "resume"} onClick={resumeGame}>
+                {t("host.resumeGame")}
+              </Button>
+            </>
           )}
           {(phase === "finished" || phase === "cancelled") && (
             <Button variant="outline" onClick={() => router.push("/host/games")}>
@@ -737,6 +863,175 @@ export default function LiveGameControl({ roomKey }) {
           </>
         }
       />
+
+      <Dialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        size="lg"
+        title={t("host.addQuestion")}
+        description={t("host.addQuestionDesc")}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setAddOpen(false)} disabled={savingQuestion}>
+              {t("common.cancel")}
+            </Button>
+            <Button loading={savingQuestion} onClick={submitNewQuestion}>
+              {t("editor.saveChanges")}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Select
+              label={t("editor.typeLabel")}
+              value={newQuestion.type}
+              onChange={(e) => patchNewQuestion({ type: e.target.value })}
+            >
+              {[
+                ["mcq", "typeMcq"],
+                ["true_false", "typeTrueFalse"],
+                ["text", "typeText"],
+                ["number", "typeNumber"],
+              ].map(([value, key]) => (
+                <option key={value} value={value}>
+                  {t(`editor.${key}`)}
+                </option>
+              ))}
+            </Select>
+            <Input
+              label={`${t("editor.duration")} (${t("editor.seconds")})`}
+              type="number"
+              min={1}
+              max={600}
+              required
+              value={newQuestion.durationSeconds}
+              onChange={(e) =>
+                patchNewQuestion({ durationSeconds: Math.max(1, Number(e.target.value) || 1) })
+              }
+            />
+          </div>
+
+          <Textarea
+            label={t("editor.questionText")}
+            required
+            rows={2}
+            value={newQuestion.text}
+            onChange={(e) => patchNewQuestion({ text: e.target.value })}
+            placeholder={t("editor.questionTextPlaceholder")}
+          />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label={`${t("editor.pointsPerQuestion")} (${t("editor.default")} ${game?.default_points ?? 0})`}
+              type="number"
+              min={0}
+              value={newQuestion.points ?? ""}
+              onChange={(e) =>
+                patchNewQuestion({ points: e.target.value === "" ? null : Number(e.target.value) })
+              }
+            />
+            <Input
+              label={`${t("editor.negativePoints")} (${t("editor.default")} ${game?.default_negative_points ?? 0})`}
+              type="number"
+              max={0}
+              value={newQuestion.negativePoints ?? ""}
+              onChange={(e) =>
+                patchNewQuestion({
+                  negativePoints: e.target.value === "" ? null : Number(e.target.value),
+                })
+              }
+            />
+          </div>
+
+          {newQuestion.type === "mcq" && (
+            <fieldset>
+              <legend className="mb-1.5 block text-sm font-medium text-ink">
+                {t("editor.optionsMark")}
+              </legend>
+              <div className="space-y-2.5">
+                {newQuestion.choices.map((choice, i) => (
+                  <div key={`new-${i}`} className="flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name="new-question-correct"
+                      checked={choice.isCorrect}
+                      onChange={() => toggleNewChoice(i)}
+                      className="h-4 w-4 accent-primary"
+                      aria-label={t("editor.markOptionAria", { n: i + 1 })}
+                    />
+                    <input
+                      type="text"
+                      value={choice.text}
+                      placeholder={`${t("editor.optionWord")} ${i + 1}`}
+                      onChange={(e) => setNewChoiceText(i, e.target.value)}
+                      className="h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-ink transition-colors placeholder:text-ink-faint focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-focus-ring"
+                    />
+                  </div>
+                ))}
+              </div>
+              <Button variant="outline" size="sm" className="mt-2" onClick={addNewChoice}>
+                {t("editor.addOption")}
+              </Button>
+            </fieldset>
+          )}
+
+          {newQuestion.type === "true_false" && (
+            <fieldset>
+              <legend className="mb-1.5 block text-sm font-medium text-ink">
+                {t("editor.correctAnswer")}
+              </legend>
+              <div className="flex gap-3">
+                {["True", "False"].map((value) => (
+                  <label
+                    key={value}
+                    className={`flex-1 cursor-pointer rounded-md border px-4 py-2.5 text-center text-sm font-medium transition-colors ${
+                      newQuestion.correctAnswerText === value
+                        ? "border-primary bg-primary-soft text-primary"
+                        : "border-border bg-surface text-ink-muted hover:bg-surface-2"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="new-question-tf"
+                      value={value}
+                      checked={newQuestion.correctAnswerText === value}
+                      onChange={() => patchNewQuestion({ correctAnswerText: value })}
+                      className="sr-only"
+                    />
+                    {value === "True" ? t("editor.trueOption") : t("editor.falseOption")}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
+          {(newQuestion.type === "text" || newQuestion.type === "number") && (
+            <Input
+              label={
+                newQuestion.type === "number" ? t("editor.correctNumeric") : t("editor.correctTextHint")
+              }
+              required
+              type={newQuestion.type === "number" ? "number" : "text"}
+              value={newQuestion.correctAnswerText}
+              onChange={(e) => patchNewQuestion({ correctAnswerText: e.target.value })}
+            />
+          )}
+
+          <Textarea
+            label={t("editor.explanation")}
+            rows={2}
+            value={newQuestion.explanation}
+            onChange={(e) => patchNewQuestion({ explanation: e.target.value })}
+          />
+
+          {addError && (
+            <p className="text-sm text-danger" role="alert">
+              {addError}
+            </p>
+          )}
+        </div>
+      </Dialog>
     </div>
   );
 }

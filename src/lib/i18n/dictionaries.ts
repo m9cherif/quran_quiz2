@@ -221,6 +221,9 @@ signInToTrack: string;
     pause: string;
     startGame: string;
     editQuestions: string;
+    addQuestion: string;
+    addQuestionDesc: string;
+    questionAdded: string;
     endQuestionNow: string;
     nextQuestion: string;
     finishGame: string;
@@ -750,6 +753,9 @@ export const messages: Record<Locale, Messages> = {
       pause: "Pause",
       startGame: "Start game",
       editQuestions: "Edit questions",
+      addQuestion: "Add question",
+      addQuestionDesc: "New questions are placed after the current ones and can be started at any time.",
+      questionAdded: "Question added",
       endQuestionNow: "End question now",
       nextQuestion: "Next question",
       finishGame: "Finish game",
@@ -1277,6 +1283,9 @@ export const messages: Record<Locale, Messages> = {
       pause: "إيقاف مؤقت",
       startGame: "بدء اللعبة",
       editQuestions: "تعديل الأسئلة",
+      addQuestion: "إضافة سؤال",
+      addQuestionDesc: "تُضاف الأسئلة الجديدة بعد الأسئلة الحالية ويمكن بدء أي منها في أي وقت.",
+      questionAdded: "تمت إضافة السؤال",
       endQuestionNow: "إنهاء السؤال الآن",
       nextQuestion: "السؤال التالي",
       finishGame: "إنهاء اللعبة",
@@ -1804,6 +1813,9 @@ export const messages: Record<Locale, Messages> = {
       pause: "Pause",
       startGame: "Lancer le jeu",
       editQuestions: "Modifier les questions",
+      addQuestion: "Ajouter une question",
+      addQuestionDesc: "Les nouvelles questions sont placées après les questions actuelles et peuvent être lancées à tout moment.",
+      questionAdded: "Question ajoutée",
       endQuestionNow: "Terminer la question",
       nextQuestion: "Question suivante",
       finishGame: "Terminer le jeu",
