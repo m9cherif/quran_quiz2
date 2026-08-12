@@ -182,6 +182,9 @@ const en: Messages = {
       classesLoadFailed: "Couldn't load your classes",
     },
     host: {
+      allowLateJoin: "Let people join after the start",
+      correctSoFar: "correct",
+      incorrectSoFar: "not yet",
       playAgain: "Play again",
       playAgainReady: "New game ready",
       playAgainFailed: "Could not start a new game",

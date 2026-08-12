@@ -182,6 +182,9 @@ const fr: Messages = {
       classesLoadFailed: "Impossible de charger vos classes",
     },
     host: {
+      allowLateJoin: "Autoriser à rejoindre après le début",
+      correctSoFar: "correctes",
+      incorrectSoFar: "incorrectes",
       playAgain: "Rejouer",
       playAgainReady: "Nouvelle partie prête",
       playAgainFailed: "Impossible de lancer une nouvelle partie",

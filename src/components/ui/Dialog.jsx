@@ -97,6 +97,10 @@ export function Dialog({
         className={cn(
           "relative w-full rounded-lg border border-border bg-surface p-5 shadow-dialog outline-none",
           "animate-[dialog-in_150ms_ease-out]",
+          // A tall form (the page-words editor especially) must never run off
+          // the screen with no way to reach the rest: the panel is capped to
+          // the viewport and its body scrolls, while title and actions stay put.
+          "flex max-h-[calc(100vh-2rem)] flex-col",
           size === "sm" && "max-w-sm",
           size === "md" && "max-w-md",
           size === "lg" && "max-w-lg",
@@ -114,9 +118,11 @@ export function Dialog({
             {description}
           </p>
         )}
-        <div className="mt-4">{children}</div>
+        <div className="-mx-1 mt-4 min-h-0 flex-1 overflow-y-auto px-1">{children}</div>
         {footer && (
-          <div className="mt-5 flex flex-wrap justify-end gap-2">{footer}</div>
+          <div className="mt-5 flex shrink-0 flex-wrap justify-end gap-2 border-t border-border pt-4">
+            {footer}
+          </div>
         )}
       </div>
     </div>

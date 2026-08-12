@@ -179,6 +179,9 @@ const ar: Messages = {
       classesLoadFailed: "تعذّر تحميل صفوفك",
     },
     host: {
+      allowLateJoin: "السماح بالانضمام بعد البدء",
+      correctSoFar: "صحيحة",
+      incorrectSoFar: "غير صحيحة",
       playAgain: "العب مرة أخرى",
       playAgainReady: "اللعبة الجديدة جاهزة",
       playAgainFailed: "تعذر بدء لعبة جديدة",

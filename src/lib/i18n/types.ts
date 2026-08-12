@@ -173,6 +173,9 @@ signInToTrack: string;
       classesLoadFailed: string;
     };
   host: {
+    allowLateJoin: string;
+    correctSoFar: string;
+    incorrectSoFar: string;
     playAgain: string;
     playAgainReady: string;
     playAgainFailed: string;

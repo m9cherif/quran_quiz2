@@ -27,6 +27,8 @@ export interface QuizMetaInput {
   calls_enabled?: boolean;
   /** Stops new players joining mid-game. */
   join_locked?: boolean;
+  /** Lets people join after the game has started. */
+  allow_late_join?: boolean;
 }
 
 export interface SaveQuestionInput {

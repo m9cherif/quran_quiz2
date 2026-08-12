@@ -253,7 +253,16 @@ export default function LiveGameControl({ roomKey }) {
         { event: "INSERT", schema: "public", table: "answers", filter: `competition_id=eq.${game.id}` },
         (payload) => {
           const row = payload.new;
-          setAnswers((prev) => ({ ...prev, [`${row.participant_id}:${row.question_id}`]: true }));
+          // Keep the graded result, not just "answered": for page and ordering
+          // questions there is no choice to count, so correctness is the only
+          // meaningful live signal.
+          setAnswers((prev) => ({
+            ...prev,
+            [`${row.participant_id}:${row.question_id}`]: {
+              correct: Boolean(row.is_correct),
+              points: (row.points ?? 0) + (row.bonus_points ?? 0),
+            },
+          }));
           // A full class answers within a second or two of each other; refetch
           // the board once the burst settles instead of once per answer.
           if (boardTimerRef.current) clearTimeout(boardTimerRef.current);
@@ -307,9 +316,25 @@ export default function LiveGameControl({ roomKey }) {
         .sort((a, b) => a.position - b.position)[0],
     [questions]
   );
-  const answeredCount = current
-    ? Object.keys(answers).filter((key) => key.endsWith(`:${current.id}`)).length
-    : 0;
+  const currentAnswers = current
+    ? Object.entries(answers).filter(([key]) => key.endsWith(`:${current.id}`))
+    : [];
+  const answeredCount = currentAnswers.length;
+  const correctCount = currentAnswers.filter(([, value]) => value?.correct).length;
+
+  /** page_words/ordering store a marker in `text`; show something readable. */
+  const questionLabel = (question) => {
+    if (!question) return "";
+    if (question.type === "page_words") {
+      return question.page_number
+        ? `${t("editor.typePageWords")} — ${t("pw.pageOption", { page: question.page_number })}`
+        : t("editor.typePageWords");
+    }
+    return question.text;
+  };
+
+  // A choice spread only means anything when there are choices to pick.
+  const hasChoiceSpread = current?.type === "mcq" || current?.type === "true_false";
 
   const effectiveSeconds = (q) =>
     Math.min(q.duration_seconds, Math.max(1, game?.minutes_per_question ?? 1) * 60);
@@ -623,6 +648,12 @@ export default function LiveGameControl({ roomKey }) {
     run("teams", async () => {
       await shuffleTeams(game.id, count);
       await reloadPlayers();
+    });
+
+  const toggleLateJoin = (next) =>
+    run("late", async () => {
+      await updateQuizMeta(game.id, { allow_late_join: next });
+      setGame((prev) => (prev ? { ...prev, allow_late_join: next } : prev));
     });
 
   const toggleJoinLock = (next) =>
@@ -1015,7 +1046,7 @@ export default function LiveGameControl({ roomKey }) {
                 )}
                 {!activeEnds && <Badge variant="neutral">{t("host.closed")}</Badge>}
               </div>
-              <p className="text-lg font-medium text-ink">{current.text}</p>
+              <p className="text-lg font-medium text-ink">{questionLabel(current)}</p>
               <div className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
                 <Badge variant="info">{current.type}</Badge>
                 <Badge variant="neutral">
@@ -1028,7 +1059,20 @@ export default function LiveGameControl({ roomKey }) {
                 )}
               </div>
 
-              {distribution.length > 0 && (
+              {/* Non-choice questions: a spread of choices would be all zeros,
+                  because the answer is text, not a choice id. */}
+              {!hasChoiceSpread && answeredCount > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <Badge variant="success">
+                    {correctCount} {t("host.correctSoFar")}
+                  </Badge>
+                  <Badge variant="neutral">
+                    {answeredCount - correctCount} {t("host.incorrectSoFar")}
+                  </Badge>
+                </div>
+              )}
+
+              {hasChoiceSpread && distribution.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-ink">{t("host.answerSpread")}</h3>
@@ -1118,7 +1162,7 @@ export default function LiveGameControl({ roomKey }) {
                     }`}
                   >
                     <span className="font-medium">{q.position}. </span>
-                    <span className="line-clamp-1">{q.text}</span>
+                    <span className="line-clamp-1">{questionLabel(q)}</span>
                     <span className="mt-0.5 block text-xs text-ink-faint">
                       {done
                         ? isCurrent
@@ -1337,6 +1381,19 @@ export default function LiveGameControl({ roomKey }) {
                 className="h-4 w-4 accent-primary"
               />
               {t("host.lockJoining")}
+            </label>
+
+            {/* Without this a started game is shut to everyone, including a
+                student whose phone dropped and wants back in. */}
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
+              <input
+                type="checkbox"
+                checked={Boolean(game.allow_late_join)}
+                disabled={busyAction === "late"}
+                onChange={(e) => toggleLateJoin(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              {t("host.allowLateJoin")}
             </label>
 
             {participants.length === 0 ? (
