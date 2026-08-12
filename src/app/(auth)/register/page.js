@@ -150,7 +150,7 @@ export default function RegisterPage() {
           onChange={(e) => setConfirmPassword(e.target.value)}
           error={error || undefined}
         />
-        <Button type="submit" loading={isLoading} className="w-full" size="lg">
+        <Button type="submit" loading={isLoading} className="w-full" size="lg" icon="plus">
           {t("auth.signUp")}
         </Button>
       </form>

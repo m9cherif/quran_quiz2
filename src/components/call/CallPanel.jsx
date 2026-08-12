@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { REACTIONS } from "@/components/game/Reactions";
 
 const MIC_ON = <path d="M10 12a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v4a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-4.25 4.94V17h2.5a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1 0-1.5h2.5v-3.06A5 5 0 0 1 5 9a.75.75 0 0 1 1.5 0 3.5 3.5 0 0 0 7 0A.75.75 0 0 1 15 9Z" />;
 const MIC_OFF = <path d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-3.4-3.4A5 5 0 0 0 15 9a.75.75 0 0 0-1.5 0c0 .7-.2 1.34-.57 1.88L12 9.94V5a2 2 0 0 0-3.9-.62L3.28 2.22ZM7 7.06V9a3 3 0 0 0 4.24 2.73L7 7.06Zm3.75 6.88V17h2.5a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1 0-1.5h2.5v-3.06A5 5 0 0 1 5 9a.75.75 0 0 1 1.5 0 3.5 3.5 0 0 0 4.25 3.42Z" />;
@@ -18,6 +19,7 @@ function VideoTile({
   controls = null,
   status = null,
   micOn = true,
+  burst = [],
 }) {
   const ref = useRef(null);
 
@@ -46,6 +48,24 @@ function VideoTile({
           {status && <span className="text-[11px] text-slate-300">{status}</span>}
         </div>
       )}
+      {/* Reactions fly up out of this person's own tile. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        {burst.map((b) => (
+          <span
+            key={b.id}
+            className="absolute bottom-6 animate-[burst-up_2.2s_ease-out_forwards] text-2xl"
+            style={{
+              left: `${b.left}%`,
+              animationDelay: `${b.delay}s`,
+              "--burst-drift": `${b.drift}px`,
+              "--burst-scale": b.scale,
+            }}
+          >
+            {b.emoji}
+          </span>
+        ))}
+      </div>
+
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-black/50 px-2 py-1">
         <span className="flex min-w-0 items-center gap-1">
           {!micOn && (
@@ -71,7 +91,7 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
   const {
     joined, connecting, micOn, camOn, hasCamera, hostNotice, error, relaySource,
     peers, roster, localStream, join, leave, toggleMic, toggleCam,
-    controlParticipant, controlEveryone,
+    controlParticipant, controlEveryone, bursts, sendReaction, selfId,
   } = call;
 
   const isHost = role === "host";
@@ -98,7 +118,7 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
             <p className="text-sm font-semibold text-ink">{t("call.title")}</p>
             <p className="mt-0.5 text-xs text-ink-muted">{t("call.blurb")}</p>
           </div>
-          <Button onClick={join} loading={connecting}>
+          <Button onClick={join} loading={connecting} icon="camera">
             {t("call.join")}
           </Button>
         </div>
@@ -145,7 +165,7 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
             </svg>
             {camOn ? t("call.camOn") : t("call.camOff")}
           </Button>
-          <Button variant="ghost" size="sm" onClick={leave}>
+          <Button variant="ghost" size="sm" onClick={leave} icon="logout">
             {t("call.leave")}
           </Button>
         </div>
@@ -182,6 +202,7 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
           label={`${selfLabel} (${t("call.you")})`}
           self
           micOn={micOn}
+          burst={bursts?.[selfId] ?? []}
         />
         {/* Driven by presence, not by media: everyone in the call has a tile
             from the moment they join, even before their video arrives — which
@@ -193,6 +214,7 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
               key={person.id}
               stream={stream}
               micOn={person.micOn}
+              burst={bursts?.[person.id] ?? []}
               status={stream ? null : t("call.connecting")}
               label={person.name || (person.role === "host" ? t("nav.host") : t("call.student"))}
               controls={
@@ -208,6 +230,20 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
             />
           );
         })}
+      </div>
+
+      {/* React from inside the call: the emoji leaves your own tile. */}
+      <div className="mt-3 flex flex-wrap justify-center gap-2">
+        {REACTIONS.map((emoji) => (
+          <button
+            key={emoji}
+            type="button"
+            onClick={() => sendReaction(emoji)}
+            className="rounded-full border border-border bg-surface px-3 py-1.5 text-xl transition-transform hover:scale-110 active:scale-95"
+          >
+            {emoji}
+          </button>
+        ))}
       </div>
 
       {others.length === 0 && (

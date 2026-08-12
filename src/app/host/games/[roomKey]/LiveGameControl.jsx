@@ -33,6 +33,8 @@ import CallPanel from "@/components/call/CallPanel";
 import HostPlayerTools from "@/components/host/HostPlayerTools";
 import RandomPicker from "@/components/host/RandomPicker";
 import CommandPalette from "@/components/ui/CommandPalette";
+import { ReactionLayer } from "@/components/game/Reactions";
+import useGamePresence from "@/lib/presence/useGamePresence";
 import {
   awardBonus,
   extendQuestion,
@@ -493,8 +495,12 @@ export default function LiveGameControl({ roomKey }) {
     });
   }, [autoAdvance, phase, game, current, upNext, now, advance]);
 
-  // Emoji from the room, shown in presenter mode.
+  // Emoji from the room. Shown in the control room too — previously the layer
+  // only existed in presenter mode, so a host not projecting saw nothing.
   const { floating } = useReactions(game?.id, { listen: true });
+
+  // Live roster; the stored `connected` column was never cleared.
+  const onlineIds = useGamePresence(game?.id);
 
   const callsEnabled = Boolean(game?.calls_enabled);
   const call = useCall({
@@ -820,7 +826,10 @@ export default function LiveGameControl({ roomKey }) {
   const activeEnds = current && new Date(current.ends_at).getTime() > now ? current.ends_at : null;
 
   return (
-    <div className="space-y-5">
+    <div className="relative space-y-5">
+      {/* Reactions land here as well as on the projector. */}
+      {!presenting && <ReactionLayer floating={floating} />}
+
       {presenting && (
         <PresenterMode
           game={game}
@@ -861,7 +870,7 @@ export default function LiveGameControl({ roomKey }) {
           </Button>
           {phase === "lobby" && (
             <>
-              <Button variant="outline" onClick={openAddQuestion}>
+              <Button variant="outline" onClick={openAddQuestion} icon="plus">
                 {t("host.addQuestion")}
               </Button>
               <Button
@@ -870,10 +879,10 @@ export default function LiveGameControl({ roomKey }) {
               >
                 {t("host.editQuestions")}
               </Button>
-              <Button variant="outline" onClick={pauseGame} disabled>
+              <Button variant="outline" onClick={pauseGame} disabled icon="pause">
                 {t("host.pause")}
               </Button>
-              <Button loading={busyAction === "start"} onClick={startGame} disabled={!upNext}>
+              <Button loading={busyAction === "start"} onClick={startGame} disabled={!upNext} icon="play">
                 {t("host.startGame")}
               </Button>
             </>
@@ -892,13 +901,13 @@ export default function LiveGameControl({ roomKey }) {
                 />
                 {t("host.autoAdvance")}
               </label>
-              <Button variant="outline" onClick={openAddQuestion}>
+              <Button variant="outline" onClick={openAddQuestion} icon="plus">
                 {t("host.addQuestion")}
               </Button>
               <Button variant="outline" href={`/host/quizzes/${game.id}/edit`}>
                 {t("host.editQuestions")}
               </Button>
-              <Button variant="outline" loading={busyAction === "pause"} onClick={pauseGame}>
+              <Button variant="outline" loading={busyAction === "pause"} onClick={pauseGame} icon="pause">
                 {t("host.pause")}
               </Button>
               {current && new Date(current.ends_at).getTime() > now ? (
@@ -906,12 +915,12 @@ export default function LiveGameControl({ roomKey }) {
                   <Button variant="ghost" loading={busyAction === "time"} onClick={() => addTime(30)}>
                     {t("host.addTime")}
                   </Button>
-                  <Button variant="outline" loading={busyAction === "end"} onClick={endCurrent}>
+                  <Button variant="outline" loading={busyAction === "end"} onClick={endCurrent} icon="stop">
                     {t("host.endQuestionNow")}
                   </Button>
                 </>
               ) : upNext ? (
-                <Button loading={busyAction === "next"} onClick={nextQuestion}>
+                <Button loading={busyAction === "next"} onClick={nextQuestion} icon="next">
                   {t("host.nextQuestion")}
                 </Button>
               ) : null}
@@ -920,20 +929,20 @@ export default function LiveGameControl({ roomKey }) {
                 loading={busyAction === "finish"}
                 onClick={finishGame}
                 disabled={Boolean(upNext)}
-              >
+               icon="flag">
                 {t("host.finishGame")}
               </Button>
             </>
           )}
           {phase === "paused" && (
             <>
-              <Button variant="outline" onClick={openAddQuestion}>
+              <Button variant="outline" onClick={openAddQuestion} icon="plus">
                 {t("host.addQuestion")}
               </Button>
               <Button variant="outline" href={`/host/quizzes/${game.id}/edit`}>
                 {t("host.editQuestions")}
               </Button>
-              <Button loading={busyAction === "resume"} onClick={resumeGame}>
+              <Button loading={busyAction === "resume"} onClick={resumeGame} icon="play">
                 {t("host.resumeGame")}
               </Button>
             </>
@@ -1123,7 +1132,7 @@ export default function LiveGameControl({ roomKey }) {
                   loading={exporting}
                   onClick={exportResults}
                   disabled={leaderboard.length === 0}
-                >
+                 icon="download">
                   {t("host.exportCsv")}
                 </Button>
               </div>
@@ -1286,6 +1295,7 @@ export default function LiveGameControl({ roomKey }) {
             ) : (
               <HostPlayerTools
                 players={participants}
+                onlineIds={onlineIds}
                 onSetTeam={handleSetTeam}
                 onAward={handleAward}
                 onRemove={handleRemove}
@@ -1394,7 +1404,7 @@ export default function LiveGameControl({ roomKey }) {
             <Button variant="ghost" onClick={() => setDeleteOpen(false)} disabled={Boolean(busyAction)}>
               {t("host.keepIt")}
             </Button>
-            <Button variant="danger" loading={busyAction === "delete"} onClick={deleteRoom}>
+            <Button variant="danger" loading={busyAction === "delete"} onClick={deleteRoom} icon="trash">
               {t("host.deletePermanently")}
             </Button>
           </>
@@ -1412,7 +1422,7 @@ export default function LiveGameControl({ roomKey }) {
             <Button variant="ghost" onClick={() => setAddOpen(false)} disabled={savingQuestion}>
               {t("common.cancel")}
             </Button>
-            <Button loading={savingQuestion} onClick={submitNewQuestion}>
+            <Button loading={savingQuestion} onClick={submitNewQuestion} icon="check">
               {t("editor.saveChanges")}
             </Button>
           </>
@@ -1552,7 +1562,7 @@ export default function LiveGameControl({ roomKey }) {
                   </div>
                 ))}
               </div>
-              <Button variant="outline" size="sm" className="mt-2" onClick={addNewChoice}>
+              <Button variant="outline" size="sm" className="mt-2" onClick={addNewChoice} icon="plus">
                 {t("editor.addOption")}
               </Button>
             </fieldset>

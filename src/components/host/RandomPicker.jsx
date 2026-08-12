@@ -71,7 +71,7 @@ export default function RandomPicker({ open, onClose, players }) {
       description={t("picker.desc")}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={onClose} icon="close">
             {t("common.close")}
           </Button>
           <Button onClick={spin} loading={spinning} disabled={players.length === 0}>

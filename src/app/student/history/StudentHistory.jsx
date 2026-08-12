@@ -81,7 +81,7 @@ export default function StudentHistory() {
           <h1 className="text-2xl font-bold text-ink">{t("student.historyTitle")}</h1>
           <p className="mt-0.5 text-sm text-ink-muted">{t("student.historySub")}</p>
         </div>
-        <Button href="/join">{t("nav.joinGame")}</Button>
+        <Button href="/join" icon="users">{t("nav.joinGame")}</Button>
       </div>
 
       {history.length === 0 ? (
@@ -90,7 +90,7 @@ export default function StudentHistory() {
             title={t("student.noGamesTitle")}
             description={t("student.noGamesDesc")}
           >
-            <Button href="/join">{t("nav.joinGame")}</Button>
+            <Button href="/join" icon="users">{t("nav.joinGame")}</Button>
           </EmptyState>
         </Card>
       ) : (

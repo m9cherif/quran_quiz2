@@ -83,7 +83,7 @@ export default function OrderingEditor({ question, onChange }) {
         ))}
       </ol>
 
-      <Button variant="outline" size="sm" onClick={add}>
+      <Button variant="outline" size="sm" onClick={add} icon="plus">
         {t("ord.addItem")}
       </Button>
     </div>

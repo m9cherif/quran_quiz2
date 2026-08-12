@@ -118,7 +118,7 @@ export default function StudentClasses() {
           <h1 className="text-2xl font-bold text-ink">{t("student.myClasses")}</h1>
           <p className="mt-0.5 text-sm text-ink-muted">{t("student.myClassesSub")}</p>
         </div>
-        <Button href="/join">{t("nav.joinGame")}</Button>
+        <Button href="/join" icon="users">{t("nav.joinGame")}</Button>
       </div>
 
       <Card className="mt-6" padding="lg">
@@ -143,7 +143,7 @@ export default function StudentClasses() {
               error={joinError || undefined}
             />
           </div>
-          <Button type="submit" loading={joining} disabled={code.trim().length < 3}>
+          <Button type="submit" loading={joining} disabled={code.trim().length < 3} icon="plus">
             {t("student.joinClassButton")}
           </Button>
         </form>

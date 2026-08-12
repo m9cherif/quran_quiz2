@@ -78,7 +78,7 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           error={error || undefined}
         />
-        <Button type="submit" loading={isLoading} className="w-full" size="lg">
+        <Button type="submit" loading={isLoading} className="w-full" size="lg" icon="key">
           {t("auth.signIn")}
         </Button>
       </form>

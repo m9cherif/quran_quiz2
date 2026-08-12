@@ -509,13 +509,13 @@ export function QuizEditor({ quizId }) {
               {t("editor.launched")}
             </Badge>
           )}
-          <Button variant="outline" onClick={printSheet} disabled={!quiz}>
+          <Button variant="outline" onClick={printSheet} disabled={!quiz} icon="print">
             {t("editor.printSheet")}
           </Button>
-          <Button variant="outline" onClick={exportQuiz} disabled={!quiz}>
+          <Button variant="outline" onClick={exportQuiz} disabled={!quiz} icon="download">
             {t("editor.exportJson")}
           </Button>
-          <Button loading={saving} onClick={saveAll} disabled={!dirty || !canEdit}>
+          <Button loading={saving} onClick={saveAll} disabled={!dirty || !canEdit} icon="check">
             {t("editor.saveChanges")}
           </Button>
         </div>
@@ -613,7 +613,7 @@ export function QuizEditor({ quizId }) {
           <Button variant="outline" size="sm" onClick={() => setPreview((v) => !v)} disabled={!current}>
             {preview ? t("editor.backToEditing") : t("editor.preview")}
           </Button>
-          <Button size="sm" onClick={addQuestion}>
+          <Button size="sm" onClick={addQuestion} icon="plus">
             {t("editor.addQuestion")}
           </Button>
         </div>

@@ -179,7 +179,7 @@ export default function HostClasses() {
           <h1 className="text-2xl font-bold text-ink">{t("host.classesTitle")}</h1>
           <p className="mt-0.5 text-sm text-ink-muted">{t("host.classesSub")}</p>
         </div>
-        <Button href="/host/analytics">{t("nav.analytics")}</Button>
+        <Button href="/host/analytics" icon="chart">{t("nav.analytics")}</Button>
       </div>
 
       <Card className="mt-6" padding="lg">
@@ -204,7 +204,7 @@ export default function HostClasses() {
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
-          <Button type="submit" loading={creating} disabled={name.trim().length < 2}>
+          <Button type="submit" loading={creating} disabled={name.trim().length < 2} icon="plus">
             {t("host.createClass")}
           </Button>
         </form>
@@ -312,7 +312,7 @@ export default function HostClasses() {
             <Button variant="ghost" onClick={() => setArchiveTarget(null)}>
               {t("host.keepClass")}
             </Button>
-            <Button variant="danger" loading={archiving} onClick={confirmArchive}>
+            <Button variant="danger" loading={archiving} onClick={confirmArchive} icon="archive">
               {t("host.archiveLabel")}
             </Button>
           </>

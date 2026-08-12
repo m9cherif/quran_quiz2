@@ -27,6 +27,7 @@ import { ReactionBar, ReactionLayer, useReactions } from "@/components/game/Reac
 import { playCue } from "@/lib/sound";
 import CallPanel from "@/components/call/CallPanel";
 import { useCall } from "@/lib/webrtc/useCall";
+import useGamePresence from "@/lib/presence/useGamePresence";
 import PageWordsPlay from "@/components/game/PageWordsPlay";
 
 /**
@@ -441,6 +442,12 @@ export default function GameQuestion({ code }) {
 
   const { floating, send: sendReaction } = useReactions(competitionId);
 
+  // Announce this player so the host's online dots are real.
+  useGamePresence(competitionId, {
+    participantId: participant?.id,
+    name: participant?.displayName,
+  });
+
   const call = useCall({
     competitionId,
     role: "student",
@@ -478,7 +485,7 @@ export default function GameQuestion({ code }) {
         <Card padding="lg" className="w-full max-w-sm text-center">
           <h1 className="text-lg font-semibold text-ink">{t("game.gameEndedTitle")}</h1>
           <p className="mt-2 text-sm text-ink-muted">{t("game.gameEnded")}</p>
-          <Button href="/join" className="mt-6 w-full">
+          <Button href="/join" className="mt-6 w-full" icon="back">
             {t("common.back")}
           </Button>
         </Card>
@@ -492,7 +499,7 @@ export default function GameQuestion({ code }) {
         <Card padding="lg" className="w-full max-w-sm text-center">
           <h1 className="text-lg font-semibold text-ink">{t("game.sessionExpired")}</h1>
           <p className="mt-2 text-sm text-ink-muted">{t("game.notAvailableDesc")}</p>
-          <Button href="/join" className="mt-6 w-full">
+          <Button href="/join" className="mt-6 w-full" icon="users">
             {t("nav.joinGame")}
           </Button>
         </Card>

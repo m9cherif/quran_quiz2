@@ -163,7 +163,7 @@ export default function HostAnalytics() {
         <h1 className="text-2xl font-bold text-ink">{t("host.analyticsTitle")}</h1>
         <Card className="mt-6">
           <EmptyState title={t("host.noGamesTitle")} description={t("host.noGamesDesc")}>
-            <Button href="/host/quizzes">{t("nav.myQuizzes")}</Button>
+            <Button href="/host/quizzes" icon="book">{t("nav.myQuizzes")}</Button>
           </EmptyState>
         </Card>
       </div>
@@ -178,10 +178,10 @@ export default function HostAnalytics() {
           <p className="mt-0.5 text-sm text-ink-muted">{t("host.analyticsSub")}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={exportMissed} disabled={!analytics}>
+          <Button variant="outline" size="sm" onClick={exportMissed} disabled={!analytics} icon="download">
             {t("host.exportCsv")}
           </Button>
-          <Button variant="outline" size="sm" href="/host/games">
+          <Button variant="outline" size="sm" href="/host/games" icon="settings">
             {t("host.manageGames")}
           </Button>
         </div>

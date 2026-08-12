@@ -89,7 +89,7 @@ export default function HostDashboard({ game }) {
         }}>
           {t("common.reset")}
         </Button>
-        <Button loading={saving} onClick={save}>
+        <Button loading={saving} onClick={save} icon="check">
           {t("host.setupSave")}
         </Button>
       </div>

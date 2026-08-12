@@ -10,6 +10,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import useGamePresence from "@/lib/presence/useGamePresence";
 
 /**
  * GameLobby — student waiting room for a Supabase live game.
@@ -30,6 +31,12 @@ export default function GameLobby({ code }) {
 
   const competitionId = participant?.competitionId ?? null;
   const accessToken = participant?.accessToken ?? null;
+
+  // Keeps the host's player list honest while everyone waits in the lobby.
+  useGamePresence(competitionId, {
+    participantId: participant?.id,
+    name: participant?.displayName,
+  });
 
   const leaveLobby = useCallback(() => {
     dispatch(removeParticipant());
@@ -133,7 +140,7 @@ export default function GameLobby({ code }) {
         <Card padding="lg" className="w-full max-w-sm text-center">
           <h1 className="text-lg font-semibold text-ink">{t("game.notAvailableTitle")}</h1>
           <p className="mt-2 text-sm text-ink-muted">{t("game.notAvailableDesc")}</p>
-          <Button href="/join" className="mt-6 w-full">
+          <Button href="/join" className="mt-6 w-full" icon="back">
             {t("common.back")}
           </Button>
         </Card>
@@ -149,7 +156,7 @@ export default function GameLobby({ code }) {
           <p className="mt-2 text-sm text-ink-muted">
             {t("game.notAvailableDesc")}
           </p>
-          <Button href="/join" className="mt-6 w-full">
+          <Button href="/join" className="mt-6 w-full" icon="users">
             {t("nav.joinGame")}
           </Button>
         </Card>

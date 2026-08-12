@@ -222,7 +222,7 @@ export function QuizLibrary() {
           >
             {t("editor.importJson")}
           </Button>
-          <Button href="/host/quizzes/new">{t("nav.newQuiz")}</Button>
+          <Button href="/host/quizzes/new" icon="plus">{t("nav.newQuiz")}</Button>
         </div>
       </div>
 
@@ -295,7 +295,7 @@ export function QuizLibrary() {
             <Button variant="ghost" onClick={() => setDeleteTarget(null)} disabled={deleting}>
               {t("common.cancel")}
             </Button>
-            <Button variant="danger" loading={deleting} onClick={confirmDelete}>
+            <Button variant="danger" loading={deleting} onClick={confirmDelete} icon="trash">
               {t("host.deletePermanently")}
             </Button>
           </>

@@ -43,6 +43,8 @@ export function useCall({ competitionId, role, displayName, enabled }) {
    * immediately instead of an empty call.
    */
   const [roster, setRoster] = useState([]);
+  /** peerId -> emoji currently flying out of that tile. */
+  const [bursts, setBursts] = useState({});
   /** Last thing the host did to this device: micOn|micOff|camOn|camOff. */
   const [hostNotice, setHostNotice] = useState("");
 
@@ -54,6 +56,7 @@ export function useCall({ competitionId, role, displayName, enabled }) {
   const pcsRef = useRef(new Map()); // peerId -> RTCPeerConnection
   const namesRef = useRef(new Map());
   const dialingRef = useRef(new Set()); // offers in flight, so nobody is dialled twice
+  const burstIdRef = useRef(0);
 
   const send = useCallback((event, payload) => {
     channelRef.current?.send({
@@ -62,6 +65,38 @@ export function useCall({ competitionId, role, displayName, enabled }) {
       payload: { ...payload, from: selfIdRef.current, role, name: displayName },
     });
   }, [role, displayName]);
+
+  /**
+   * One tap becomes a small crowd of the same emoji, each with its own drift
+   * and delay, streaming out of that person's tile. They clear themselves.
+   */
+  const spawnBurst = useCallback((peerId, emoji) => {
+    const made = Array.from({ length: 7 }, () => ({
+      id: ++burstIdRef.current,
+      emoji,
+      left: 10 + Math.random() * 80, // % across the tile
+      drift: -30 + Math.random() * 60, // px sideways travel
+      delay: Math.random() * 0.45, // s
+      scale: 0.8 + Math.random() * 0.7,
+    }));
+    setBursts((prev) => ({ ...prev, [peerId]: [...(prev[peerId] ?? []), ...made] }));
+    const ids = new Set(made.map((m) => m.id));
+    setTimeout(() => {
+      setBursts((prev) => ({
+        ...prev,
+        [peerId]: (prev[peerId] ?? []).filter((b) => !ids.has(b.id)),
+      }));
+    }, 2600);
+  }, []);
+
+  const sendReaction = useCallback(
+    (emoji) => {
+      // Show it on your own tile immediately: broadcast does not echo back.
+      spawnBurst(selfIdRef.current, emoji);
+      send("tile-reaction", { emoji });
+    },
+    [send, spawnBurst]
+  );
 
   const dropPeer = useCallback((peerId) => {
     const pc = pcsRef.current.get(peerId);
@@ -229,6 +264,10 @@ export function useCall({ competitionId, role, displayName, enabled }) {
         .on("broadcast", { event: "bye" }, ({ payload }) => {
           if (payload?.from) dropPeer(payload.from);
         })
+        .on("broadcast", { event: "tile-reaction" }, ({ payload }) => {
+          if (!payload?.from || !payload.emoji) return;
+          spawnBurst(payload.from, payload.emoji);
+        })
         .on("broadcast", { event: "host-control" }, ({ payload }) => {
           // The host drives this device's mic/camera. Addressed to one
           // student or to "all". The change is always announced on screen —
@@ -370,6 +409,9 @@ export function useCall({ competitionId, role, displayName, enabled }) {
     error,
     peers,
     roster,
+    bursts,
+    selfId: selfIdRef.current,
+    sendReaction,
     localStream: localStreamRef.current,
     join,
     leave,

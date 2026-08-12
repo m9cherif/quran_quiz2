@@ -127,7 +127,7 @@ export default function GameResult({ code }) {
         <Card padding="lg" className="w-full max-w-sm text-center">
           <h1 className="text-lg font-semibold text-ink">{t("game.sessionExpired")}</h1>
           <p className="mt-2 text-sm text-ink-muted">{t("game.notAvailableDesc")}</p>
-          <Button href="/join" className="mt-6 w-full">
+          <Button href="/join" className="mt-6 w-full" icon="users">
             {t("nav.joinGame")}
           </Button>
         </Card>
@@ -141,7 +141,7 @@ export default function GameResult({ code }) {
         <Card padding="lg" className="w-full max-w-sm text-center">
           <h1 className="text-lg font-semibold text-ink">{t("game.gameStillRunning")}</h1>
           <p className="mt-2 text-sm text-ink-muted">{t("game.resultsAfterFinish")}</p>
-          <Button href={`/game/${code}`} className="mt-6 w-full">
+          <Button href={`/game/${code}`} className="mt-6 w-full" icon="back">
             {t("game.backToGame")}
           </Button>
         </Card>
@@ -193,7 +193,7 @@ export default function GameResult({ code }) {
             </dd>
           </div>
         </dl>
-        <Button onClick={leaveGame} className="mt-6 w-full">
+        <Button onClick={leaveGame} className="mt-6 w-full" icon="home">
           {t("game.returnHome")}
         </Button>
       </Card>

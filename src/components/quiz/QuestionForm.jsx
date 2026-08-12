@@ -175,7 +175,7 @@ export function QuestionForm({
           >
             ↓
           </Button>
-          <Button variant="ghost" size="sm" onClick={onDelete} className="text-danger">
+          <Button variant="ghost" size="sm" onClick={onDelete} className="text-danger" icon="trash">
             {t("common.delete")}
           </Button>
         </div>

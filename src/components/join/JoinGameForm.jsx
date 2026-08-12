@@ -140,7 +140,7 @@ export function JoinGameForm({ defaultCode = "" }) {
           }
           error={error || undefined}
         />
-        <Button type="submit" loading={isLoading} className="w-full" size="lg">
+        <Button type="submit" loading={isLoading} className="w-full" size="lg" icon="send">
           {t("join.joinButton")}
         </Button>
       </form>

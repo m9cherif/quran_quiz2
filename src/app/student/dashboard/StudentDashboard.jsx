@@ -101,7 +101,7 @@ export default function StudentDashboard() {
           <h1 className="text-2xl font-bold text-ink">{t("student.progress")}</h1>
           <p className="mt-0.5 text-sm text-ink-muted">{t("student.progressSub")}</p>
         </div>
-        <Button href="/join">{t("nav.joinGame")}</Button>
+        <Button href="/join" icon="users">{t("nav.joinGame")}</Button>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -140,7 +140,7 @@ export default function StudentDashboard() {
             title={t("student.noGamesTitle")}
             description={t("student.noGamesDesc")}
           >
-            <Button href="/join">{t("nav.joinGame")}</Button>
+            <Button href="/join" icon="users">{t("nav.joinGame")}</Button>
           </EmptyState>
         ) : (
           <ul className="mt-4 divide-y divide-border">

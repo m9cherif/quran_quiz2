@@ -15,7 +15,14 @@ const TEAMS = ["", "Team A", "Team B", "Team C", "Team D", "Team E", "Team F"];
  * team, hand out (or take away) points by hand, and remove a player who should
  * not be in the room. Destructive removal asks first.
  */
-export default function HostPlayerTools({ players, onSetTeam, onAward, onRemove, onShuffleTeams }) {
+export default function HostPlayerTools({
+  players,
+  onlineIds,
+  onSetTeam,
+  onAward,
+  onRemove,
+  onShuffleTeams,
+}) {
   const { t } = useI18n();
   const [bonusFor, setBonusFor] = useState(null);
   const [bonusValue, setBonusValue] = useState(5);
@@ -67,10 +74,14 @@ export default function HostPlayerTools({ players, onSetTeam, onAward, onRemove,
       </div>
 
       <ul className="max-h-72 divide-y divide-border overflow-y-auto">
-        {players.map((p) => (
+        {players.map((p) => {
+          // Presence is the truth; the stored flag was never cleared.
+          const online = onlineIds?.has(p.id) ?? false;
+          return (
           <li key={p.id} className="flex flex-wrap items-center gap-2 py-2.5">
             <span
-              className={`h-2 w-2 shrink-0 rounded-full ${p.connected ? "bg-success" : "bg-ink-faint"}`}
+              title={online ? t("host.online") : t("host.away")}
+              className={`h-2 w-2 shrink-0 rounded-full ${online ? "bg-success" : "bg-ink-faint"}`}
               aria-hidden="true"
             />
             <span className="min-w-0 flex-1 truncate text-sm text-ink">{p.display_name}</span>
@@ -106,7 +117,8 @@ export default function HostPlayerTools({ players, onSetTeam, onAward, onRemove,
               {t("teams.remove")}
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       <Dialog
@@ -148,7 +160,7 @@ export default function HostPlayerTools({ players, onSetTeam, onAward, onRemove,
             <Button variant="ghost" onClick={() => setRemoveTarget(null)} disabled={busy}>
               {t("common.cancel")}
             </Button>
-            <Button variant="danger" onClick={confirmRemove} loading={busy}>
+            <Button variant="danger" onClick={confirmRemove} loading={busy} icon="trash">
               {t("teams.remove")}
             </Button>
           </>

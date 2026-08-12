@@ -97,7 +97,7 @@ export default function MyGames() {
           <h1 className="text-2xl font-bold text-ink">{t("host.myGamesTitle")}</h1>
           <p className="mt-0.5 text-sm text-ink-muted">{t("host.myGamesSub")}</p>
         </div>
-        <Button href="/host/quizzes">{t("host.browseQuizzes")}</Button>
+        <Button href="/host/quizzes" icon="book">{t("host.browseQuizzes")}</Button>
       </div>
 
       {games.length === 0 ? (
@@ -106,7 +106,7 @@ export default function MyGames() {
             title={t("common.noGamesYet")}
             description={t("host.noGamesDesc")}
           >
-            <Button href="/host/quizzes">{t("host.browseQuizzes")}</Button>
+            <Button href="/host/quizzes" icon="book">{t("host.browseQuizzes")}</Button>
           </EmptyState>
         </Card>
       ) : (
@@ -137,7 +137,7 @@ export default function MyGames() {
                     {t("host.cancel")}
                   </Button>
                 )}
-                <Button size="sm" href={`/host/games/${game.code}`}>
+                <Button size="sm" href={`/host/games/${game.code}`} icon="settings">
                   {t("host.openControlRoom")}
                 </Button>
               </div>
