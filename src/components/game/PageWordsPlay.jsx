@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import { normaliseArabic, pageImageUrl, regionStyle } from "@/lib/quran/pages";
+import { normaliseArabic, pageImageUrl, regionStyle, stripTashkeel } from "@/lib/quran/pages";
 
 /**
  * PageWordsPlay — the student half of the "mots cachés" exercise.
@@ -197,7 +197,7 @@ export default function PageWordsPlay({
                   }`}
                 >
                   <span className="me-2 text-xs font-bold text-ink-faint">{index + 1}</span>
-                  <span dir="rtl">{chip.text}</span>
+                  <span dir="rtl">{stripTashkeel(chip.text)}</span>
                 </button>
               );
             })}

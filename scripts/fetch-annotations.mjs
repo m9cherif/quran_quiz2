@@ -22,6 +22,16 @@ const API = "https://api.github.com/repos/m9cherif/flutter_quran_data/contents/a
 // Served as static files (fetched on demand by the editor), never bundled.
 const OUT_DIR = join(process.cwd(), "public", "annotations");
 
+/** Remove harakat, quranic annotation marks and tatweel; keep the letters. */
+function stripTashkeel(value) {
+  return value
+    .replace(/[ؐ-ًؚ-ٰٟۖ-ۭ]/g, "")
+    .replace(/ـ/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+
 const listing = await (await fetch(API, { headers: { "User-Agent": "quran-quiz" } })).json();
 if (!Array.isArray(listing)) throw new Error("unexpected listing: " + JSON.stringify(listing).slice(0, 200));
 
@@ -49,7 +59,12 @@ for (const file of listing) {
     const x2 = Number(row.x2);
     const y2 = Number(row.y2);
     if (![x1, y1, x2, y2].every(Number.isFinite) || x2 <= x1 || y2 <= y1) continue;
-    const text = String(row.kalima_text ?? row.text ?? "").trim();
+    // Words are shown to students without tashkeel: prefer the workbook's
+    // plain-spelling column, and strip the marks from the vocalised one when
+    // that column is missing or empty.
+    const text =
+      stripTashkeel(String(row.kalima_text_emlaey ?? "")) ||
+      stripTashkeel(String(row.kalima_text ?? row.text ?? ""));
     if (!text) continue;
     words.push({
       x1, y1, x2, y2,

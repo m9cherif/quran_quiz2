@@ -125,6 +125,19 @@ export function normaliseWords(
 }
 
 /**
+ * Remove harakat, quranic annotation marks and tatweel, keeping the letters.
+ * Words are authored plain, but questions saved before that change still hold
+ * vocalised text — stripping at render keeps every chip consistent.
+ */
+export function stripTashkeel(value: string): string {
+  return value
+    .replace(/[ؐ-ًؚ-ٰٟۖ-ۭ]/g, "")
+    .replace(/ـ/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
  * Compare Arabic words the way a learner types them: ignore diacritics,
  * tatweel and the alef/ya/ta-marbuta spelling variants, so a correct answer
  * typed without harakat still counts.
