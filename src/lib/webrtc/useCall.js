@@ -36,6 +36,13 @@ export function useCall({ competitionId, role, displayName, enabled }) {
   const [hasCamera, setHasCamera] = useState(false);
   const [error, setError] = useState("");
   const [peers, setPeers] = useState([]); // [{ id, name, stream, role }]
+  /**
+   * Who is in the call right now, from Realtime Presence — independent of
+   * whether media has negotiated yet. This is what survives a refresh: the
+   * roster is re-synced on subscribe, so a reloaded page shows everyone
+   * immediately instead of an empty call.
+   */
+  const [roster, setRoster] = useState([]);
   /** Last thing the host did to this device: micOn|micOff|camOn|camOff. */
   const [hostNotice, setHostNotice] = useState("");
 
@@ -46,6 +53,7 @@ export function useCall({ competitionId, role, displayName, enabled }) {
   const channelRef = useRef(null);
   const pcsRef = useRef(new Map()); // peerId -> RTCPeerConnection
   const namesRef = useRef(new Map());
+  const dialingRef = useRef(new Set()); // offers in flight, so nobody is dialled twice
 
   const send = useCallback((event, payload) => {
     channelRef.current?.send({
@@ -133,9 +141,16 @@ export function useCall({ competitionId, role, displayName, enabled }) {
       channelRef.current = null;
     }
     setPeers([]);
+    setRoster([]);
     setJoined(false);
     setHostNotice("");
   }, [dropPeer, send]);
+
+  /** Keep the roster's mic/camera badges honest as the toggles are used. */
+  useEffect(() => {
+    if (!joined || !channelRef.current) return;
+    channelRef.current.track({ name: displayName, role, micOn, camOn }).catch(() => {});
+  }, [joined, micOn, camOn, displayName, role]);
 
   const join = useCallback(async () => {
     if (joined || connecting || !competitionId) return;
@@ -166,7 +181,10 @@ export function useCall({ competitionId, role, displayName, enabled }) {
       setCamOn(false);
 
       const channel = getSupabase().channel(`call-${competitionId}`, {
-        config: { broadcast: { self: false } },
+        config: {
+          broadcast: { self: false },
+          presence: { key: selfIdRef.current },
+        },
       });
 
       channel
@@ -243,8 +261,55 @@ export function useCall({ competitionId, role, displayName, enabled }) {
           );
         });
 
-      channel.subscribe((status) => {
-        if (status === "SUBSCRIBED") send("hello", {});
+      // Presence is the roster; broadcast is only the signalling.
+      channel
+        .on("presence", { event: "sync" }, () => {
+          const state = channel.presenceState();
+          const people = Object.entries(state).map(([key, entries]) => {
+            const meta = entries[entries.length - 1] ?? {};
+            return {
+              id: key,
+              name: meta.name ?? "",
+              role: meta.role ?? "student",
+              micOn: meta.micOn !== false,
+              camOn: Boolean(meta.camOn),
+              self: key === selfIdRef.current,
+            };
+          });
+          setRoster(people);
+          for (const person of people) namesRef.current.set(person.id, person.name);
+
+          // A host that reloads has no peer connections left; dial whoever is
+          // already sitting in the call rather than waiting for them to
+          // re-announce (they will not — they never left).
+          if (role !== "host") return;
+          for (const person of people) {
+            if (person.self || person.role === "host") continue;
+            if (pcsRef.current.has(person.id) || dialingRef.current.has(person.id)) continue;
+            dialingRef.current.add(person.id);
+            const pc = peerFor(person.id, person.role);
+            pc.createOffer()
+              .then((offer) => pc.setLocalDescription(offer))
+              .then(() => send("offer", { to: person.id, sdp: pc.localDescription }))
+              .catch(() => dropPeer(person.id))
+              .finally(() => dialingRef.current.delete(person.id));
+          }
+        })
+        .on("presence", { event: "leave" }, ({ key }) => {
+          // Covers refreshes and closed tabs: no "bye" is sent then.
+          if (key) dropPeer(key);
+        });
+
+      channel.subscribe(async (status) => {
+        if (status !== "SUBSCRIBED") return;
+        await channel.track({
+          name: displayName,
+          role,
+          micOn: true,
+          camOn: false,
+          joinedAt: Date.now(),
+        });
+        send("hello", {});
       });
       channelRef.current = channel;
       setJoined(true);
@@ -304,6 +369,7 @@ export function useCall({ competitionId, role, displayName, enabled }) {
     hostNotice,
     error,
     peers,
+    roster,
     localStream: localStreamRef.current,
     join,
     leave,

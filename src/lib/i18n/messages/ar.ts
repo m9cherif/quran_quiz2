@@ -639,6 +639,7 @@ const ar: Messages = {
       aria: "لون الواجهة",
     },
     call: {
+      connecting: "جارٍ الاتصال…",
       unmute: "إلغاء الكتم",
       stopCam: "إيقاف الكاميرا",
       startCam: "تشغيل الكاميرا",

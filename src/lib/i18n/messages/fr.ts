@@ -645,6 +645,7 @@ const fr: Messages = {
       aria: "Couleur d'accent",
     },
     call: {
+      connecting: "connexion…",
       unmute: "Réactiver",
       stopCam: "Caméra off",
       startCam: "Caméra on",

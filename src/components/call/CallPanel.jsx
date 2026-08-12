@@ -10,7 +10,15 @@ const MIC_OFF = <path d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 
 const CAM_ON = <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h7A1.5 1.5 0 0 1 13 6.5v7A1.5 1.5 0 0 1 11.5 15h-7A1.5 1.5 0 0 1 3 13.5v-7Zm11 2.06 3-1.8v6.48l-3-1.8V8.56Z" />;
 const CAM_OFF = <path d="M3.28 2.22a.75.75 0 1 0-1.06 1.06l1.03 1.03A1.5 1.5 0 0 0 3 5.5v9A1.5 1.5 0 0 0 4.5 16h7c.3 0 .58-.09.82-.24l3.4 3.4a.75.75 0 0 0 1.06-1.06L3.28 2.22ZM13 8.56l3-1.8v6.48l-1.2-.72V8.56ZM6.2 5h5.3A1.5 1.5 0 0 1 13 6.5v.7L6.2 5Z" />;
 
-function VideoTile({ stream, label, muted = false, self = false, controls = null }) {
+function VideoTile({
+  stream,
+  label,
+  muted = false,
+  self = false,
+  controls = null,
+  status = null,
+  micOn = true,
+}) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -31,14 +39,22 @@ function VideoTile({ stream, label, muted = false, self = false, controls = null
         className={`aspect-video w-full bg-slate-900 object-cover ${hasVideo ? "" : "opacity-0"}`}
       />
       {!hasVideo && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-700 text-xl font-bold text-white">
             {(label || "?").trim().charAt(0).toUpperCase()}
           </span>
+          {status && <span className="text-[11px] text-slate-300">{status}</span>}
         </div>
       )}
       <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-black/50 px-2 py-1">
-        <span className="truncate text-xs font-medium text-white">{label}</span>
+        <span className="flex min-w-0 items-center gap-1">
+          {!micOn && (
+            <svg aria-hidden="true" className="h-3 w-3 shrink-0 text-rose-400" viewBox="0 0 20 20" fill="currentColor">
+              {MIC_OFF}
+            </svg>
+          )}
+          <span className="truncate text-xs font-medium text-white">{label}</span>
+        </span>
         {controls && <span className="flex shrink-0 gap-1">{controls}</span>}
       </div>
     </div>
@@ -54,11 +70,14 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
   const { t } = useI18n();
   const {
     joined, connecting, micOn, camOn, hasCamera, hostNotice, error, relaySource,
-    peers, localStream, join, leave, toggleMic, toggleCam,
+    peers, roster, localStream, join, leave, toggleMic, toggleCam,
     controlParticipant, controlEveryone,
   } = call;
 
   const isHost = role === "host";
+  // Presence gives the people; the peer connections give their media.
+  const streamById = new Map((peers ?? []).map((p) => [p.id, p.stream]));
+  const others = (roster ?? []).filter((person) => !person.self);
 
   /** Small pill button used for the host's per-student controls. */
   const tileButton = (onClick, text) => (
@@ -98,7 +117,7 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-ink">{t("call.title")}</p>
           <Badge variant="success" dot>
-            {t("call.live", { count: peers.length + 1 })}
+            {t("call.live", { count: Math.max(roster?.length ?? 0, 1) })}
           </Badge>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -139,7 +158,7 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
       )}
 
       {/* Whole-room controls: one tap covers every student on the call. */}
-      {isHost && peers.length > 0 && (
+      {isHost && others.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-surface-2 px-3 py-2">
           <span className="text-xs font-semibold text-ink-muted">{t("call.everyone")}</span>
           <Button size="sm" variant="outline" onClick={() => controlEveryone({ mic: false })}>
@@ -158,27 +177,40 @@ export default function CallPanel({ call, role, selfLabel, className = "" }) {
       )}
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        <VideoTile stream={localStream} label={`${selfLabel} (${t("call.you")})`} self />
-        {peers.map((peer) => (
-          <VideoTile
-            key={peer.id}
-            stream={peer.stream}
-            label={peer.name || (peer.role === "host" ? t("nav.host") : t("call.student"))}
-            controls={
-              isHost && peer.role !== "host" ? (
-                <>
-                  {tileButton(() => controlParticipant(peer.id, { mic: false }), t("call.mute"))}
-                  {tileButton(() => controlParticipant(peer.id, { mic: true }), t("call.unmute"))}
-                  {tileButton(() => controlParticipant(peer.id, { cam: false }), t("call.stopCam"))}
-                  {tileButton(() => controlParticipant(peer.id, { cam: true }), t("call.startCam"))}
-                </>
-              ) : null
-            }
-          />
-        ))}
+        <VideoTile
+          stream={localStream}
+          label={`${selfLabel} (${t("call.you")})`}
+          self
+          micOn={micOn}
+        />
+        {/* Driven by presence, not by media: everyone in the call has a tile
+            from the moment they join, even before their video arrives — which
+            is what makes a refresh show the room instead of an empty grid. */}
+        {others.map((person) => {
+          const stream = streamById.get(person.id);
+          return (
+            <VideoTile
+              key={person.id}
+              stream={stream}
+              micOn={person.micOn}
+              status={stream ? null : t("call.connecting")}
+              label={person.name || (person.role === "host" ? t("nav.host") : t("call.student"))}
+              controls={
+                isHost && person.role !== "host" ? (
+                  <>
+                    {tileButton(() => controlParticipant(person.id, { mic: false }), t("call.mute"))}
+                    {tileButton(() => controlParticipant(person.id, { mic: true }), t("call.unmute"))}
+                    {tileButton(() => controlParticipant(person.id, { cam: false }), t("call.stopCam"))}
+                    {tileButton(() => controlParticipant(person.id, { cam: true }), t("call.startCam"))}
+                  </>
+                ) : null
+              }
+            />
+          );
+        })}
       </div>
 
-      {peers.length === 0 && (
+      {others.length === 0 && (
         <p className="mt-3 text-center text-xs text-ink-muted">{t("call.waiting")}</p>
       )}
 

@@ -629,6 +629,7 @@ moveDown: string;
     aria: string;
   },
   call: {
+    connecting: string;
     unmute: string;
     stopCam: string;
     startCam: string;
