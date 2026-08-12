@@ -1057,7 +1057,7 @@ export default function LiveGameControl({ roomKey }) {
                           </div>
                           <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface-3">
                             <div
-                              className={`h-full rounded-full transition-all ${
+                              className={`h-full origin-left rounded-full transition-all duration-500 ${
                                 activeEnds ? "bg-primary" : row.is_correct ? "bg-success" : "bg-primary"
                               }`}
                               style={{ width: `${pct}%` }}
@@ -1382,7 +1382,7 @@ export default function LiveGameControl({ roomKey }) {
               {leaderboard.length === 0 ? (
                 <p className="py-4 text-center text-sm text-ink-muted">{t("host.noScoresYet")}</p>
               ) : (
-                <ul className="max-h-80 divide-y divide-border overflow-y-auto">
+                <ul className="stagger max-h-80 divide-y divide-border overflow-y-auto">
                   {leaderboard.map((row) => (
                     <li key={row.participant_id} className="flex items-center gap-3 py-2">
                       <span className="w-6 text-center text-xs font-bold text-ink-faint">

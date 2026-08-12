@@ -54,6 +54,44 @@
 }
 
 @layer utilities {
+  /*
+   * Stagger: children of a .stagger animate in sequence rather than together,
+   * which reads as a list assembling instead of a block appearing. Capped at
+   * ten so a long leaderboard never waits a second before the last row.
+   */
+  .stagger > * {
+    animation: rise 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger > *:nth-child(2) { animation-delay: 40ms; }
+  .stagger > *:nth-child(3) { animation-delay: 80ms; }
+  .stagger > *:nth-child(4) { animation-delay: 120ms; }
+  .stagger > *:nth-child(5) { animation-delay: 160ms; }
+  .stagger > *:nth-child(6) { animation-delay: 200ms; }
+  .stagger > *:nth-child(7) { animation-delay: 240ms; }
+  .stagger > *:nth-child(8) { animation-delay: 280ms; }
+  .stagger > *:nth-child(9) { animation-delay: 320ms; }
+  .stagger > *:nth-child(n + 10) { animation-delay: 360ms; }
+
+  /* Cards and tiles lift slightly under the pointer. */
+  .hover-lift {
+    transition:
+      transform var(--duration-fast) ease,
+      box-shadow var(--duration-fast) ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pop);
+  }
+
+  /* Every tappable thing should acknowledge the tap. */
+  .press {
+    transition: transform 90ms ease;
+  }
+  .press:active {
+    transform: scale(0.97);
+  }
+
   /* Opt-in scrollbar hiding for horizontal chip rows (never global). */
   .no-scrollbar {
     scrollbar-width: none;

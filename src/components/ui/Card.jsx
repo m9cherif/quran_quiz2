@@ -15,14 +15,19 @@ const PADDINGS = {
  *
  *   <Card padding="md" className="h-full">…</Card>
  */
-export function Card({ children, padding = "md", className }) {
+export function Card({ children, padding = "md", className, animate = true, interactive = false, ...props }) {
   return (
     <div
       className={cn(
         "rounded-lg border border-border bg-surface shadow-card",
+        // Cards fade up as they mount; reduced-motion users get it instantly
+        // via the global guard in tokens.css.
+        animate && "animate-rise",
+        interactive && "hover-lift",
         PADDINGS[padding],
         className
       )}
+      {...props}
     >
       {children}
     </div>

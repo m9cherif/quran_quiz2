@@ -41,7 +41,7 @@ export default function LandingPage() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-24">
       <section className="mx-auto max-w-3xl text-center">
-        <h1 className="text-3xl font-bold tracking-tight text-ink sm:text-5xl">
+        <h1 className="animate-rise text-3xl font-bold tracking-tight text-ink sm:text-5xl">
           {t("landing.heroTitle")}
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-base text-ink-muted sm:text-lg">
@@ -63,10 +63,18 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section aria-label={t("landing.rolesHeading")} className="mt-16 grid gap-4 sm:grid-cols-2">
+      <section
+        aria-label={t("landing.rolesHeading")}
+        className="stagger mt-16 grid gap-4 sm:grid-cols-2"
+      >
         {roles.map((role) => (
           <Link key={role.href} href={role.href} className="group">
-            <Card padding="lg" className="h-full transition-colors group-hover:border-primary group-hover:bg-surface-2">
+            <Card
+              padding="lg"
+              animate={false}
+              interactive
+              className="h-full transition-colors group-hover:border-primary group-hover:bg-surface-2"
+            >
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary-soft text-primary">
                 {role.icon}
               </div>
@@ -92,7 +100,10 @@ export default function LandingPage() {
         ))}
       </section>
 
-      <section aria-label={t("landing.stepsHeading")} className="mt-16 grid gap-6 sm:grid-cols-3">
+      <section
+        aria-label={t("landing.stepsHeading")}
+        className="stagger mt-16 grid gap-6 sm:grid-cols-3"
+      >
         {steps.map((s) => (
           <div key={s.step}>
             <p className="text-sm font-semibold text-primary">{s.step}</p>

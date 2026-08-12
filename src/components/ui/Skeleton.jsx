@@ -20,7 +20,11 @@ export function Skeleton({ variant = "text", className }) {
     <span
       aria-hidden="true"
       className={cn(
-        "block animate-pulse bg-surface-3",
+        // A sweep across the placeholder reads as "loading"; a bare pulse can
+        // look like a rendering fault.
+        "relative block overflow-hidden bg-surface-3",
+        "after:absolute after:inset-0 after:-translate-x-full after:animate-shimmer",
+        "after:bg-gradient-to-r after:from-transparent after:via-white/10 after:to-transparent",
         VARIANTS[variant],
         className
       )}

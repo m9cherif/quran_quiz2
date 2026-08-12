@@ -35,7 +35,7 @@ export function QuizCard({ quiz, onDuplicate, onDelete, busy = false }) {
   };
 
   return (
-    <Card className="flex flex-col gap-4">
+    <Card className="flex flex-col gap-4" interactive animate={false}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <Link

@@ -17,6 +17,7 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import Confetti from "@/components/ui/Confetti";
+import CountUp from "@/components/ui/CountUp";
 
 /**
  * GameResult — final screen for students once the host finishes the game:
@@ -180,7 +181,9 @@ export default function GameResult({ code }) {
         <dl className="mt-6 grid grid-cols-3 gap-3">
           <div className="rounded-md bg-surface-3 p-3">
             <dt className="text-xs font-medium uppercase tracking-wide text-ink-muted">{t("game.yourScore")}</dt>
-            <dd className="mt-1 text-xl font-bold text-ink">{Math.round(summary.score)}</dd>
+            <dd className="mt-1 text-xl font-bold text-ink">
+              <CountUp value={Math.round(summary.score)} duration={900} />
+            </dd>
           </div>
           <div className="rounded-md bg-surface-3 p-3">
             <dt className="text-xs font-medium uppercase tracking-wide text-ink-muted">{t("game.correct")}</dt>
@@ -206,8 +209,9 @@ export default function GameResult({ code }) {
           </Badge>
         </div>
 
+        {/* Podium lands piece by piece: silver, gold, bronze. */}
         {leaderboard.length >= 3 && (
-          <div className="mt-4 grid grid-cols-3 items-end gap-2">
+          <div className="stagger mt-4 grid grid-cols-3 items-end gap-2">
             {[1, 0, 2].map((slot) => {
               const row = leaderboard[slot];
               const medal =
@@ -232,7 +236,7 @@ export default function GameResult({ code }) {
           </div>
         )}
 
-        <ol className="mt-4 space-y-2">
+        <ol className="stagger mt-4 space-y-2">
           {leaderboard.map((row) => {
             const isMe = row.participant_id === participant?.id;
             const isTop3 = topThree.some((tr) => tr.participant_id === row.participant_id);
@@ -274,7 +278,7 @@ export default function GameResult({ code }) {
 
       <Card padding="lg" className="mt-6">
         <h2 className="text-base font-semibold text-ink">{t("game.yourAnswers")}</h2>
-        <ul className="mt-4 space-y-2">
+        <ul className="stagger mt-4 space-y-2">
           {breakdown.map((item) => (
             <li
               key={item.position}

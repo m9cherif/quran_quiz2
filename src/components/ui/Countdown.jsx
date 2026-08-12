@@ -20,7 +20,8 @@ export default function Countdown({ endsAt, now, size = "md", className }) {
       aria-live="polite"
       className={cn(
         "inline-flex items-center rounded-full font-semibold tabular-nums",
-        danger ? "bg-danger-soft text-danger" : "bg-primary-soft text-primary",
+        // The last five seconds should be felt, not just read.
+        danger ? "animate-pulse-urgent bg-danger-soft text-danger" : "bg-primary-soft text-primary",
         size === "lg" ? "px-4 py-1.5 text-lg" : "px-3 py-1 text-sm",
         className
       )}

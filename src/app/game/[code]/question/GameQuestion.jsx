@@ -23,6 +23,7 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
 import OrderingPlay from "@/components/game/OrderingPlay";
 import AudioQuestion from "@/components/game/AudioQuestion";
 import Confetti from "@/components/ui/Confetti";
+import CountUp from "@/components/ui/CountUp";
 import { ReactionBar, ReactionLayer, useReactions } from "@/components/game/Reactions";
 import { playCue } from "@/lib/sound";
 import CallPanel from "@/components/call/CallPanel";
@@ -562,7 +563,8 @@ export default function GameQuestion({ code }) {
         </p>
         <div className="flex items-center gap-3">
           <p className="text-sm font-medium text-ink">
-            {t("game.scoreLabel", { total: Math.round(totalScore) })}
+            {t("game.scoreLabel", { total: "" })}
+            <CountUp value={Math.round(totalScore)} className="font-bold text-primary" />
           </p>
           {fullscreen.supported && (
             <button
@@ -670,7 +672,11 @@ export default function GameQuestion({ code }) {
           currentQuestion.type !== "ordering" && (
           <>
             {(currentQuestion.type === "mcq" || currentQuestion.type === "true_false") && (
-              <div role="group" aria-label={t("game.answerChoicesLabel")} className="grid gap-2.5">
+              <div
+                role="group"
+                aria-label={t("game.answerChoicesLabel")}
+                className="stagger grid gap-2.5"
+              >
                 {questionChoices.map((choice) => {
                   const isSelected = selectedChoiceId === choice.id;
                   return (
@@ -682,7 +688,7 @@ export default function GameQuestion({ code }) {
                         setError("");
                       }}
                       aria-pressed={isSelected}
-                      className={`w-full rounded-md border px-4 py-3 text-left text-sm font-medium transition-colors focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-focus-ring ${
+                      className={`press w-full rounded-md border px-4 py-3 text-left text-sm font-medium transition-colors focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-focus-ring ${
                         isSelected
                           ? "border-primary bg-primary-soft text-primary"
                           : "border-border bg-surface text-ink hover:border-primary hover:bg-surface-2"

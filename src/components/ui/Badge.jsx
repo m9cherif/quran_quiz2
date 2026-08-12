@@ -32,6 +32,8 @@ export function Badge({ children, variant = "neutral", dot = false, className })
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+        // Status changes should catch the eye, not slide in unnoticed.
+        "animate-pop",
         VARIANTS[variant],
         className
       )}

@@ -73,6 +73,53 @@ module.exports = {
       screens: {
         custom: "1036px",
       },
+      keyframes: {
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        rise: {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "slide-in": {
+          from: { opacity: "0", transform: "translateX(-10px)" },
+          to: { opacity: "1", transform: "translateX(0)" },
+        },
+        pop: {
+          "0%": { opacity: "0", transform: "scale(0.92)" },
+          "60%": { opacity: "1", transform: "scale(1.03)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        // Urgency on the last seconds of a question.
+        "pulse-urgent": {
+          "0%, 100%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.08)" },
+        },
+        // Loading placeholders read as "working", not "broken".
+        shimmer: {
+          "100%": { transform: "translateX(100%)" },
+        },
+        "bar-grow": {
+          from: { transform: "scaleX(0)" },
+          to: { transform: "scaleX(1)" },
+        },
+        shake: {
+          "0%, 100%": { transform: "translateX(0)" },
+          "25%": { transform: "translateX(-4px)" },
+          "75%": { transform: "translateX(4px)" },
+        },
+      },
+      animation: {
+        "fade-in": "fade-in 220ms ease-out both",
+        rise: "rise 260ms cubic-bezier(0.22, 1, 0.36, 1) both",
+        "slide-in": "slide-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both",
+        pop: "pop 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both",
+        "pulse-urgent": "pulse-urgent 900ms ease-in-out infinite",
+        shimmer: "shimmer 1.6s infinite",
+        "bar-grow": "bar-grow 600ms cubic-bezier(0.22, 1, 0.36, 1) both",
+        shake: "shake 300ms ease-in-out",
+      },
     },
   },
   plugins: [],

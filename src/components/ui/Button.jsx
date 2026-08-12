@@ -53,6 +53,8 @@ const Button = forwardRef(function Button(
   const glyph = loading ? null : typeof icon === "string" ? <Icon name={icon} /> : icon ?? null;
   const classes = cn(
     "inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--duration-fast)]",
+    // Every button acknowledges the tap.
+    "press",
     SIZES[size],
     VARIANTS[variant],
     "disabled:pointer-events-none disabled:opacity-60",
