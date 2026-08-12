@@ -217,14 +217,14 @@ export async function saveProgressAnswer(
   competitionId: string,
   questionId: string,
   accessToken: string,
-  answerText: string,
-  responseTimeMs: number
+  options: { choiceId?: string | null; answerText?: string | null; responseTimeMs: number }
 ): Promise<Answer> {
   const { data, error } = await getParticipantClient(accessToken).rpc("save_progress_answer", {
     p_competition_id: competitionId,
     p_question_id: questionId,
-    p_answer_text: answerText,
-    p_response_time_ms: Math.max(0, Math.round(responseTimeMs)),
+    p_answer_text: options.answerText ?? null,
+    p_response_time_ms: Math.max(0, Math.round(options.responseTimeMs)),
+    p_choice_id: options.choiceId ?? null,
   });
   if (error) throw error;
   return data as Answer;

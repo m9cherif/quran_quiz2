@@ -9,7 +9,6 @@ import {
   getMyParticipant,
   listStudentQuestions,
   listChoices,
-  submitAnswer,
   saveProgressAnswer,
   getReveal,
   getMyAnswers,
@@ -313,10 +312,13 @@ export default function GameQuestion({ code }) {
    * work they had done. Failures are silent — the next change retries.
    */
   const saveProgress = useCallback(
-    (questionId, canonical) => {
+    (questionId, options) => {
       if (!competitionId || !accessToken) return;
       const elapsed = stageStartRef.current ? Date.now() - stageStartRef.current : 0;
-      saveProgressAnswer(competitionId, questionId, accessToken, canonical, elapsed)
+      saveProgressAnswer(competitionId, questionId, accessToken, {
+        ...options,
+        responseTimeMs: elapsed,
+      })
         .then((answer) => {
           setAnswersById((prev) => ({ ...prev, [questionId]: answer }));
         })
@@ -324,6 +326,32 @@ export default function GameQuestion({ code }) {
     },
     [competitionId, accessToken]
   );
+
+  /**
+   * Same safety net for the ordinary types: a picked option or typed answer is
+   * saved as soon as it settles, so running out of time no longer throws the
+   * work away. The row is upserted until the window closes, so changing your
+   * mind before the deadline still works.
+   */
+  const progressRef = useRef("");
+  useEffect(() => {
+    if (!activeQuestion || activeQuestion.type === "page_words") return;
+    if (submittedRef.current.ids?.[activeQuestion.id]) return;
+
+    const hasChoices = activeQuestion.type === "mcq" || activeQuestion.type === "true_false";
+    const choiceId = hasChoices ? selectedChoiceId : null;
+    const answerText = hasChoices ? null : textAnswer.trim();
+    if (!choiceId && !answerText) return;
+
+    const signature = `${activeQuestion.id}:${choiceId ?? ""}:${answerText ?? ""}`;
+    if (progressRef.current === signature) return;
+
+    const id = setTimeout(() => {
+      progressRef.current = signature;
+      saveProgress(activeQuestion.id, { choiceId, answerText });
+    }, 600);
+    return () => clearTimeout(id);
+  }, [activeQuestion, selectedChoiceId, textAnswer, saveProgress]);
 
   // ---------- submit ----------
   const handleSubmit = async (overrideAnswerText) => {
@@ -348,23 +376,15 @@ export default function GameQuestion({ code }) {
     setError("");
     try {
       const elapsed = stageStartRef.current ? Date.now() - stageStartRef.current : 0;
-      // Page exercises autosave as the student works, so a row already exists;
-      // submit_answer locks the first answer and would silently discard the
-      // final placements. Upsert through the same progress RPC instead.
-      const answer =
-        activeQuestion.type === "page_words"
-          ? await saveProgressAnswer(
-              competitionId,
-              activeQuestion.id,
-              accessToken,
-              answerText,
-              elapsed
-            )
-          : await submitAnswer(competitionId, activeQuestion.id, accessToken, {
-              choiceId,
-              answerText,
-              responseTimeMs: elapsed,
-            });
+      // Every type autosaves as the student works, so a row already exists;
+      // submit_answer locks the first answer and would silently discard what
+      // they finally settled on. Upsert through the same progress RPC, which
+      // keeps the original response time for the speed bonus.
+      const answer = await saveProgressAnswer(competitionId, activeQuestion.id, accessToken, {
+        choiceId,
+        answerText,
+        responseTimeMs: elapsed,
+      });
       setAnswersById((prev) => ({ ...prev, [activeQuestion.id]: answer }));
       setSubmittedIds((prev) => ({ ...prev, [activeQuestion.id]: true }));
       submittedRef.current.ids = { ...submittedRef.current.ids, [activeQuestion.id]: true };
@@ -511,7 +531,9 @@ export default function GameQuestion({ code }) {
             disabled={!isActive || wasSubmitted}
             solution={!isActive && reveal ? reveal.correct_answer_text : null}
             onSubmit={(canonical) => handleSubmit(canonical)}
-            onProgress={(canonical) => saveProgress(currentQuestion.id, canonical)}
+            onProgress={(canonical) =>
+              saveProgress(currentQuestion.id, { answerText: canonical })
+            }
           />
         )}
 
@@ -581,6 +603,7 @@ export default function GameQuestion({ code }) {
             >
               {t("game.submitAnswer")}
             </Button>
+            <p className="text-center text-xs text-ink-muted">{t("pw.autosaveHint")}</p>
           </>
         )}
 
