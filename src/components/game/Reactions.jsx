@@ -5,7 +5,10 @@ import { getSupabase } from "@/lib/supabase/client";
 import { playCue } from "@/lib/sound";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
-export const REACTIONS = ["👏", "🔥", "😮", "🤲", "😀"];
+export const REACTIONS = ["👏", "🔥", "😮", "🤲", "😀", "✋"];
+
+/** A raised hand is a question, not a cheer — the host gets a standing list. */
+export const HAND = "✋";
 
 /**
  * Reactions — lightweight classroom presence.
@@ -14,8 +17,9 @@ export const REACTIONS = ["👏", "🔥", "😮", "🤲", "😀"];
  * their own. Send is rate limited per client: a tap-happy student cannot
  * flood the room.
  */
-export function useReactions(competitionId, { listen = true } = {}) {
+export function useReactions(competitionId, { listen = true, name = "" } = {}) {
   const [floating, setFloating] = useState([]);
+  const [hands, setHands] = useState([]); // [{ id, name, at }]
   const channelRef = useRef(null);
   const lastSentRef = useRef(0);
   const idRef = useRef(0);
@@ -38,6 +42,15 @@ export function useReactions(competitionId, { listen = true } = {}) {
         setTimeout(() => {
           setFloating((prev) => prev.filter((f) => f.id !== id));
         }, 2600);
+
+        if (emoji === HAND) {
+          const who = payload?.payload?.name || "";
+          // One entry per person; a second raise refreshes their timestamp.
+          setHands((prev) => [
+            ...prev.filter((h) => h.name !== who),
+            { id, name: who, at: Date.now() },
+          ]);
+        }
       });
     }
     channel.subscribe();
@@ -48,15 +61,30 @@ export function useReactions(competitionId, { listen = true } = {}) {
     };
   }, [competitionId, listen]);
 
-  const send = useCallback((emoji) => {
-    const now = Date.now();
-    if (now - lastSentRef.current < 900) return; // ~1 per second per device
-    lastSentRef.current = now;
-    playCue("pop");
-    channelRef.current?.send({ type: "broadcast", event: "reaction", payload: { emoji } });
+  const send = useCallback(
+    (emoji) => {
+      const now = Date.now();
+      if (now - lastSentRef.current < 900) return; // ~1 per second per device
+      lastSentRef.current = now;
+      playCue("pop");
+      // The name rides along so a raised hand tells the host *who* it is.
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "reaction",
+        payload: { emoji, name },
+      });
+    },
+    [name]
+  );
+
+  /** Host: take one student off the list once they have been heard. */
+  const clearHand = useCallback((id) => {
+    setHands((prev) => prev.filter((h) => h.id !== id));
   }, []);
 
-  return { floating, send };
+  const clearHands = useCallback(() => setHands([]), []);
+
+  return { floating, hands, send, clearHand, clearHands };
 }
 
 /** The floating emoji layer — drop it inside a `relative` container. */

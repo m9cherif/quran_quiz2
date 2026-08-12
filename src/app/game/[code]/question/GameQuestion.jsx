@@ -28,6 +28,7 @@ import { playCue } from "@/lib/sound";
 import CallPanel from "@/components/call/CallPanel";
 import { useCall } from "@/lib/webrtc/useCall";
 import useGamePresence from "@/lib/presence/useGamePresence";
+import useFullscreen from "@/lib/useFullscreen";
 import PageWordsPlay from "@/components/game/PageWordsPlay";
 
 /**
@@ -54,6 +55,7 @@ export default function GameQuestion({ code }) {
   const [choices, setChoices] = useState({});
   const [revealById, setRevealById] = useState({});
   const [revealFailedIds, setRevealFailedIds] = useState({});
+  const fullscreen = useFullscreen();
   const [hintShown, setHintShown] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
   const [answersById, setAnswersById] = useState({});
@@ -440,7 +442,9 @@ export default function GameQuestion({ code }) {
     }
   };
 
-  const { floating, send: sendReaction } = useReactions(competitionId);
+  const { floating, send: sendReaction } = useReactions(competitionId, {
+    name: participant?.displayName,
+  });
 
   // Announce this player so the host's online dots are real.
   useGamePresence(competitionId, {
@@ -560,6 +564,17 @@ export default function GameQuestion({ code }) {
           <p className="text-sm font-medium text-ink">
             {t("game.scoreLabel", { total: Math.round(totalScore) })}
           </p>
+          {fullscreen.supported && (
+            <button
+              type="button"
+              onClick={fullscreen.toggle}
+              aria-label={fullscreen.isFullscreen ? t("game.exitFullscreen") : t("game.fullscreen")}
+              title={fullscreen.isFullscreen ? t("game.exitFullscreen") : t("game.fullscreen")}
+              className="rounded-md border border-border px-2 py-1 text-xs text-ink-muted hover:text-ink"
+            >
+              {fullscreen.isFullscreen ? "⤢" : "⛶"}
+            </button>
+          )}
           {streak >= 2 && (
             <span
               className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-bold text-warning-strong"

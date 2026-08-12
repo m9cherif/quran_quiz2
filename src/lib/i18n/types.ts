@@ -113,6 +113,10 @@ draft: string;
     minCharsHint: string;
   };
   join: {
+    rejoinTitle: string;
+    rejoinDesc: string;
+    rejoin: string;
+    startFresh: string;
     title: string;
     subtitle: string;
     nickname: string;
@@ -168,6 +172,8 @@ signInToTrack: string;
       classesLoadFailed: string;
     };
   host: {
+    share: string;
+    shareText: string;
     addTime: string;
     lockJoining: string;
     sortBy: string;
@@ -354,6 +360,9 @@ signInToTrack: string;
     pickAnotherGame: string;
   };
   editor: {
+    savedAt: string;
+    filterQuestions: string;
+    duplicateQuestion: string;
     typeOrdering: string;
     hintLabel: string;
     hintHelp: string;
@@ -492,6 +501,8 @@ moveDown: string;
       expected: string;
     };
   game: {
+    fullscreen: string;
+    exitFullscreen: string;
     streakTitle: string;
     answerRecorded: string;
     lobbyTitle: string;
@@ -709,6 +720,22 @@ moveDown: string;
   net: {
     offline: string;
     back: string;
+  },
+  hands: {
+    title: string;
+    clearAll: string;
+    done: string;
+  },
+  shortcuts: {
+    title: string;
+    desc: string;
+    next: string;
+    pause: string;
+    presenter: string;
+    spread: string;
+    palette: string;
+    help: string;
+    escape: string;
   },
 
 }

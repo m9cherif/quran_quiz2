@@ -71,6 +71,8 @@ export function QuizEditor({ quizId }) {
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [classes, setClasses] = useState([]);
+  const [savedAt, setSavedAt] = useState(null);
+  const [questionFilter, setQuestionFilter] = useState("");
 
   const isDraft = quiz?.status === "draft";
   // save_question accepts edits until a question actually starts, so the
@@ -206,6 +208,28 @@ export function QuizEditor({ quizId }) {
       return next.map((q, i) => ({ ...q, position: i + 1 }));
     });
     setSelected(target);
+    setDirty(true);
+  };
+
+  /** Copy a question in place — faster than retyping a near-identical one. */
+  const duplicateQuestion = (index) => {
+    const source = questions[index];
+    if (!source) return;
+    const copy = {
+      ...source,
+      id: null, // a new row, not an edit of the original
+      started: false,
+      choices: (source.choices ?? []).map((c) => ({ ...c, id: null })),
+      items: [...(source.items ?? [])],
+      regions: [...(source.regions ?? [])],
+      words: [...(source.words ?? [])],
+    };
+    setQuestions((prev) => {
+      const next = [...prev];
+      next.splice(index + 1, 0, copy);
+      return next.map((q, i) => ({ ...q, position: i + 1 }));
+    });
+    setSelected(index + 1);
     setDirty(true);
   };
 
@@ -359,6 +383,7 @@ export function QuizEditor({ quizId }) {
 
       setQuestions(saved);
       setDirty(false);
+      setSavedAt(new Date());
       toast({
         title: t("editor.savedToastTitle"),
         description: t("editor.savedToastDesc"),
@@ -487,7 +512,13 @@ export function QuizEditor({ quizId }) {
           <h1 className="text-xl font-bold text-ink sm:text-2xl">
             {quiz?.name || t("editor.untitledQuiz")}
           </h1>
-          {dirty && <Badge variant="warning">{t("editor.unsaved")}</Badge>}
+          {dirty ? (
+            <Badge variant="warning">{t("editor.unsaved")}</Badge>
+          ) : savedAt ? (
+            <Badge variant="success">
+              {t("editor.savedAt", { time: savedAt.toLocaleTimeString() })}
+            </Badge>
+          ) : null}
         </div>
         <div className="flex gap-2">
           {dirty && (
@@ -609,7 +640,16 @@ export function QuizEditor({ quizId }) {
         <h2 className="text-base font-semibold text-ink">
           {t("editor.questions")} <span className="text-ink-muted">({questions.length})</span>
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {questions.length > 4 && (
+            <input
+              value={questionFilter}
+              onChange={(e) => setQuestionFilter(e.target.value)}
+              placeholder={t("editor.filterQuestions")}
+              aria-label={t("editor.filterQuestions")}
+              className="h-9 w-40 rounded-md border border-border bg-surface px-2 text-sm text-ink"
+            />
+          )}
           <Button variant="outline" size="sm" onClick={() => setPreview((v) => !v)} disabled={!current}>
             {preview ? t("editor.backToEditing") : t("editor.preview")}
           </Button>
@@ -621,10 +661,17 @@ export function QuizEditor({ quizId }) {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-4">
-          {questions.map((question, index) => (
+          {questions.map((question, index) => {
+            // Filtering hides rows without renumbering: the index a row edits
+            // must stay the index it occupies in the deck.
+            const hay = `${index + 1} ${question.text ?? ""} ${question.type}`.toLowerCase();
+            if (questionFilter.trim() && !hay.includes(questionFilter.trim().toLowerCase())) {
+              return null;
+            }
+            return (
+            <div key={question.id ?? `new-${index}`} className="relative">
             <button
               type="button"
-              key={question.id ?? `new-${index}`}
               onClick={() => {
                 setSelected(index);
                 setPreview(false);
@@ -653,7 +700,18 @@ export function QuizEditor({ quizId }) {
                 {question.points ?? defaults.points} {t("common.points")}
               </span>
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => duplicateQuestion(index)}
+              title={t("editor.duplicateQuestion")}
+              aria-label={t("editor.duplicateQuestion")}
+              className="absolute end-2 top-2 rounded border border-border bg-surface px-1.5 py-0.5 text-xs text-ink-muted hover:text-ink"
+            >
+              ⧉
+            </button>
+            </div>
+            );
+          })}
         </div>
 
         <div>

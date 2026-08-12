@@ -7,7 +7,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
-import { setParticipant } from "@/store/Slices/participantSlice";
+import { removeParticipant, setParticipant } from "@/store/Slices/participantSlice";
 import { joinGame } from "@/services/games";
 import { joinClass } from "@/services/classes";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -29,6 +29,7 @@ export function JoinGameForm({ defaultCode = "" }) {
   const { t } = useI18n();
   const user = useSelector((state) => state.user.user);
   const profileId = user?.id ?? null;
+  const existing = useSelector((state) => state.participant.Participant);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -109,7 +110,37 @@ export function JoinGameForm({ defaultCode = "" }) {
   };
 
   return (
-    <Card padding="lg" className="mx-auto w-full max-w-md">
+    <div className="mx-auto w-full max-w-md space-y-4">
+      {/* Coming back after a refresh or an accidental tap on Back. */}
+      {existing?.accessToken && existing?.code && (
+        <Card padding="lg" className="border-primary">
+          <p className="text-sm font-semibold text-ink">{t("join.rejoinTitle")}</p>
+          <p className="mt-1 text-sm text-ink-muted">
+            {t("join.rejoinDesc", {
+              name: existing.displayName ?? "",
+              code: existing.code,
+            })}
+          </p>
+          <div className="mt-4 flex gap-2">
+            <Button
+              className="flex-1"
+              icon="play"
+              onClick={() => router.push(`/game/${existing.code}`)}
+            >
+              {t("join.rejoin")}
+            </Button>
+            <Button
+              variant="ghost"
+              icon="close"
+              onClick={() => dispatch(removeParticipant())}
+            >
+              {t("join.startFresh")}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      <Card padding="lg">
       <h1 className="text-xl font-semibold text-ink">{t("join.title")}</h1>
       <p className="mt-1 text-sm text-ink-muted">{t("join.subtitle")}</p>
 
@@ -144,7 +175,8 @@ export function JoinGameForm({ defaultCode = "" }) {
           {t("join.joinButton")}
         </Button>
       </form>
-    </Card>
+      </Card>
+    </div>
   );
 }
 

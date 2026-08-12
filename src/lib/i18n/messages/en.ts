@@ -117,6 +117,10 @@ const en: Messages = {
       minCharsHint: "At least 6 characters.",
     },
     join: {
+      rejoinTitle: "You are already in a game",
+      rejoinDesc: "{name} is in game {code}. Go back to it, or start over.",
+      rejoin: "Back to my game",
+      startFresh: "Start fresh",
       title: "Join a game",
       subtitle: "Enter a game or class code your teacher shared, then pick a nickname.",
       nickname: "Your nickname",
@@ -177,6 +181,8 @@ const en: Messages = {
       classesLoadFailed: "Couldn't load your classes",
     },
     host: {
+      share: "Share",
+      shareText: "Join my quiz with code {code}",
       addTime: "+30s",
       lockJoining: "Lock joining",
       sortBy: "Sort by",
@@ -370,6 +376,9 @@ const en: Messages = {
       pickAnotherGame: "Try again, or pick another game.",
     },
     editor: {
+      savedAt: "Saved {time}",
+      filterQuestions: "Filter questions…",
+      duplicateQuestion: "Duplicate this question",
       typeOrdering: "Put in order",
       hintLabel: "Hint (optional)",
       hintHelp: "Students can reveal this while the question is open.",
@@ -508,6 +517,8 @@ const en: Messages = {
       expected: "Expected",
     },
     game: {
+      fullscreen: "Fullscreen",
+      exitFullscreen: "Exit fullscreen",
       streakTitle: "Correct answers in a row",
       answerRecorded: "Your answer was recorded: {points} points.",
       lobbyTitle: "Game lobby",
@@ -726,6 +737,22 @@ const en: Messages = {
     net: {
       offline: "You are offline — answers will send when the connection returns.",
       back: "Back online",
+    },
+    hands: {
+      title: "{count} hand(s) up",
+      clearAll: "Clear all",
+      done: "Done",
+    },
+    shortcuts: {
+      title: "Keyboard shortcuts",
+      desc: "While the control room has focus.",
+      next: "Start / next question",
+      pause: "Pause or resume",
+      presenter: "Presenter mode",
+      spread: "Show answer spread",
+      palette: "Quick jump",
+      help: "This help",
+      escape: "Close anything open",
     },
 
 };

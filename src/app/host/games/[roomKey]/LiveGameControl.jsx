@@ -33,6 +33,7 @@ import CallPanel from "@/components/call/CallPanel";
 import HostPlayerTools from "@/components/host/HostPlayerTools";
 import RandomPicker from "@/components/host/RandomPicker";
 import CommandPalette from "@/components/ui/CommandPalette";
+import ShortcutsHelp from "@/components/host/ShortcutsHelp";
 import { ReactionLayer } from "@/components/game/Reactions";
 import useGamePresence from "@/lib/presence/useGamePresence";
 import {
@@ -337,6 +338,20 @@ export default function LiveGameControl({ roomKey }) {
     setJoinUrl(`${window.location.origin}/join/${roomKey}`);
   }, [roomKey]);
 
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+  const shareJoinLink = () => {
+    navigator
+      .share({
+        title: game?.title || game?.name,
+        text: t("host.shareText", { code: String(roomKey) }),
+        url: joinUrl,
+      })
+      .catch(() => {
+        // A dismissed share sheet is not an error worth reporting.
+      });
+  };
+
   const copyJoinLink = () => {
     navigator.clipboard
       .writeText(joinUrl)
@@ -497,7 +512,7 @@ export default function LiveGameControl({ roomKey }) {
 
   // Emoji from the room. Shown in the control room too — previously the layer
   // only existed in presenter mode, so a host not projecting saw nothing.
-  const { floating } = useReactions(game?.id, { listen: true });
+  const { floating, hands, clearHand, clearHands } = useReactions(game?.id, { listen: true });
 
   // Live roster; the stored `connected` column was never cleared.
   const onlineIds = useGamePresence(game?.id);
@@ -848,6 +863,7 @@ export default function LiveGameControl({ roomKey }) {
       )}
 
       <CommandPalette />
+      <ShortcutsHelp />
       <RandomPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
@@ -1245,8 +1261,14 @@ export default function LiveGameControl({ roomKey }) {
                 {copied ? t("host.copied") : t("common.copy")}
               </Button>
               {joinUrl && (
-                <Button variant="ghost" onClick={copyJoinLink}>
+                <Button variant="ghost" onClick={copyJoinLink} icon="share">
                   {linkCopied ? t("host.copied") : t("host.copyLink")}
+                </Button>
+              )}
+              {/* Native share sheet where the device has one (phones, tablets). */}
+              {joinUrl && canShare && (
+                <Button variant="ghost" onClick={shareJoinLink} icon="send">
+                  {t("host.share")}
                 </Button>
               )}
             </div>
@@ -1265,6 +1287,35 @@ export default function LiveGameControl({ roomKey }) {
               {t("host.studentsGoJoin", { path: "/join" })}
             </p>
           </Card>
+
+          {hands.length > 0 && (
+            <Card className="space-y-2 border-warning">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold text-ink">
+                  ✋ {t("hands.title", { count: hands.length })}
+                </h2>
+                <Button size="sm" variant="ghost" onClick={clearHands} icon="check">
+                  {t("hands.clearAll")}
+                </Button>
+              </div>
+              <ul className="space-y-1">
+                {hands.map((hand) => (
+                  <li key={hand.id} className="flex items-center gap-2 text-sm">
+                    <span className="min-w-0 flex-1 truncate text-ink">
+                      {hand.name || t("call.student")}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => clearHand(hand.id)}
+                      className="rounded border border-border px-1.5 py-0.5 text-xs text-ink-muted hover:text-ink"
+                    >
+                      {t("hands.done")}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
           <Card className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">

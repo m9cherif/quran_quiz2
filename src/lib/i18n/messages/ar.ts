@@ -116,6 +116,10 @@ const ar: Messages = {
       minCharsHint: "6 أحرف على الأقل.",
     },
     join: {
+      rejoinTitle: "أنت بالفعل في لعبة",
+      rejoinDesc: "{name} في اللعبة {code}. عد إليها أو ابدأ من جديد.",
+      rejoin: "العودة إلى لعبتي",
+      startFresh: "ابدأ من جديد",
       title: "انضم إلى لعبة",
       subtitle: "أدخل رمز لعبة أو صف شاركه معلمك، ثم اختر اسمًا مستعارًا.",
       nickname: "اسمك المستعار",
@@ -174,6 +178,8 @@ const ar: Messages = {
       classesLoadFailed: "تعذّر تحميل صفوفك",
     },
     host: {
+      share: "مشاركة",
+      shareText: "انضم إلى مسابقتي بالرمز {code}",
       addTime: "+30 ث",
       lockJoining: "قفل الانضمام",
       sortBy: "ترتيب حسب",
@@ -363,6 +369,9 @@ const ar: Messages = {
       pickAnotherGame: "حاول مجددًا، أو اختر لعبة أخرى.",
     },
     editor: {
+      savedAt: "حُفظ {time}",
+      filterQuestions: "تصفية الأسئلة…",
+      duplicateQuestion: "تكرار هذا السؤال",
       typeOrdering: "الترتيب",
       hintLabel: "تلميح (اختياري)",
       hintHelp: "يمكن للطلاب إظهاره أثناء فتح السؤال.",
@@ -501,6 +510,8 @@ const ar: Messages = {
       expected: "المتوقعة",
     },
     game: {
+      fullscreen: "ملء الشاشة",
+      exitFullscreen: "إنهاء ملء الشاشة",
       streakTitle: "إجابات صحيحة متتالية",
       answerRecorded: "تم تسجيل إجابتك: {points} نقطة.",
       lobbyTitle: "قاعة الانتظار",
@@ -719,6 +730,22 @@ const ar: Messages = {
     net: {
       offline: "أنت غير متصل — ستُرسل الإجابات عند عودة الاتصال.",
       back: "عاد الاتصال",
+    },
+    hands: {
+      title: "{count} يد مرفوعة",
+      clearAll: "مسح الكل",
+      done: "تم",
+    },
+    shortcuts: {
+      title: "اختصارات لوحة المفاتيح",
+      desc: "أثناء التركيز على غرفة التحكم.",
+      next: "بدء / السؤال التالي",
+      pause: "إيقاف مؤقت أو استئناف",
+      presenter: "وضع العرض",
+      spread: "عرض توزيع الإجابات",
+      palette: "تنقل سريع",
+      help: "هذه المساعدة",
+      escape: "إغلاق المفتوح",
     },
 
 };

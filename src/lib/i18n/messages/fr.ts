@@ -117,6 +117,10 @@ const fr: Messages = {
       minCharsHint: "Au moins 6 caractères.",
     },
     join: {
+      rejoinTitle: "Vous êtes déjà dans une partie",
+      rejoinDesc: "{name} est dans la partie {code}. Revenez-y ou recommencez.",
+      rejoin: "Revenir à ma partie",
+      startFresh: "Recommencer",
       title: "Rejoindre un jeu",
       subtitle: "Saisissez un code de jeu ou de classe partagé par votre enseignant, puis choisissez un pseudo.",
       nickname: "Votre pseudo",
@@ -177,6 +181,8 @@ const fr: Messages = {
       classesLoadFailed: "Impossible de charger vos classes",
     },
     host: {
+      share: "Partager",
+      shareText: "Rejoignez mon quiz avec le code {code}",
       addTime: "+30 s",
       lockJoining: "Verrouiller l'accès",
       sortBy: "Trier par",
@@ -369,6 +375,9 @@ const fr: Messages = {
       pickAnotherGame: "Réessayez, ou choisissez un autre jeu.",
     },
     editor: {
+      savedAt: "Enregistré {time}",
+      filterQuestions: "Filtrer les questions…",
+      duplicateQuestion: "Dupliquer cette question",
       typeOrdering: "Remettre en ordre",
       hintLabel: "Indice (facultatif)",
       hintHelp: "Les élèves peuvent l'afficher pendant la question.",
@@ -507,6 +516,8 @@ const fr: Messages = {
       expected: "Attendue",
     },
     game: {
+      fullscreen: "Plein écran",
+      exitFullscreen: "Quitter le plein écran",
       streakTitle: "Bonnes réponses d'affilée",
       answerRecorded: "Votre réponse a été enregistrée : {points} points.",
       lobbyTitle: "Salle d'attente",
@@ -725,6 +736,22 @@ const fr: Messages = {
     net: {
       offline: "Hors ligne — les réponses partiront au retour du réseau.",
       back: "De retour en ligne",
+    },
+    hands: {
+      title: "{count} main(s) levée(s)",
+      clearAll: "Tout effacer",
+      done: "Fait",
+    },
+    shortcuts: {
+      title: "Raccourcis clavier",
+      desc: "Quand la salle de contrôle a le focus.",
+      next: "Démarrer / question suivante",
+      pause: "Pause ou reprise",
+      presenter: "Mode présentation",
+      spread: "Afficher la répartition",
+      palette: "Accès rapide",
+      help: "Cette aide",
+      escape: "Fermer ce qui est ouvert",
     },
 
 };
