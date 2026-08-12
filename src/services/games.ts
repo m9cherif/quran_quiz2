@@ -280,6 +280,8 @@ export interface LeaderboardRow {
   correct_count: number;
   answered_count: number;
   total_points: number;
+  team: string | null;
+  avatar: string | null;
 }
 
 export interface QuestionStatRow {
@@ -298,6 +300,72 @@ export async function getQuestionStats(competitionId: string): Promise<QuestionS
   });
   if (error) throw error;
   return (data as QuestionStatRow[]) ?? [];
+}
+
+/** Host: add seconds to the open question (negative shortens it). */
+export async function extendQuestion(questionId: string, seconds: number): Promise<string> {
+  const { data, error } = await getSupabase().rpc("extend_question", {
+    p_question_id: questionId,
+    p_seconds: seconds,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+/** Host: award (or deduct) points by hand, outside the graded answers. */
+export async function awardBonus(participantId: string, points: number): Promise<number> {
+  const { data, error } = await getSupabase().rpc("award_bonus", {
+    p_participant_id: participantId,
+    p_points: points,
+  });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+/** Host: remove a player from the game. */
+export async function removePlayer(participantId: string): Promise<void> {
+  const { error } = await getSupabase().rpc("remove_participant", {
+    p_participant_id: participantId,
+  });
+  if (error) throw error;
+}
+
+/** Host: put one player on a team (empty string clears it). */
+export async function setPlayerTeam(participantId: string, team: string): Promise<void> {
+  const { error } = await getSupabase().rpc("set_participant_team", {
+    p_participant_id: participantId,
+    p_team: team,
+  });
+  if (error) throw error;
+}
+
+/** Host: deal everyone into N even teams at random (0 disbands them). */
+export async function shuffleTeams(competitionId: string, teamCount: number): Promise<void> {
+  const { error } = await getSupabase().rpc("shuffle_teams", {
+    p_competition_id: competitionId,
+    p_team_count: teamCount,
+  });
+  if (error) throw error;
+}
+
+export interface TeamStandingRow {
+  team: string;
+  players: number;
+  total_points: number;
+  correct_count: number;
+}
+
+/** Team totals for the game. */
+export async function getTeamStandings(
+  competitionId: string,
+  accessToken?: string | null
+): Promise<TeamStandingRow[]> {
+  const client = accessToken ? getParticipantClient(accessToken) : getSupabase();
+  const { data, error } = await client.rpc("team_standings", {
+    p_competition_id: competitionId,
+  });
+  if (error) throw error;
+  return (data as TeamStandingRow[]) ?? [];
 }
 
 export interface ChoiceDistributionRow {

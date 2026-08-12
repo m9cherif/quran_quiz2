@@ -25,6 +25,8 @@ export interface QuizMetaInput {
   class_id?: string | null;
   /** Host switch for the voice/camera room. */
   calls_enabled?: boolean;
+  /** Stops new players joining mid-game. */
+  join_locked?: boolean;
 }
 
 export interface SaveQuestionInput {

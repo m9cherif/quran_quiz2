@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import EmptyState from "@/components/ui/EmptyState";
 import { getMyHistory } from "@/services/analytics";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import Sparkline from "@/components/ui/Sparkline";
 
 function StatCard({ label, value, hint }) {
   return (
@@ -113,6 +114,23 @@ export default function StudentDashboard() {
         <StatCard label={t("student.avgAccuracy")} value={`${avgAccuracy}%`} />
         <StatCard label={t("student.bestScore")} value={best.toLocaleString()} />
       </div>
+
+      {played.length >= 2 && (
+        <Card className="mt-6" padding="lg">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">{t("student.trend")}</h2>
+              <p className="mt-0.5 text-sm text-ink-muted">{t("student.trendSub")}</p>
+            </div>
+            {/* Oldest game on the left, newest on the right. */}
+            <Sparkline
+              values={[...played].reverse().map((h) => h.score)}
+              width={200}
+              height={48}
+            />
+          </div>
+        </Card>
+      )}
 
       <Card className="mt-6" padding="lg">
         <h2 className="text-lg font-semibold text-ink">{t("student.recentGames")}</h2>

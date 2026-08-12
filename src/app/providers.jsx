@@ -8,6 +8,7 @@ import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import AuthProvider from "@/components/auth/AuthProvider";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
+import OfflineBanner from "@/components/ui/OfflineBanner";
 
 export default function Providers({ children }) {
   return (
@@ -17,7 +18,10 @@ export default function Providers({ children }) {
           <PersistGate loading={null} persistor={persistor}>
             <AuthProvider>
               <ErrorBoundary>
-                <ToastProvider>{children}</ToastProvider>
+                <ToastProvider>
+                  <OfflineBanner />
+                  {children}
+                </ToastProvider>
               </ErrorBoundary>
             </AuthProvider>
           </PersistGate>

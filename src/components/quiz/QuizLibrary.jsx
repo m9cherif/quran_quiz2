@@ -38,6 +38,7 @@ export function QuizLibrary() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [sort, setSort] = useState("recent");
   const fileInputRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -60,14 +61,22 @@ export function QuizLibrary() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return quizzes;
-    return quizzes.filter(
-      (quiz) =>
-        quiz.name.toLowerCase().includes(q) ||
-        quiz.code.toLowerCase().includes(q) ||
-        (quiz.category ?? "").toLowerCase().includes(q)
-    );
-  }, [quizzes, query]);
+    const matched = !q
+      ? quizzes
+      : quizzes.filter(
+          (quiz) =>
+            quiz.name.toLowerCase().includes(q) ||
+            quiz.code.toLowerCase().includes(q) ||
+            (quiz.category ?? "").toLowerCase().includes(q)
+        );
+
+    const ordered = [...matched];
+    if (sort === "name") ordered.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sort === "questions")
+      ordered.sort((a, b) => (b.question_count ?? 0) - (a.question_count ?? 0));
+    else ordered.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    return ordered;
+  }, [quizzes, query, sort]);
 
   const duplicate = async (quiz) => {
     setBusy(quiz.id);
@@ -225,6 +234,16 @@ export function QuizLibrary() {
           onChange={(e) => setQuery(e.target.value)}
           className="w-full sm:w-72"
         />
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+          aria-label={t("host.sortBy")}
+          className="h-10 rounded-md border border-border bg-surface px-2 text-sm text-ink"
+        >
+          <option value="recent">{t("host.sortRecent")}</option>
+          <option value="name">{t("host.sortName")}</option>
+          <option value="questions">{t("host.sortQuestions")}</option>
+        </select>
         <Badge variant="neutral">
           {filtered.length} {t("host.of")} {quizzes.length}
         </Badge>

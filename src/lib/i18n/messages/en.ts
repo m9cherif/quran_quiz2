@@ -137,6 +137,8 @@ const en: Messages = {
       genericErrorDesc: "Check your connection and try again.",
     },
     student: {
+      trend: "Your trend",
+      trendSub: "Scores from your oldest game to the newest.",
       progress: "My progress",
       progressSub:
         "Your game history follows your account — sign in before joining to track it.",
@@ -175,6 +177,12 @@ const en: Messages = {
       classesLoadFailed: "Couldn't load your classes",
     },
     host: {
+      addTime: "+30s",
+      lockJoining: "Lock joining",
+      sortBy: "Sort by",
+      sortRecent: "Recently updated",
+      sortName: "Name",
+      sortQuestions: "Most questions",
       answerSpread: "Answer spread",
       showSpread: "Show",
       hideSpread: "Hide",
@@ -500,6 +508,7 @@ const en: Messages = {
       expected: "Expected",
     },
     game: {
+      streakTitle: "Correct answers in a row",
       answerRecorded: "Your answer was recorded: {points} points.",
       lobbyTitle: "Game lobby",
       lobbySub: "Get your device ready — the host will start the questions.",
@@ -683,6 +692,40 @@ const en: Messages = {
       roomHint: "Students only see the call once you open it.",
       open: "Open",
       closed: "Closed",
+    },
+    teams: {
+      label: "Teams:",
+      count: "Number of teams",
+      none: "No teams",
+      nTeams: "{n} teams",
+      shuffle: "Shuffle",
+      standings: "Team standings",
+      setFor: "Team for {name}",
+      points: "Points",
+      remove: "Remove",
+      awardTitle: "Award points",
+      awardDesc: "Give or take points from {name}.",
+      award: "Award",
+      awardHint: "Use a negative number to deduct.",
+      removeTitle: "Remove player?",
+      removeDesc: "{name} will be dropped from this game.",
+    },
+    picker: {
+      open: "Pick someone",
+      title: "Random student",
+      desc: "Picks one player at random.",
+      pick: "Pick",
+      again: "Again",
+      ready: "Ready",
+    },
+    palette: {
+      title: "Quick jump",
+      placeholder: "Jump to… (Ctrl+K)",
+      noMatch: "Nothing matches.",
+    },
+    net: {
+      offline: "You are offline — answers will send when the connection returns.",
+      back: "Back online",
     },
 
 };

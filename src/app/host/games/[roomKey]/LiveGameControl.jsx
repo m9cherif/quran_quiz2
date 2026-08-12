@@ -30,6 +30,17 @@ import { useReactions } from "@/components/game/Reactions";
 import { AVAILABLE_PAGES } from "@/lib/quran/pages";
 import { getChoiceDistribution } from "@/services/games";
 import CallPanel from "@/components/call/CallPanel";
+import HostPlayerTools from "@/components/host/HostPlayerTools";
+import RandomPicker from "@/components/host/RandomPicker";
+import CommandPalette from "@/components/ui/CommandPalette";
+import {
+  awardBonus,
+  extendQuestion,
+  getTeamStandings,
+  removePlayer,
+  setPlayerTeam,
+  shuffleTeams,
+} from "@/services/games";
 import { useCall } from "@/lib/webrtc/useCall";
 import { updateQuizMeta } from "@/services/quizzes";
 import {
@@ -117,6 +128,8 @@ export default function LiveGameControl({ roomKey }) {
   const [joinUrl, setJoinUrl] = useState("");
   const [linkCopied, setLinkCopied] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [teamStandings, setTeamStandings] = useState([]);
   const [distribution, setDistribution] = useState([]);
   const [showDistribution, setShowDistribution] = useState(false);
   const channelRef = useRef(null);
@@ -545,6 +558,58 @@ export default function LiveGameControl({ roomKey }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, upNext, addOpen, cancelOpen, deleteOpen, game?.id]);
 
+  // Team totals refresh alongside the leaderboard.
+  useEffect(() => {
+    if (!game?.id) return;
+    let cancelled = false;
+    getTeamStandings(game.id)
+      .then((rows) => {
+        if (!cancelled) setTeamStandings(rows);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [game?.id, leaderboard]);
+
+  const reloadPlayers = () => loadAll(String(roomKey), false).catch(() => {});
+
+  const addTime = (seconds) =>
+    run("time", async () => {
+      if (!current) return;
+      await extendQuestion(current.id, seconds);
+      await reloadPlayers();
+      nudgeStudents();
+    });
+
+  const handleAward = async (participantId, points) => {
+    await awardBonus(participantId, points);
+    await reloadPlayers();
+    getLeaderboard(game.id).then(setLeaderboard).catch(() => {});
+  };
+
+  const handleRemove = async (participantId) => {
+    await removePlayer(participantId);
+    await reloadPlayers();
+  };
+
+  const handleSetTeam = async (participantId, team) => {
+    await setPlayerTeam(participantId, team);
+    await reloadPlayers();
+  };
+
+  const handleShuffleTeams = (count) =>
+    run("teams", async () => {
+      await shuffleTeams(game.id, count);
+      await reloadPlayers();
+    });
+
+  const toggleJoinLock = (next) =>
+    run("lock", async () => {
+      await updateQuizMeta(game.id, { join_locked: next });
+      setGame((prev) => (prev ? { ...prev, join_locked: next } : prev));
+    });
+
   const patchNewQuestion = (patch) => setNewQuestion((prev) => ({ ...prev, ...patch }));
 
   const toggleNewChoice = (index) =>
@@ -773,6 +838,13 @@ export default function LiveGameControl({ roomKey }) {
         />
       )}
 
+      <CommandPalette />
+      <RandomPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        players={participants.map((p) => p.display_name)}
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" href="/host/games">
@@ -830,9 +902,14 @@ export default function LiveGameControl({ roomKey }) {
                 {t("host.pause")}
               </Button>
               {current && new Date(current.ends_at).getTime() > now ? (
-                <Button variant="outline" loading={busyAction === "end"} onClick={endCurrent}>
-                  {t("host.endQuestionNow")}
-                </Button>
+                <>
+                  <Button variant="ghost" loading={busyAction === "time"} onClick={() => addTime(30)}>
+                    {t("host.addTime")}
+                  </Button>
+                  <Button variant="outline" loading={busyAction === "end"} onClick={endCurrent}>
+                    {t("host.endQuestionNow")}
+                  </Button>
+                </>
               ) : upNext ? (
                 <Button loading={busyAction === "next"} onClick={nextQuestion}>
                   {t("host.nextQuestion")}
@@ -1089,7 +1166,12 @@ export default function LiveGameControl({ roomKey }) {
                   className="flex items-center gap-3 rounded-md border border-border bg-surface px-4 py-2 text-sm"
                 >
                   <span className="w-6 text-center text-xs font-bold text-ink-faint">{row.rank}</span>
-                  <span className="min-w-0 flex-1 truncate font-medium text-ink">{row.display_name}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium text-ink">
+                    {row.display_name}
+                    {row.team && (
+                      <span className="ms-2 text-xs font-normal text-ink-muted">{row.team}</span>
+                    )}
+                  </span>
                   <span className="shrink-0 text-xs text-ink-muted">
                     {row.correct_count}/{row.answered_count} {t("student.correctOf")}
                   </span>
@@ -1176,31 +1258,57 @@ export default function LiveGameControl({ roomKey }) {
           </Card>
 
           <Card className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-semibold text-ink">{t("host.playersHeading")}</h2>
-              <Badge variant="neutral">{participants.length}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="neutral">{participants.length}</Badge>
+                <Button size="sm" variant="ghost" onClick={() => setPickerOpen(true)}>
+                  {t("picker.open")}
+                </Button>
+              </div>
             </div>
+
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
+              <input
+                type="checkbox"
+                checked={Boolean(game.join_locked)}
+                disabled={busyAction === "lock"}
+                onChange={(e) => toggleJoinLock(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              {t("host.lockJoining")}
+            </label>
+
             {participants.length === 0 ? (
               <p className="py-4 text-center text-sm text-ink-muted">
                 {t("host.waitingPlayers")}
               </p>
             ) : (
-              <ul className="max-h-72 divide-y divide-border overflow-y-auto">
-                {participants.map((p) => (
-                  <li key={p.id} className="flex items-center gap-3 py-2.5">
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${p.connected ? "bg-success" : "bg-ink-faint"}`}
-                      aria-hidden="true"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-sm text-ink">{p.display_name}</span>
-                    <span className="text-xs text-ink-faint">
-                      {p.connected ? t("host.online") : t("host.away")}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <HostPlayerTools
+                players={participants}
+                onSetTeam={handleSetTeam}
+                onAward={handleAward}
+                onRemove={handleRemove}
+                onShuffleTeams={handleShuffleTeams}
+              />
             )}
           </Card>
+
+          {teamStandings.length > 0 && (
+            <Card className="space-y-2">
+              <h2 className="text-base font-semibold text-ink">{t("teams.standings")}</h2>
+              {teamStandings.map((row, i) => (
+                <div key={row.team} className="flex items-center gap-3 text-sm">
+                  <span className="w-5 text-center text-xs font-bold text-ink-faint">{i + 1}</span>
+                  <span className="min-w-0 flex-1 truncate text-ink">{row.team}</span>
+                  <span className="text-xs text-ink-muted">
+                    {row.players} · {row.correct_count}
+                  </span>
+                  <span className="font-semibold text-ink">{Math.round(row.total_points)}</span>
+                </div>
+              ))}
+            </Card>
+          )}
 
           {phase !== "finished" && phase !== "cancelled" && (
             <Card className="space-y-3">

@@ -137,6 +137,8 @@ const fr: Messages = {
       genericErrorDesc: "Vérifiez votre connexion et réessayez.",
     },
     student: {
+      trend: "Votre progression",
+      trendSub: "Scores du plus ancien au plus récent.",
       progress: "Ma progression",
       progressSub:
         "Votre historique de jeux suit votre compte — connectez-vous avant de rejoindre pour le suivre.",
@@ -175,6 +177,12 @@ const fr: Messages = {
       classesLoadFailed: "Impossible de charger vos classes",
     },
     host: {
+      addTime: "+30 s",
+      lockJoining: "Verrouiller l'accès",
+      sortBy: "Trier par",
+      sortRecent: "Récemment modifié",
+      sortName: "Nom",
+      sortQuestions: "Plus de questions",
       answerSpread: "Répartition des réponses",
       showSpread: "Afficher",
       hideSpread: "Masquer",
@@ -499,6 +507,7 @@ const fr: Messages = {
       expected: "Attendue",
     },
     game: {
+      streakTitle: "Bonnes réponses d'affilée",
       answerRecorded: "Votre réponse a été enregistrée : {points} points.",
       lobbyTitle: "Salle d'attente",
       lobbySub: "Préparez votre appareil — l'hôte va lancer les questions.",
@@ -682,6 +691,40 @@ const fr: Messages = {
       roomHint: "Les élèves ne voient l'appel qu'une fois ouvert.",
       open: "Ouverte",
       closed: "Fermée",
+    },
+    teams: {
+      label: "Équipes :",
+      count: "Nombre d'équipes",
+      none: "Sans équipes",
+      nTeams: "{n} équipes",
+      shuffle: "Mélanger",
+      standings: "Classement des équipes",
+      setFor: "Équipe de {name}",
+      points: "Points",
+      remove: "Retirer",
+      awardTitle: "Attribuer des points",
+      awardDesc: "Donnez ou retirez des points à {name}.",
+      award: "Attribuer",
+      awardHint: "Un nombre négatif retire des points.",
+      removeTitle: "Retirer le joueur ?",
+      removeDesc: "{name} sera retiré de cette partie.",
+    },
+    picker: {
+      open: "Tirer au sort",
+      title: "Élève au hasard",
+      desc: "Choisit un joueur au hasard.",
+      pick: "Tirer",
+      again: "Encore",
+      ready: "Prêt",
+    },
+    palette: {
+      title: "Accès rapide",
+      placeholder: "Aller à… (Ctrl+K)",
+      noMatch: "Aucun résultat.",
+    },
+    net: {
+      offline: "Hors ligne — les réponses partiront au retour du réseau.",
+      back: "De retour en ligne",
     },
 
 };

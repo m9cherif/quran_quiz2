@@ -455,6 +455,20 @@ export default function GameQuestion({ code }) {
     (sum, a) => sum + (a.points ?? 0) + (a.bonus_points ?? 0),
     0
   );
+
+  /** Consecutive correct answers, counted from the most recent backwards. */
+  const streak = (() => {
+    const graded = questions
+      .filter((q) => answersById[q.id])
+      .sort((a, b) => a.position - b.position)
+      .map((q) => answersById[q.id]);
+    let run = 0;
+    for (let i = graded.length - 1; i >= 0; i--) {
+      if (!graded[i].is_correct) break;
+      run += 1;
+    }
+    return run;
+  })();
   const remaining = currentQuestion && isActive ? remainingMs(currentQuestion.ends_at) : 0;
 
   // ---------- screens ----------
@@ -539,6 +553,14 @@ export default function GameQuestion({ code }) {
           <p className="text-sm font-medium text-ink">
             {t("game.scoreLabel", { total: Math.round(totalScore) })}
           </p>
+          {streak >= 2 && (
+            <span
+              className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-bold text-warning-strong"
+              title={t("game.streakTitle")}
+            >
+              🔥 {streak}
+            </span>
+          )}
           {isActive && (
             <span
               className={`rounded-full px-3 py-1 text-sm font-semibold ${

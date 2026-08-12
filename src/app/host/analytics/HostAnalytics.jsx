@@ -10,6 +10,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { listMyLiveGames } from "@/services/quizzes";
 import { getGameAnalytics, getHostOverview } from "@/services/analytics";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { downloadTextFile, toCsv } from "@/lib/export";
 
 function formatDuration(ms) {
   if (!ms) return "—";
@@ -112,6 +113,28 @@ export default function HostAnalytics() {
 
   const gamesCount = games?.length ?? 0;
 
+  /** The most-missed table as CSV, for marking or a staff meeting. */
+  const exportMissed = () => {
+    if (!analytics) return;
+    const csv = toCsv(
+      [
+        t("host.csvQuestionNo"),
+        t("host.csvQuestion"),
+        t("host.wrongAnswers"),
+        t("host.averageAccuracy"),
+        t("host.avgResponseTime"),
+      ],
+      (analytics.most_missed ?? []).map((q) => [
+        q.position,
+        q.text,
+        q.incorrect_count,
+        q.accuracy,
+        q.avg_response_time_ms,
+      ])
+    );
+    downloadTextFile(`most-missed-${analytics.code}.csv`, csv, "text/csv");
+  };
+
   if (gamesError) {
     return (
       <Card>
@@ -154,9 +177,14 @@ export default function HostAnalytics() {
           <h1 className="text-2xl font-bold text-ink">{t("host.analyticsTitle")}</h1>
           <p className="mt-0.5 text-sm text-ink-muted">{t("host.analyticsSub")}</p>
         </div>
-        <Button variant="outline" size="sm" href="/host/games">
-          {t("host.manageGames")}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={exportMissed} disabled={!analytics}>
+            {t("host.exportCsv")}
+          </Button>
+          <Button variant="outline" size="sm" href="/host/games">
+            {t("host.manageGames")}
+          </Button>
+        </div>
       </div>
 
       <section aria-label={t("host.allTimeHeading")} className="mt-6">

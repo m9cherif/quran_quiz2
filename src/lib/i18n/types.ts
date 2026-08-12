@@ -130,6 +130,8 @@ draft: string;
     genericErrorDesc: string;
   };
   student: {
+    trend: string;
+    trendSub: string;
     progress: string;
     progressSub: string;
     gamesPlayed: string;
@@ -166,6 +168,12 @@ signInToTrack: string;
       classesLoadFailed: string;
     };
   host: {
+    addTime: string;
+    lockJoining: string;
+    sortBy: string;
+    sortRecent: string;
+    sortName: string;
+    sortQuestions: string;
     answerSpread: string;
     showSpread: string;
     hideSpread: string;
@@ -484,6 +492,7 @@ moveDown: string;
       expected: string;
     };
   game: {
+    streakTitle: string;
     answerRecorded: string;
     lobbyTitle: string;
     lobbySub: string;
@@ -666,6 +675,40 @@ moveDown: string;
     roomHint: string;
     open: string;
     closed: string;
+  },
+  teams: {
+    label: string;
+    count: string;
+    none: string;
+    nTeams: string;
+    shuffle: string;
+    standings: string;
+    setFor: string;
+    points: string;
+    remove: string;
+    awardTitle: string;
+    awardDesc: string;
+    award: string;
+    awardHint: string;
+    removeTitle: string;
+    removeDesc: string;
+  },
+  picker: {
+    open: string;
+    title: string;
+    desc: string;
+    pick: string;
+    again: string;
+    ready: string;
+  },
+  palette: {
+    title: string;
+    placeholder: string;
+    noMatch: string;
+  },
+  net: {
+    offline: string;
+    back: string;
   },
 
 }
