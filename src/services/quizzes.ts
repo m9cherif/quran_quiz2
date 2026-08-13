@@ -29,6 +29,8 @@ export interface QuizMetaInput {
   join_locked?: boolean;
   /** Lets people join after the game has started. */
   allow_late_join?: boolean;
+  /** Lets members of the attached class in from their own dashboard. */
+  class_can_join?: boolean;
 }
 
 export interface SaveQuestionInput {

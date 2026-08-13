@@ -242,14 +242,20 @@ export default function StudentClasses() {
                       {live ? t("classGames.live") : t("common.finished")}
                     </Badge>
                     {live ? (
-                      <Button
-                        size="sm"
-                        icon="play"
-                        loading={entering === game.id}
-                        onClick={() => enterGame(game)}
-                      >
-                        {game.already_joined ? t("classGames.rejoin") : t("classGames.enter")}
-                      </Button>
+                      // The host can close class entry; someone already in
+                      // keeps their way back regardless.
+                      game.class_can_join === false && !game.already_joined ? (
+                        <Badge variant="neutral">{t("classGames.closed")}</Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          icon="play"
+                          loading={entering === game.id}
+                          onClick={() => enterGame(game)}
+                        >
+                          {game.already_joined ? t("classGames.rejoin") : t("classGames.enter")}
+                        </Button>
+                      )
                     ) : (
                       <Button size="sm" variant="outline" icon="chart" href={`/game/${game.code}/result`}>
                         {t("classGames.results")}

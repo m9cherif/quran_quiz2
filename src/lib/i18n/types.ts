@@ -175,6 +175,7 @@ signInToTrack: string;
       classesLoadFailed: string;
     };
   host: {
+    classCanJoin: string;
     allowLateJoin: string;
     correctSoFar: string;
     incorrectSoFar: string;
@@ -856,6 +857,7 @@ moveDown: string;
     practiceDesc: string;
   },
   classGames: {
+    closed: string;
     open: string;
     title: string;
     desc: string;

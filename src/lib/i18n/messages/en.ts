@@ -184,6 +184,7 @@ const en: Messages = {
       classesLoadFailed: "Couldn't load your classes",
     },
     host: {
+      classCanJoin: "Class members can enter from their dashboard",
       allowLateJoin: "Let people join after the start",
       correctSoFar: "correct",
       incorrectSoFar: "not yet",
@@ -873,6 +874,7 @@ const en: Messages = {
       practiceDesc: "Listen, follow the words and test yourself.",
     },
     classGames: {
+      closed: "Entry closed by the teacher",
       open: "Games",
       title: "Class games",
       desc: "Games your teacher ran for this class. No code needed.",

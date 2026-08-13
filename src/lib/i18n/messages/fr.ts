@@ -184,6 +184,7 @@ const fr: Messages = {
       classesLoadFailed: "Impossible de charger vos classes",
     },
     host: {
+      classCanJoin: "Les membres de la classe peuvent entrer depuis leur tableau de bord",
       allowLateJoin: "Autoriser à rejoindre après le début",
       correctSoFar: "correctes",
       incorrectSoFar: "incorrectes",
@@ -872,6 +873,7 @@ const fr: Messages = {
       practiceDesc: "Écoutez, suivez les mots et testez-vous.",
     },
     classGames: {
+      closed: "Entrée fermée par l'enseignant",
       open: "Parties",
       title: "Parties de la classe",
       desc: "Les parties de votre enseignant pour cette classe. Sans code.",

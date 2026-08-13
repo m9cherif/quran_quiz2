@@ -181,6 +181,7 @@ const ar: Messages = {
       classesLoadFailed: "تعذّر تحميل صفوفك",
     },
     host: {
+      classCanJoin: "يمكن لأعضاء الصف الدخول من لوحتهم",
       allowLateJoin: "السماح بالانضمام بعد البدء",
       correctSoFar: "صحيحة",
       incorrectSoFar: "غير صحيحة",
@@ -866,6 +867,7 @@ const ar: Messages = {
       practiceDesc: "استمع وتابع الكلمات واختبر نفسك.",
     },
     classGames: {
+      closed: "أغلق المعلم الدخول",
       open: "الألعاب",
       title: "ألعاب الصف",
       desc: "الألعاب التي أقامها معلمك لهذا الصف. لا حاجة إلى رمز.",

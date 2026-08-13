@@ -652,6 +652,12 @@ export default function LiveGameControl({ roomKey }) {
       await reloadPlayers();
     });
 
+  const toggleClassEntry = (next) =>
+    run("classentry", async () => {
+      await updateQuizMeta(game.id, { class_can_join: next });
+      setGame((prev) => (prev ? { ...prev, class_can_join: next } : prev));
+    });
+
   const toggleLateJoin = (next) =>
     run("late", async () => {
       await updateQuizMeta(game.id, { allow_late_join: next });
@@ -1403,6 +1409,20 @@ export default function LiveGameControl({ roomKey }) {
               />
               {t("host.lockJoining")}
             </label>
+
+            {/* Only meaningful once the quiz belongs to a class. */}
+            {game.class_id && (
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
+                <input
+                  type="checkbox"
+                  checked={game.class_can_join !== false}
+                  disabled={busyAction === "classentry"}
+                  onChange={(e) => toggleClassEntry(e.target.checked)}
+                  className="h-4 w-4 accent-primary"
+                />
+                {t("host.classCanJoin")}
+              </label>
+            )}
 
             {/* Without this a started game is shut to everyone, including a
                 student whose phone dropped and wants back in. */}

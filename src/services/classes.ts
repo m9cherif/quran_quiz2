@@ -88,6 +88,8 @@ export interface ClassGameRow {
   status: string;
   created_at: string;
   already_joined: boolean;
+  /** Host switch: may class members walk in from their dashboard? */
+  class_can_join: boolean;
 }
 
 /** Games run for a class — visible to its members without a code. */
