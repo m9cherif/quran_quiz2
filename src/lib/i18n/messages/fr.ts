@@ -658,6 +658,10 @@ const fr: Messages = {
       urlLabel: "Lien audio",
       urlHint: "Un lien direct vers un fichier mp3 ou ogg.",
       needUrl: "Une question audio demande un lien.",
+      fromQuran: "Choisir un passage sur une page",
+      preview: "L'écouter",
+      useRange: "Utiliser ce passage",
+      rangeSet: "Page {page} : {passage}",
     },
     presenter: {
       open: "Présentation",

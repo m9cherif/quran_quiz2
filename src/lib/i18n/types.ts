@@ -642,6 +642,10 @@ moveDown: string;
     urlLabel: string;
     urlHint: string;
     needUrl: string;
+    fromQuran: string;
+    preview: string;
+    useRange: string;
+    rangeSet: string;
   },
   presenter: {
     open: string;

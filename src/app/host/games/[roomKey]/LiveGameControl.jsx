@@ -23,6 +23,7 @@ import {
   saveQuestion,
   setQuizStatus,
 } from "@/services/quizzes";
+import AudioRangePicker from "@/components/quiz/AudioRangePicker";
 import PageWordsEditor from "@/components/quiz/PageWordsEditor";
 import OrderingEditor from "@/components/quiz/OrderingEditor";
 import PresenterMode from "@/components/host/PresenterMode";
@@ -824,7 +825,8 @@ export default function LiveGameControl({ roomKey }) {
         hint: q.hint || null,
         surahNumber: null,
         ayahNumber: null,
-        pageNumber: null,
+        // An audio clip picked off a page knows which page it came from.
+        pageNumber: q.pageNumber ?? null,
         juzNumber: null,
         hizbNumber: null,
         choices: filled.map((c, i) => ({
@@ -1602,14 +1604,30 @@ export default function LiveGameControl({ roomKey }) {
               />
 
               {newQuestion.type === "audio" && (
-                <Input
-                  label={t("audioQ.urlLabel")}
-                  type="url"
-                  placeholder="https://…/recitation.mp3"
-                  value={newQuestion.audioUrl ?? ""}
-                  onChange={(e) => patchNewQuestion({ audioUrl: e.target.value })}
-                  hint={t("audioQ.urlHint")}
-                />
+                <div className="space-y-2">
+                  <Input
+                    label={t("audioQ.urlLabel")}
+                    type="url"
+                    placeholder="https://…/recitation.mp3"
+                    value={newQuestion.audioUrl ?? ""}
+                    onChange={(e) => patchNewQuestion({ audioUrl: e.target.value })}
+                    hint={t("audioQ.urlHint")}
+                  />
+                  <AudioRangePicker
+                    onPick={({ audioUrl, lastWord, passage, page }) =>
+                      patchNewQuestion({
+                        audioUrl,
+                        pageNumber: page,
+                        correctAnswerText: newQuestion.correctAnswerText?.trim()
+                          ? newQuestion.correctAnswerText
+                          : lastWord,
+                        text: newQuestion.text?.trim()
+                          ? newQuestion.text
+                          : t("audioQ.rangeSet", { page, passage }),
+                      })
+                    }
+                  />
+                </div>
               )}
 
               {newQuestion.type === "ordering" && (

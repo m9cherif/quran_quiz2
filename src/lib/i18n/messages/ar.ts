@@ -652,6 +652,10 @@ const ar: Messages = {
       urlLabel: "رابط الصوت",
       urlHint: "رابط مباشر لملف mp3 أو ogg.",
       needUrl: "سؤال الصوت يحتاج رابطًا.",
+      fromQuran: "اختر مقطعًا من صفحة",
+      preview: "استمع إليه",
+      useRange: "استخدم هذا المقطع",
+      rangeSet: "صفحة {page}: {passage}",
     },
     presenter: {
       open: "وضع العرض",

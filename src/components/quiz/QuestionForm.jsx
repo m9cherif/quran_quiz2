@@ -9,6 +9,7 @@ import Textarea from "@/components/ui/Textarea";
 import { cn } from "@/lib/cn";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
+import AudioRangePicker from "./AudioRangePicker";
 import PageWordsEditor from "./PageWordsEditor";
 import OrderingEditor from "./OrderingEditor";
 import { AVAILABLE_PAGES } from "@/lib/quran/pages";
@@ -242,16 +243,33 @@ export function QuestionForm({
       )}
 
       {type === "audio" && (
-        <Input
-          label={t("audioQ.urlLabel")}
-          type="url"
-          inputMode="url"
-          placeholder="https://…/recitation.mp3"
-          value={question.audio_url ?? ""}
-          onChange={(e) => set({ audio_url: e.target.value || null })}
-          error={errors.audio}
-          hint={t("audioQ.urlHint")}
-        />
+        <div className="space-y-2">
+          <Input
+            label={t("audioQ.urlLabel")}
+            type="url"
+            inputMode="url"
+            placeholder="https://…/recitation.mp3"
+            value={question.audio_url ?? ""}
+            onChange={(e) => set({ audio_url: e.target.value || null })}
+            error={errors.audio}
+            hint={t("audioQ.urlHint")}
+          />
+          {/* Picking two words beats typing a media-fragment URL by hand. The
+              last word of the passage is the natural answer, so it is offered
+              when nothing has been typed yet. */}
+          <AudioRangePicker
+            onPick={({ audioUrl, lastWord, passage, page }) =>
+              set({
+                audio_url: audioUrl,
+                page_number: page,
+                correct_answer_text: question.correct_answer_text?.trim()
+                  ? question.correct_answer_text
+                  : lastWord,
+                text: question.text?.trim() ? question.text : t("audioQ.rangeSet", { page, passage }),
+              })
+            }
+          />
+        </div>
       )}
 
       {type !== "page_words" && (
