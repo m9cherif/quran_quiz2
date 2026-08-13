@@ -11,11 +11,33 @@
  *
  * Run: node scripts/fetch-timelines.mjs
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const API = "https://api.github.com/repos/m9cherif/flutter_quran_data/contents/timeline";
 const OUT_DIR = join(process.cwd(), "public", "timeline");
+const ANNOTATION_DIR = join(process.cwd(), "public", "annotations");
+
+/**
+ * Upstream word_id is the word's ORDINAL on the page (1, 2, 3 …), not the
+ * annotation id. The two drift apart because annotation ids also number the
+ * ayah-end marks, which are not recited: on page 553 six ids are skipped, so by
+ * the end of the page the ordinal is six behind the id. Reading word_id as an
+ * id highlights the wrong word for most of the page, and the last words of
+ * every page have no match at all.
+ *
+ * Translating here, once, keeps every consumer honest: what ships is annotation
+ * ids, which is what the page boxes are keyed by.
+ */
+function annotationIds(page) {
+  try {
+    const raw = JSON.parse(readFileSync(join(ANNOTATION_DIR, `${page}.json`), "utf8"));
+    const words = Array.isArray(raw) ? raw : (raw.words ?? []);
+    return words.map((w) => w.id).filter((id) => Number.isFinite(id));
+  } catch {
+    return [];
+  }
+}
 
 const listing = await (await fetch(API, { headers: { "User-Agent": "quran-quiz" } })).json();
 if (!Array.isArray(listing)) throw new Error("unexpected listing");
@@ -30,13 +52,21 @@ for (const file of listing) {
   const page = Number(match[1]);
 
   const raw = await (await fetch(file.download_url)).json();
+  const ids = annotationIds(page);
   const events = (raw.events ?? [])
     .filter((e) => e && e.action === "show" && Number.isFinite(Number(e.time)))
-    .map((e) => ({ t: Math.max(0, Math.round(Number(e.time))), w: Number(e.word_id) }))
+    .map((e) => ({
+      t: Math.max(0, Math.round(Number(e.time))),
+      // ordinal -> annotation id
+      w: ids[Number(e.word_id) - 1],
+    }))
     .filter((e) => Number.isFinite(e.w))
     .sort((a, b) => a.t - b.t);
 
   if (events.length === 0) continue;
+
+  const dropped = (raw.events ?? []).length - events.length;
+  if (dropped > 0) console.warn(`page ${page}: ${dropped} events outside the annotated words`);
 
   // "C:/trav_quran2/audio/trabelsi/062.mp3" -> "062.mp3": only the file name is
   // portable, the rest is the author's machine.

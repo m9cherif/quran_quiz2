@@ -81,6 +81,32 @@ export function wordAt(timeline: PageTimeline, audioMs: number): number | null {
   return found;
 }
 
+export interface WordSpan {
+  /** Annotation word id. */
+  w: number;
+  /** Absolute audio positions (ms). */
+  from: number;
+  to: number;
+}
+
+/**
+ * Every word's start AND end in the recording.
+ *
+ * The timeline stores only the moment each word is reached, but a word ends
+ * where the next one begins — so exact spans fall out of the same data, and a
+ * range can be played from precisely one word to precisely another without any
+ * extra file to keep in step.
+ */
+export function wordSpans(timeline: PageTimeline): WordSpan[] {
+  const events = timeline.events;
+  const end = timeline.start + (timeline.duration || 0);
+  return events.map((event, i) => ({
+    w: event.w,
+    from: timeline.start + event.t,
+    to: i + 1 < events.length ? timeline.start + events[i + 1].t : end,
+  }));
+}
+
 /** Audio position (ms) at which a given word starts, if the recording has it. */
 export function timeOfWord(timeline: PageTimeline, wordId: number): number | null {
   const event = timeline.events.find((e) => e.w === wordId);

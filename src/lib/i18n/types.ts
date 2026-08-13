@@ -768,6 +768,7 @@ moveDown: string;
     modeFollow: string;
     modeFill: string;
     modeDictation: string;
+    modeRange: string;
     repeats: string;
     repeatsLeft: string;
     playlist: string;
@@ -785,6 +786,18 @@ moveDown: string;
     none: string;
     failed: string;
     tapHint: string;
+  },
+  range: {
+    tapStart: string;
+    tapEnd: string;
+    selected: string;
+    play: string;
+    stop: string;
+    clear: string;
+    round: string;
+    speed: string;
+    gap: string;
+    wordByWord: string;
   },
   gen: {
     open: string;

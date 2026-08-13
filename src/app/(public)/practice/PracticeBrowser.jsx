@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import RecitationPlayer from "@/components/quran/RecitationPlayer";
 import ReciteAndFill from "@/components/quran/ReciteAndFill";
 import AyahDictation from "@/components/quran/AyahDictation";
+import RangeReciter from "@/components/quran/RangeReciter";
 import { loadPageAnnotations } from "@/lib/quran/pages";
 import { loadTimelineIndex } from "@/lib/quran/recitation";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -130,6 +131,7 @@ export default function PracticeBrowser() {
                 ["follow", "recite.modeFollow"],
                 ["fill", "recite.modeFill"],
                 ["dictation", "recite.modeDictation"],
+                ["range", "recite.modeRange"],
               ].map(([id, key]) => (
                 <button
                   key={id}
@@ -149,6 +151,7 @@ export default function PracticeBrowser() {
 
             {page != null && mode === "fill" && <ReciteAndFill page={page} words={words} />}
             {page != null && mode === "dictation" && <AyahDictation page={page} words={words} />}
+            {page != null && mode === "range" && <RangeReciter page={page} words={words} />}
 
             {page != null && mode === "follow" && (
               <RecitationPlayer
