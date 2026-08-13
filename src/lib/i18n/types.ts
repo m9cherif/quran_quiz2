@@ -765,8 +765,6 @@ moveDown: string;
     count: string;
   },
   recite: {
-    modeLocate: string;
-    modeOrder: string;
     modeFollow: string;
     modeFill: string;
     modeDictation: string;
@@ -861,25 +859,6 @@ moveDown: string;
     rejoin: string;
     results: string;
     enterFailed: string;
-  },
-  locate: {
-    prompt: string;
-    replay: string;
-    show: string;
-    next: string;
-    progress: string;
-    mistakes: string;
-    found: string;
-    done: string;
-    again: string;
-    noPhrases: string;
-  },
-  order: {
-    prompt: string;
-    count: string;
-    slot: string;
-    hear: string;
-    score: string;
   },
 
 }
