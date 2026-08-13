@@ -90,8 +90,13 @@ export default function OpenGamesList({ onPick, selectedCode }) {
                     {[game.category, game.language?.toUpperCase()].filter(Boolean).join(" · ")}
                   </span>
                 </span>
-                <span className="shrink-0 font-mono text-sm font-bold tracking-widest text-primary">
-                  {game.code}
+                <span className="flex shrink-0 items-center gap-2">
+                  {game.status !== "waiting" && (
+                    <Badge variant="warning">{t("openGames.inProgress")}</Badge>
+                  )}
+                  <span className="font-mono text-sm font-bold tracking-widest text-primary">
+                    {game.code}
+                  </span>
                 </span>
               </button>
             </li>

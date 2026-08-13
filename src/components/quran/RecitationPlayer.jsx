@@ -21,7 +21,7 @@ const SPEEDS = [0.75, 1, 1.25, 1.5];
  * "Hide words" covers the page and reveals each word only once it has been
  * recited — a self-test that does not need a teacher present.
  */
-export default function RecitationPlayer({ page, words = [], className = "" }) {
+export default function RecitationPlayer({ page, words = [], className = "", onFinished }) {
   const { t } = useI18n();
   const audioRef = useRef(null);
   const frameRef = useRef(0);
@@ -37,6 +37,10 @@ export default function RecitationPlayer({ page, words = [], className = "" }) {
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [activeAyah, setActiveAyah] = useState(null);
   const [resumeAt, setResumeAt] = useState(null);
+  /** How many times a chosen ayah repeats before stopping — the drill. */
+  const [repeats, setRepeats] = useState(1);
+  const [repeatsLeft, setRepeatsLeft] = useState(0);
+  const repeatDoneRef = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -65,19 +69,27 @@ export default function RecitationPlayer({ page, words = [], className = "" }) {
         const ms = el.currentTime * 1000;
         setCurrentWord(wordAt(timeline, ms));
 
-        // A selected ayah owns the transport until it is cleared.
+        // A selected ayah owns the transport until its repeats are spent.
         if (activeAyah && ms >= activeAyah.to) {
-          if (loop) {
+          const done = repeatDoneRef.current + 1;
+          if (loop || done < repeats) {
+            repeatDoneRef.current = done;
+            setRepeatsLeft(Math.max(0, repeats - done));
             el.currentTime = activeAyah.from / 1000;
           } else {
             el.pause();
             setActiveAyah(null);
+            repeatDoneRef.current = 0;
           }
         } else if (!activeAyah && timeline.duration > 0) {
           const endMs = timeline.start + timeline.duration;
           if (ms >= endMs) {
             if (loop) el.currentTime = timeline.start / 1000;
-            else el.pause();
+            else {
+              el.pause();
+              // Playlist mode: hand over to the next page.
+              onFinished?.();
+            }
           }
         }
       }
@@ -139,6 +151,8 @@ export default function RecitationPlayer({ page, words = [], className = "" }) {
   const playAyah = (ayah) => {
     const el = audioRef.current;
     if (!el) return;
+    repeatDoneRef.current = 0;
+    setRepeatsLeft(Math.max(0, repeats - 1));
     setActiveAyah(ayah);
     el.currentTime = ayah.from / 1000;
     el.play().catch(() => setFailed(true));
@@ -244,7 +258,27 @@ export default function RecitationPlayer({ page, words = [], className = "" }) {
           {t("recite.hide")}
         </label>
 
+        <div className="flex items-center gap-1 rounded-md border border-border bg-surface-2 p-0.5">
+          <span className="px-1.5 text-xs text-ink-muted">{t("recite.repeats")}</span>
+          {[1, 3, 5].map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setRepeats(n)}
+              aria-pressed={repeats === n}
+              className={`press rounded px-2 py-1 text-xs font-semibold transition-colors ${
+                repeats === n ? "bg-primary text-primary-contrast" : "text-ink-muted hover:text-ink"
+              }`}
+            >
+              {n}×
+            </button>
+          ))}
+        </div>
+
         <Badge variant="info">{t("recite.wordCount", { count: timeline.events.length })}</Badge>
+        {activeAyah && repeatsLeft > 0 && (
+          <Badge variant="warning">{t("recite.repeatsLeft", { count: repeatsLeft })}</Badge>
+        )}
       </div>
 
       {ayahs.length > 0 && (

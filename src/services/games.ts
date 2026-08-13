@@ -117,6 +117,7 @@ export interface OpenGameRow {
   name: string;
   language: string | null;
   category: string | null;
+  status: string;
   created_at: string;
 }
 
@@ -129,8 +130,10 @@ export interface OpenGameRow {
 export async function listOpenGames(): Promise<OpenGameRow[]> {
   const { data, error } = await getSupabase()
     .from("competitions")
-    .select("id, code, title, name, language, category, created_at")
-    .eq("status", "waiting")
+    .select("id, code, title, name, language, category, status, created_at")
+    // Waiting lobbies, plus games already under way whose host is taking
+    // latecomers — the same rule join_competition enforces.
+    .or("status.eq.waiting,and(allow_late_join.eq.true,status.in.(running,paused))")
     .eq("join_locked", false)
     .neq("visibility", "private")
     .order("created_at", { ascending: false })

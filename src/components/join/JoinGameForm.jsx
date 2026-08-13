@@ -82,10 +82,19 @@ export function JoinGameForm({ defaultCode = "" }) {
         setError(t("join.notOpenError"));
       } else if (err?.code === "22023") {
         setError(err.message ?? t("join.nickError"));
+      } else if (err?.code === "23505") {
+        // Someone in this game already has that nickname.
+        setError(t("join.nameTaken"));
+      } else if (err?.code === "P0005") {
+        setError(t("join.lockedError"));
       } else {
+        // Never blame the network for something the server explained: show
+        // what it actually said, and keep the connection wording for the case
+        // where there is genuinely no message.
+        setError(err?.message || t("join.genericErrorDesc"));
         toast({
           title: t("join.genericErrorTitle"),
-          description: t("join.genericErrorDesc"),
+          description: err?.message || t("join.genericErrorDesc"),
           variant: "error",
         });
       }

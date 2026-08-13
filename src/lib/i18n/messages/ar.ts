@@ -117,6 +117,8 @@ const ar: Messages = {
       minCharsHint: "6 أحرف على الأقل.",
     },
     join: {
+      nameTaken: "هذا الاسم مستخدم بالفعل في هذه اللعبة. اختر اسمًا آخر.",
+      lockedError: "أقفل المعلم هذه اللعبة، فلا يمكن لأحد الانضمام الآن.",
       rejoinTitle: "أنت بالفعل في لعبة",
       rejoinDesc: "{name} في اللعبة {code}. عد إليها أو ابدأ من جديد.",
       rejoin: "العودة إلى لعبتي",
@@ -774,11 +776,15 @@ const ar: Messages = {
       nothingParsed: "تعذّرت قراءة أي سؤال من النص.",
     },
     openGames: {
+      inProgress: "بدأت بالفعل",
       title: "الألعاب المفتوحة الآن",
       desc: "اضغط على لعبة لتعبئة رمزها، أو اكتب الرمز بالأسفل.",
       count: "{count} مفتوحة",
     },
     recite: {
+      repeats: "التكرار",
+      repeatsLeft: "{count} مرة متبقية",
+      playlist: "المتابعة للصفحة التالية",
       ayahs: "آية:",
       wholePage: "الصفحة كاملة",
       resume: "استئناف من {time}",
@@ -812,6 +818,11 @@ const ar: Messages = {
       noImage: "تعذّر قياس صورة الصفحة.",
       nothing: "تعذّر توليد أي سؤال من هذه الصفحة.",
       added: "تم توليد {count} سؤالًا",
+    },
+    hifz: {
+      mark: "تحديد التقدم",
+      learning: "قيد الحفظ",
+      known: "محفوظة",
     },
 
 };

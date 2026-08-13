@@ -118,6 +118,8 @@ const en: Messages = {
       minCharsHint: "At least 6 characters.",
     },
     join: {
+      nameTaken: "Someone in this game already uses that nickname. Pick another one.",
+      lockedError: "The host has locked this game, so no one else can join right now.",
       rejoinTitle: "You are already in a game",
       rejoinDesc: "{name} is in game {code}. Go back to it, or start over.",
       rejoin: "Back to my game",
@@ -781,11 +783,15 @@ const en: Messages = {
       nothingParsed: "Nothing could be read from that text.",
     },
     openGames: {
+      inProgress: "already started",
       title: "Games open now",
       desc: "Tap one to fill in its code, or type a code below.",
       count: "{count} open",
     },
     recite: {
+      repeats: "Repeat",
+      repeatsLeft: "{count} more",
+      playlist: "Play on to the next page",
       ayahs: "Ayah:",
       wholePage: "Whole page",
       resume: "Resume from {time}",
@@ -819,6 +825,11 @@ const en: Messages = {
       noImage: "The page image could not be measured.",
       nothing: "Nothing could be generated from this page.",
       added: "{count} questions generated",
+    },
+    hifz: {
+      mark: "Mark progress",
+      learning: "Learning",
+      known: "Known",
     },
 
 };

@@ -114,6 +114,8 @@ draft: string;
     minCharsHint: string;
   };
   join: {
+    nameTaken: string;
+    lockedError: string;
     rejoinTitle: string;
     rejoinDesc: string;
     rejoin: string;
@@ -764,11 +766,15 @@ moveDown: string;
     nothingParsed: string;
   },
   openGames: {
+    inProgress: string;
     title: string;
     desc: string;
     count: string;
   },
   recite: {
+    repeats: string;
+    repeatsLeft: string;
+    playlist: string;
     ayahs: string;
     wholePage: string;
     resume: string;
@@ -802,6 +808,11 @@ moveDown: string;
     noImage: string;
     nothing: string;
     added: string;
+  },
+  hifz: {
+    mark: string;
+    learning: string;
+    known: string;
   },
 
 }

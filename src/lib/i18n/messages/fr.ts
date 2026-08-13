@@ -118,6 +118,8 @@ const fr: Messages = {
       minCharsHint: "Au moins 6 caractères.",
     },
     join: {
+      nameTaken: "Ce pseudo est déjà pris dans cette partie. Choisissez-en un autre.",
+      lockedError: "L'hôte a verrouillé cette partie ; personne ne peut la rejoindre.",
       rejoinTitle: "Vous êtes déjà dans une partie",
       rejoinDesc: "{name} est dans la partie {code}. Revenez-y ou recommencez.",
       rejoin: "Revenir à ma partie",
@@ -780,11 +782,15 @@ const fr: Messages = {
       nothingParsed: "Rien n'a pu être lu dans ce texte.",
     },
     openGames: {
+      inProgress: "déjà commencée",
       title: "Parties ouvertes",
       desc: "Touchez-en une pour remplir son code, ou saisissez un code ci-dessous.",
       count: "{count} ouverte(s)",
     },
     recite: {
+      repeats: "Répéter",
+      repeatsLeft: "encore {count}",
+      playlist: "Enchaîner la page suivante",
       ayahs: "Verset :",
       wholePage: "Page entière",
       resume: "Reprendre à {time}",
@@ -818,6 +824,11 @@ const fr: Messages = {
       noImage: "Impossible de mesurer l'image.",
       nothing: "Rien n'a pu être généré depuis cette page.",
       added: "{count} questions générées",
+    },
+    hifz: {
+      mark: "Marquer",
+      learning: "En cours",
+      known: "Acquise",
     },
 
 };

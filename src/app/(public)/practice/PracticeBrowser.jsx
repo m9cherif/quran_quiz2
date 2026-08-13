@@ -7,6 +7,7 @@ import RecitationPlayer from "@/components/quran/RecitationPlayer";
 import { loadPageAnnotations } from "@/lib/quran/pages";
 import { loadTimelineIndex } from "@/lib/quran/recitation";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { cyclePageState, getPageStates } from "@/lib/quran/progress";
 
 /**
  * PracticeBrowser — listen to a page and follow the words, on your own.
@@ -18,6 +19,10 @@ export default function PracticeBrowser() {
   const [pages, setPages] = useState(null);
   const [page, setPage] = useState(null);
   const [words, setWords] = useState([]);
+  const [playlist, setPlaylist] = useState(false);
+  const [states, setStates] = useState({});
+
+  useEffect(() => setStates(getPageStates()), []);
 
   useEffect(() => {
     loadTimelineIndex().then((index) => {
@@ -70,6 +75,11 @@ export default function PracticeBrowser() {
                 }`}
               >
                 {t("pw.pageOption", { page: n })}
+                {states[String(n)] === "known"
+                  ? " ✅"
+                  : states[String(n)] === "learning"
+                    ? " 📖"
+                    : ""}
               </button>
             ))}
           </div>
@@ -79,9 +89,50 @@ export default function PracticeBrowser() {
               <h2 className="text-base font-semibold text-ink">
                 {t("pw.pageOption", { page })}
               </h2>
-              <Badge variant="neutral">{t("recite.wordCount", { count: words.length })}</Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                {/* The learner's own note of where they are with this page. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = cyclePageState(page);
+                    setStates((prev) => {
+                      const copy = { ...prev };
+                      if (next) copy[String(page)] = next;
+                      else delete copy[String(page)];
+                      return copy;
+                    });
+                  }}
+                  className="press rounded-md border border-border px-2.5 py-1 text-xs font-medium text-ink-muted hover:text-ink"
+                >
+                  {states[String(page)] === "known"
+                    ? `✅ ${t("hifz.known")}`
+                    : states[String(page)] === "learning"
+                      ? `📖 ${t("hifz.learning")}`
+                      : t("hifz.mark")}
+                </button>
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink-muted">
+                  <input
+                    type="checkbox"
+                    checked={playlist}
+                    onChange={(e) => setPlaylist(e.target.checked)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  {t("recite.playlist")}
+                </label>
+                <Badge variant="neutral">{t("recite.wordCount", { count: words.length })}</Badge>
+              </div>
             </div>
-            {page != null && <RecitationPlayer page={page} words={words} />}
+            {page != null && (
+              <RecitationPlayer
+                page={page}
+                words={words}
+                onFinished={() => {
+                  if (!playlist) return;
+                  const next = pages[pages.indexOf(page) + 1];
+                  if (next != null) setPage(next);
+                }}
+              />
+            )}
           </Card>
         </>
       )}
