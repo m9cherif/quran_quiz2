@@ -19,7 +19,17 @@ export function getParticipantClient(accessToken: string): SupabaseClient {
   let client = cache.get(accessToken);
   if (!client) {
     client = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: { persistSession: false },
+      auth: {
+        // This client must be completely inert as far as sign-in goes. It
+        // shares an origin with the signed-in client, so without its own
+        // storage key (and with refresh/URL-detection left on) it competes
+        // for the same stored session and can end up clearing it — which
+        // signed a logged-in student out the moment they joined a game.
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        storageKey: "quizcast-participant-noauth",
+      },
       global: { headers: { "x-participant-token": accessToken } },
     });
     cache.set(accessToken, client);

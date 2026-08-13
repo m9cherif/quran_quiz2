@@ -866,6 +866,22 @@ const fr: Messages = {
     replay: {
       hearPage: "Écouter cette page récitée",
     },
+    quick: {
+      joinDesc: "Entrez un code ou choisissez une partie ouverte.",
+      classesDesc: "Vos classes et les parties de votre enseignant.",
+      practiceDesc: "Écoutez, suivez les mots et testez-vous.",
+    },
+    classGames: {
+      open: "Parties",
+      title: "Parties de la classe",
+      desc: "Les parties de votre enseignant pour cette classe. Sans code.",
+      none: "Cette classe n'a pas encore joué.",
+      live: "Ouverte",
+      enter: "Entrer",
+      rejoin: "Revenir",
+      results: "Résultats",
+      enterFailed: "Impossible d'entrer dans cette partie",
+    },
 
 };
 

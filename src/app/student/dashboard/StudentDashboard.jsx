@@ -9,6 +9,8 @@ import EmptyState from "@/components/ui/EmptyState";
 import { getMyHistory } from "@/services/analytics";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import Sparkline from "@/components/ui/Sparkline";
+import Link from "next/link";
+import Icon from "@/components/ui/Icon";
 
 function StatCard({ label, value, hint }) {
   return (
@@ -113,6 +115,26 @@ export default function StudentDashboard() {
         <StatCard label={t("student.avgScore")} value={avgScore.toLocaleString()} />
         <StatCard label={t("student.avgAccuracy")} value={`${avgAccuracy}%`} />
         <StatCard label={t("student.bestScore")} value={best.toLocaleString()} />
+      </div>
+
+      {/* The three things a student ever wants, one tap each, before any
+          statistics. Getting into a game should never require reading. */}
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        {[
+          { href: "/join", icon: "users", title: t("nav.joinGame"), desc: t("quick.joinDesc") },
+          { href: "/student/classes", icon: "book", title: t("nav.classes"), desc: t("quick.classesDesc") },
+          { href: "/practice", icon: "play", title: t("nav.practice"), desc: t("quick.practiceDesc") },
+        ].map((action) => (
+          <Link key={action.href} href={action.href} className="group">
+            <Card interactive animate={false} className="h-full">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                <Icon name={action.icon} className="h-5 w-5" />
+              </span>
+              <p className="mt-3 text-base font-semibold text-ink">{action.title}</p>
+              <p className="mt-0.5 text-sm text-ink-muted">{action.desc}</p>
+            </Card>
+          </Link>
+        ))}
       </div>
 
       {played.length >= 2 && (

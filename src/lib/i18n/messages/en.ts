@@ -867,6 +867,22 @@ const en: Messages = {
     replay: {
       hearPage: "Hear this page recited",
     },
+    quick: {
+      joinDesc: "Enter a code, or pick a game that is open now.",
+      classesDesc: "Your classes and the games your teacher has run.",
+      practiceDesc: "Listen, follow the words and test yourself.",
+    },
+    classGames: {
+      open: "Games",
+      title: "Class games",
+      desc: "Games your teacher ran for this class. No code needed.",
+      none: "This class has not run a game yet.",
+      live: "Open now",
+      enter: "Enter",
+      rejoin: "Back in",
+      results: "Results",
+      enterFailed: "Could not enter this game",
+    },
 
 };
 

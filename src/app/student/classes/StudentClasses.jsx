@@ -7,7 +7,18 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import EmptyState from "@/components/ui/EmptyState";
-import { joinClass, leaveClass, myClasses } from "@/services/classes";
+import { useRouter } from "next/navigation";
+import { useDispatch, useSelector } from "react-redux";
+import { Badge } from "@/components/ui/Badge";
+import { Dialog } from "@/components/ui/Dialog";
+import { setParticipant } from "@/store/Slices/participantSlice";
+import {
+  joinClass,
+  joinClassGame,
+  leaveClass,
+  listClassGames,
+  myClasses,
+} from "@/services/classes";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
@@ -22,6 +33,12 @@ export default function StudentClasses() {
   const [failed, setFailed] = useState(false);
   const [code, setCode] = useState("");
   const [joining, setJoining] = useState(false);
+  const [gamesFor, setGamesFor] = useState(null);
+  const [games, setGames] = useState(null);
+  const [entering, setEntering] = useState(null);
+  const router = useRouter();
+  const dispatch = useDispatch();
+  const user = useSelector((state) => state.user.user);
   const [joinError, setJoinError] = useState("");
 
   const load = useCallback(() => {
@@ -68,6 +85,44 @@ export default function StudentClasses() {
       }
     } finally {
       setJoining(false);
+    }
+  };
+
+  /** Games this class has run — no code needed, membership is the invitation. */
+  const openGames = (cls) => {
+    setGamesFor(cls);
+    setGames(null);
+    listClassGames(cls.id)
+      .then(setGames)
+      .catch((err) => {
+        console.error("Class games failed:", err);
+        setGames([]);
+      });
+  };
+
+  const enterGame = async (game) => {
+    setEntering(game.id);
+    try {
+      const participant = await joinClassGame(game.id, user?.name || t("call.student"));
+      dispatch(
+        setParticipant({
+          id: participant.id,
+          competitionId: participant.competition_id,
+          displayName: participant.display_name,
+          accessToken: participant.access_token,
+          code: game.code,
+          joinedAt: participant.joined_at,
+        })
+      );
+      router.push(`/game/${game.code}`);
+    } catch (err) {
+      console.error("Enter class game failed:", err);
+      toast({
+        title: t("classGames.enterFailed"),
+        description: err?.message || t("common.tryAgain"),
+        variant: "error",
+      });
+      setEntering(null);
     }
   };
 
@@ -149,6 +204,65 @@ export default function StudentClasses() {
         </form>
       </Card>
 
+      <Dialog
+        open={gamesFor !== null}
+        onClose={() => setGamesFor(null)}
+        size="lg"
+        title={gamesFor ? `${t("classGames.title")} — ${gamesFor.name}` : t("classGames.title")}
+        description={t("classGames.desc")}
+        footer={
+          <Button variant="ghost" icon="close" onClick={() => setGamesFor(null)}>
+            {t("common.close")}
+          </Button>
+        }
+      >
+        {games === null ? (
+          <Skeleton className="h-24 w-full" />
+        ) : games.length === 0 ? (
+          <p className="py-6 text-center text-sm text-ink-muted">{t("classGames.none")}</p>
+        ) : (
+          <ul className="stagger space-y-2">
+            {games.map((game) => {
+              const live = ["waiting", "running", "paused"].includes(game.status);
+              return (
+                <li
+                  key={game.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2.5"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-ink">
+                      {game.title || game.name}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-ink-muted">
+                      {new Date(game.created_at).toLocaleDateString()} · {game.code}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <Badge variant={live ? "success" : "neutral"}>
+                      {live ? t("classGames.live") : t("common.finished")}
+                    </Badge>
+                    {live ? (
+                      <Button
+                        size="sm"
+                        icon="play"
+                        loading={entering === game.id}
+                        onClick={() => enterGame(game)}
+                      >
+                        {game.already_joined ? t("classGames.rejoin") : t("classGames.enter")}
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" icon="chart" href={`/game/${game.code}/result`}>
+                        {t("classGames.results")}
+                      </Button>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Dialog>
+
       {classes.length === 0 ? (
         <Card className="mt-6">
           <EmptyState title={t("student.noClassesTitle")} description={t("student.noClassesDesc")} />
@@ -164,9 +278,14 @@ export default function StudentClasses() {
                   {t("student.members")}
                 </p>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => leave(cls)}>
-                {t("common.leave")}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" icon="play" onClick={() => openGames(cls)}>
+                  {t("classGames.open")}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => leave(cls)}>
+                  {t("common.leave")}
+                </Button>
+              </div>
             </li>
           ))}
         </ul>

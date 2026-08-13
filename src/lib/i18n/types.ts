@@ -850,6 +850,22 @@ moveDown: string;
   replay: {
     hearPage: string;
   },
+  quick: {
+    joinDesc: string;
+    classesDesc: string;
+    practiceDesc: string;
+  },
+  classGames: {
+    open: string;
+    title: string;
+    desc: string;
+    none: string;
+    live: string;
+    enter: string;
+    rejoin: string;
+    results: string;
+    enterFailed: string;
+  },
 
 }
 

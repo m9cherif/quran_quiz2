@@ -17,6 +17,8 @@ export interface GameQuestionRow {
   /** page_words exercises only: page image + normalised box geometry. */
   page_number?: number | null;
   regions?: Array<{ x1: number; y1: number; x2: number; y2: number }> | null;
+  audio_url?: string | null;
+  hint?: string | null;
 }
 
 /** Load the competition behind a room code (owner or visible to player). */
@@ -35,7 +37,10 @@ export async function listGameQuestions(competitionId: string): Promise<GameQues
   const { data, error } = await getSupabase()
     .from("questions")
     .select(
-      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at, page_number, regions"
+      // audio_url and hint have to be here: an audio question with no url
+      // renders nothing at all, and a hint that is never selected can never
+      // be offered.
+      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at, page_number, regions, audio_url, hint"
     )
     .eq("competition_id", competitionId)
     .order("position", { ascending: true });
@@ -213,7 +218,10 @@ export async function listStudentQuestions(
   const { data, error } = await getParticipantClient(accessToken)
     .from("questions")
     .select(
-      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at, page_number, regions"
+      // audio_url and hint have to be here: an audio question with no url
+      // renders nothing at all, and a hint that is never selected can never
+      // be offered.
+      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at, page_number, regions, audio_url, hint"
     )
     .eq("competition_id", competitionId)
     .order("position", { ascending: true });

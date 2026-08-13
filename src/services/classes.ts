@@ -80,6 +80,38 @@ export async function listClassMembers(classId: string): Promise<ClassMember[]> 
   return (data as ClassMember[]) ?? [];
 }
 
+export interface ClassGameRow {
+  id: string;
+  code: string;
+  title: string | null;
+  name: string;
+  status: string;
+  created_at: string;
+  already_joined: boolean;
+}
+
+/** Games run for a class — visible to its members without a code. */
+export async function listClassGames(classId: string): Promise<ClassGameRow[]> {
+  const { data, error } = await getSupabase().rpc("list_class_games", {
+    p_class_id: classId,
+  });
+  if (error) throw error;
+  return (data as ClassGameRow[]) ?? [];
+}
+
+/**
+ * Join a class game directly. Membership is the invitation, so this ignores
+ * the lock and late-join switches that gate the public code path.
+ */
+export async function joinClassGame(competitionId: string, displayName: string) {
+  const { data, error } = await getSupabase().rpc("join_class_game", {
+    p_competition_id: competitionId,
+    p_display_name: displayName.trim(),
+  });
+  if (error) throw error;
+  return data;
+}
+
 export interface ClassLeaderboardRow {
   student: string;
   games_played: number;
