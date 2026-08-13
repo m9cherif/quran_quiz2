@@ -21,22 +21,6 @@
   }
 }
 
-/* Emoji leaving a call tile: rise, drift sideways, fade. */
-@keyframes burst-up {
-  0% {
-    opacity: 0;
-    transform: translate(0, 0) scale(0.4);
-  }
-  12% {
-    opacity: 1;
-    transform: translate(calc(var(--burst-drift) * 0.2), -12%) scale(var(--burst-scale, 1));
-  }
-  100% {
-    opacity: 0;
-    transform: translate(var(--burst-drift, 0), -170%) scale(var(--burst-scale, 1));
-  }
-}
-
 @layer utilities {
   /*
    * Stagger: children of a .stagger animate in sequence rather than together,
