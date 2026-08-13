@@ -26,7 +26,6 @@ import {
 import PageWordsEditor from "@/components/quiz/PageWordsEditor";
 import OrderingEditor from "@/components/quiz/OrderingEditor";
 import PresenterMode from "@/components/host/PresenterMode";
-import { useReactions } from "@/components/game/Reactions";
 import { AVAILABLE_PAGES } from "@/lib/quran/pages";
 import { getChoiceDistribution } from "@/services/games";
 import CallPanel from "@/components/call/CallPanel";
@@ -35,7 +34,6 @@ import RandomPicker from "@/components/host/RandomPicker";
 import CommandPalette from "@/components/ui/CommandPalette";
 import ShortcutsHelp from "@/components/host/ShortcutsHelp";
 import StudentAnswers from "@/components/host/StudentAnswers";
-import { ReactionLayer } from "@/components/game/Reactions";
 import useGamePresence from "@/lib/presence/useGamePresence";
 import {
   awardBonus,
@@ -539,7 +537,6 @@ export default function LiveGameControl({ roomKey }) {
 
   // Emoji from the room. Shown in the control room too — previously the layer
   // only existed in presenter mode, so a host not projecting saw nothing.
-  const { floating, hands, clearHand, clearHands } = useReactions(game?.id, { listen: true });
 
   // Live roster; the stored `connected` column was never cleared.
   const onlineIds = useGamePresence(game?.id);
@@ -881,8 +878,6 @@ export default function LiveGameControl({ roomKey }) {
 
   return (
     <div className="relative space-y-5">
-      {/* Reactions land here as well as on the projector. */}
-      {!presenting && <ReactionLayer floating={floating} />}
 
       {presenting && (
         <PresenterMode
@@ -896,7 +891,6 @@ export default function LiveGameControl({ roomKey }) {
           joinUrl={joinUrl}
           distribution={distribution}
           showDistribution={showDistribution && !activeEnds}
-          floating={floating}
           onClose={() => setPresenting(false)}
         />
       )}
@@ -1359,34 +1353,6 @@ export default function LiveGameControl({ roomKey }) {
             </p>
           </Card>
 
-          {hands.length > 0 && (
-            <Card className="space-y-2 border-warning">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold text-ink">
-                  ✋ {t("hands.title", { count: hands.length })}
-                </h2>
-                <Button size="sm" variant="ghost" onClick={clearHands} icon="check">
-                  {t("hands.clearAll")}
-                </Button>
-              </div>
-              <ul className="space-y-1">
-                {hands.map((hand) => (
-                  <li key={hand.id} className="flex items-center gap-2 text-sm">
-                    <span className="min-w-0 flex-1 truncate text-ink">
-                      {hand.name || t("call.student")}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => clearHand(hand.id)}
-                      className="rounded border border-border px-1.5 py-0.5 text-xs text-ink-muted hover:text-ink"
-                    >
-                      {t("hands.done")}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
 
           <Card className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">

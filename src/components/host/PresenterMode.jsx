@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import Badge from "@/components/ui/Badge";
 import Countdown from "@/components/ui/Countdown";
 import JoinQr from "@/components/host/JoinQr";
-import { ReactionLayer } from "@/components/game/Reactions";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
@@ -25,7 +24,6 @@ export default function PresenterMode({
   joinUrl,
   distribution,
   showDistribution,
-  floating,
   onClose,
 }) {
   const { t } = useI18n();
@@ -48,7 +46,6 @@ export default function PresenterMode({
 
   return (
     <div className="fixed inset-0 z-[80] flex flex-col overflow-hidden bg-surface">
-      <ReactionLayer floating={floating ?? []} />
 
       <header className="flex items-center justify-between gap-4 border-b border-border px-8 py-4">
         <h1 className="truncate text-2xl font-bold text-ink">{game?.title || game?.name}</h1>

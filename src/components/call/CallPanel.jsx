@@ -4,7 +4,12 @@ import { useEffect, useRef } from "react";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import { REACTIONS } from "@/components/game/Reactions";
+/**
+ * Emoji available inside the call. These live here rather than in a shared
+ * module: reactions exist only on the call tiles now, the standalone ones were
+ * removed from the game screens.
+ */
+const REACTIONS = ["👏", "🔥", "😮", "🤲", "😀"];
 
 const MIC_ON = <path d="M10 12a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v4a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-4.25 4.94V17h2.5a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1 0-1.5h2.5v-3.06A5 5 0 0 1 5 9a.75.75 0 0 1 1.5 0 3.5 3.5 0 0 0 7 0A.75.75 0 0 1 15 9Z" />;
 const MIC_OFF = <path d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-3.4-3.4A5 5 0 0 0 15 9a.75.75 0 0 0-1.5 0c0 .7-.2 1.34-.57 1.88L12 9.94V5a2 2 0 0 0-3.9-.62L3.28 2.22ZM7 7.06V9a3 3 0 0 0 4.24 2.73L7 7.06Zm3.75 6.88V17h2.5a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1 0-1.5h2.5v-3.06A5 5 0 0 1 5 9a.75.75 0 0 1 1.5 0 3.5 3.5 0 0 0 4.25 3.42Z" />;

@@ -648,9 +648,6 @@ moveDown: string;
     joinAt: string;
     answered: string;
   },
-  react: {
-    aria: string;
-  },
   sound: {
     turnOn: string;
     turnOff: string;
@@ -730,11 +727,6 @@ moveDown: string;
   net: {
     offline: string;
     back: string;
-  },
-  hands: {
-    title: string;
-    clearAll: string;
-    done: string;
   },
   shortcuts: {
     title: string;

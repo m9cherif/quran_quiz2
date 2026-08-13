@@ -658,9 +658,6 @@ const ar: Messages = {
       joinAt: "انضم بالرمز",
       answered: "أجاب {count} من {total}",
     },
-    react: {
-      aria: "أرسل تفاعلًا",
-    },
     sound: {
       turnOn: "تشغيل الأصوات",
       turnOff: "إيقاف الأصوات",
@@ -740,11 +737,6 @@ const ar: Messages = {
     net: {
       offline: "أنت غير متصل — ستُرسل الإجابات عند عودة الاتصال.",
       back: "عاد الاتصال",
-    },
-    hands: {
-      title: "{count} يد مرفوعة",
-      clearAll: "مسح الكل",
-      done: "تم",
     },
     shortcuts: {
       title: "اختصارات لوحة المفاتيح",

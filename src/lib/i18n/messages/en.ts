@@ -665,9 +665,6 @@ const en: Messages = {
       joinAt: "Join with the code",
       answered: "{count} of {total} answered",
     },
-    react: {
-      aria: "Send a reaction",
-    },
     sound: {
       turnOn: "Turn sounds on",
       turnOff: "Turn sounds off",
@@ -747,11 +744,6 @@ const en: Messages = {
     net: {
       offline: "You are offline — answers will send when the connection returns.",
       back: "Back online",
-    },
-    hands: {
-      title: "{count} hand(s) up",
-      clearAll: "Clear all",
-      done: "Done",
     },
     shortcuts: {
       title: "Keyboard shortcuts",

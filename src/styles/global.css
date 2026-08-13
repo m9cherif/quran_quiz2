@@ -21,22 +21,6 @@
   }
 }
 
-/* Emoji reactions drifting up over the game screen. */
-@keyframes reaction-rise {
-  0% {
-    opacity: 0;
-    transform: translateY(0) scale(0.7);
-  }
-  15% {
-    opacity: 1;
-    transform: translateY(-10vh) scale(1.1);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-70vh) scale(1);
-  }
-}
-
 /* Emoji leaving a call tile: rise, drift sideways, fade. */
 @keyframes burst-up {
   0% {

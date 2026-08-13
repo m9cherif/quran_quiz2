@@ -24,7 +24,6 @@ import OrderingPlay from "@/components/game/OrderingPlay";
 import AudioQuestion from "@/components/game/AudioQuestion";
 import Confetti from "@/components/ui/Confetti";
 import CountUp from "@/components/ui/CountUp";
-import { ReactionBar, ReactionLayer, useReactions } from "@/components/game/Reactions";
 import { playCue } from "@/lib/sound";
 import CallPanel from "@/components/call/CallPanel";
 import { useCall } from "@/lib/webrtc/useCall";
@@ -443,9 +442,6 @@ export default function GameQuestion({ code }) {
     }
   };
 
-  const { floating, send: sendReaction } = useReactions(competitionId, {
-    name: participant?.displayName,
-  });
 
   // Announce this player so the host's online dots are real.
   useGamePresence(competitionId, {
@@ -556,7 +552,6 @@ export default function GameQuestion({ code }) {
   return (
     <div className="relative mx-auto flex min-h-screen max-w-xl flex-col justify-center px-4 py-8">
       <Confetti fire={celebrate} />
-      <ReactionLayer floating={floating} />
       <div className="mb-4 flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-ink-muted">
           {t("game.questionOf", { position: currentQuestion.position, total: questions.length })}
@@ -852,7 +847,6 @@ export default function GameQuestion({ code }) {
         />
       )}
 
-      <ReactionBar onSend={sendReaction} className="mt-4" />
 
       <button
         type="button"
