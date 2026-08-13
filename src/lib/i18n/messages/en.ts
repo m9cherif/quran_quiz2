@@ -782,6 +782,8 @@ const en: Messages = {
       count: "{count} open",
     },
     recite: {
+      modeLocate: "Find the phrase",
+      modeOrder: "Put in order",
       modeFollow: "Follow along",
       modeFill: "Recite & fill the gaps",
       modeDictation: "Dictation",
@@ -876,6 +878,25 @@ const en: Messages = {
       rejoin: "Back in",
       results: "Results",
       enterFailed: "Could not enter this game",
+    },
+    locate: {
+      prompt: "Listen, then tap the part of the page you just heard.",
+      replay: "Play again",
+      show: "Show me",
+      next: "Next phrase",
+      progress: "{done} of {total} found",
+      mistakes: "{count} wrong",
+      found: "Found so far",
+      done: "Every phrase on this page found.",
+      again: "Go again",
+      noPhrases: "The recitation of this page has no clear pauses to split on.",
+    },
+    order: {
+      prompt: "Put the phrases back in the order they are recited.",
+      count: "{count} phrases",
+      slot: "next phrase goes here",
+      hear: "Listen",
+      score: "{score} of {total} in the right place",
     },
 
 };

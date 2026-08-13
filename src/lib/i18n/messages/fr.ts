@@ -781,6 +781,8 @@ const fr: Messages = {
       count: "{count} ouverte(s)",
     },
     recite: {
+      modeLocate: "Trouver le passage",
+      modeOrder: "Remettre en ordre",
       modeFollow: "Suivre",
       modeFill: "Réciter et compléter",
       modeDictation: "Dictée",
@@ -875,6 +877,25 @@ const fr: Messages = {
       rejoin: "Revenir",
       results: "Résultats",
       enterFailed: "Impossible d'entrer dans cette partie",
+    },
+    locate: {
+      prompt: "Écoutez, puis touchez la partie de la page entendue.",
+      replay: "Réécouter",
+      show: "Montrer",
+      next: "Passage suivant",
+      progress: "{done} sur {total}",
+      mistakes: "{count} erreurs",
+      found: "Déjà trouvés",
+      done: "Tous les passages de cette page ont été trouvés.",
+      again: "Recommencer",
+      noPhrases: "La récitation de cette page n'a pas de pauses nettes.",
+    },
+    order: {
+      prompt: "Remettez les passages dans l'ordre de la récitation.",
+      count: "{count} passages",
+      slot: "passage suivant ici",
+      hear: "Écouter",
+      score: "{score} sur {total} bien placés",
     },
 
 };

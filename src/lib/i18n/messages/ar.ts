@@ -775,6 +775,8 @@ const ar: Messages = {
       count: "{count} مفتوحة",
     },
     recite: {
+      modeLocate: "أين هذه العبارة",
+      modeOrder: "رتّب العبارات",
       modeFollow: "تابع التلاوة",
       modeFill: "اتلُ واملأ الفراغات",
       modeDictation: "إملاء",
@@ -869,6 +871,25 @@ const ar: Messages = {
       rejoin: "العودة",
       results: "النتائج",
       enterFailed: "تعذّر الدخول إلى هذه اللعبة",
+    },
+    locate: {
+      prompt: "استمع ثم اضغط على الجزء الذي سمعته من الصفحة.",
+      replay: "أعد التشغيل",
+      show: "أظهر لي",
+      next: "العبارة التالية",
+      progress: "{done} من {total}",
+      mistakes: "{count} خطأ",
+      found: "ما تم إيجاده",
+      done: "تم إيجاد كل عبارات هذه الصفحة.",
+      again: "أعد التمرين",
+      noPhrases: "لا توجد وقفات واضحة في تلاوة هذه الصفحة للتقسيم عليها.",
+    },
+    order: {
+      prompt: "أعد ترتيب العبارات كما تُتلى.",
+      count: "{count} عبارات",
+      slot: "ضع العبارة التالية هنا",
+      hear: "استمع",
+      score: "{score} من {total} في مكانها الصحيح",
     },
 
 };
