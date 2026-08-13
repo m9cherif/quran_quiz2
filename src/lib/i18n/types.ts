@@ -646,6 +646,18 @@ moveDown: string;
     preview: string;
     useRange: string;
     rangeSet: string;
+    random: string;
+    askLabel: string;
+    askWord: string;
+    askSurah: string;
+    askAyah: string;
+    askHizb: string;
+    answerIs: string;
+    hizbBoundary: string;
+    promptWord: string;
+    promptSurah: string;
+    promptAyah: string;
+    promptHizb: string;
   },
   presenter: {
     open: string;

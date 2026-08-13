@@ -613,7 +613,9 @@ export default function GameQuestion({ code }) {
           <h1 className="text-lg font-semibold leading-relaxed text-ink">{currentQuestion.text}</h1>
         )}
 
-        {currentQuestion.type === "audio" && (
+        {/* Any question may carry a recitation, not just the audio type: "listen,
+            which surah is this?" is a multiple choice with a clip attached. */}
+        {currentQuestion.audio_url && currentQuestion.type !== "page_words" && (
           <AudioQuestion src={currentQuestion.audio_url} disabled={!isActive} />
         )}
 

@@ -242,7 +242,8 @@ export function QuestionForm({
         </>
       )}
 
-      {type === "audio" && (
+      {/* Stays visible once a clip is attached, whatever the type became. */}
+      {(type === "audio" || question.audio_url) && type !== "page_words" && (
         <div className="space-y-2">
           <Input
             label={t("audioQ.urlLabel")}
@@ -258,14 +259,25 @@ export function QuestionForm({
               last word of the passage is the natural answer, so it is offered
               when nothing has been typed yet. */}
           <AudioRangePicker
-            onPick={({ audioUrl, lastWord, passage, page }) =>
+            onPick={({ audioUrl, answerText, choices, prompt, page }) =>
               set({
                 audio_url: audioUrl,
                 page_number: page,
-                correct_answer_text: question.correct_answer_text?.trim()
-                  ? question.correct_answer_text
-                  : lastWord,
-                text: question.text?.trim() ? question.text : t("audioQ.rangeSet", { page, passage }),
+                // Naming a surah, ayah or hizb is offered as choices; giving
+                // the last word stays typed.
+                ...(choices
+                  ? {
+                      type: "mcq",
+                      choices: choices.map((text, i) => ({
+                        text: String(text),
+                        position: i + 1,
+                        isCorrect: String(text) === String(answerText),
+                        id: null,
+                      })),
+                      correct_answer_text: null,
+                    }
+                  : { correct_answer_text: answerText }),
+                text: question.text?.trim() ? question.text : prompt,
               })
             }
           />

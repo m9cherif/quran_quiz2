@@ -1603,7 +1603,8 @@ export default function LiveGameControl({ roomKey }) {
                 placeholder={t("editor.questionTextPlaceholder")}
               />
 
-              {newQuestion.type === "audio" && (
+              {(newQuestion.type === "audio" || newQuestion.audioUrl) &&
+                newQuestion.type !== "page_words" && (
                 <div className="space-y-2">
                   <Input
                     label={t("audioQ.urlLabel")}
@@ -1614,16 +1615,22 @@ export default function LiveGameControl({ roomKey }) {
                     hint={t("audioQ.urlHint")}
                   />
                   <AudioRangePicker
-                    onPick={({ audioUrl, lastWord, passage, page }) =>
+                    onPick={({ audioUrl, answerText, choices, prompt, page }) =>
                       patchNewQuestion({
                         audioUrl,
                         pageNumber: page,
-                        correctAnswerText: newQuestion.correctAnswerText?.trim()
-                          ? newQuestion.correctAnswerText
-                          : lastWord,
-                        text: newQuestion.text?.trim()
-                          ? newQuestion.text
-                          : t("audioQ.rangeSet", { page, passage }),
+                        ...(choices
+                          ? {
+                              type: "mcq",
+                              choices: choices.map((text, i) => ({
+                                text: String(text),
+                                position: i + 1,
+                                isCorrect: String(text) === String(answerText),
+                              })),
+                              correctAnswerText: "",
+                            }
+                          : { correctAnswerText: answerText }),
+                        text: newQuestion.text?.trim() ? newQuestion.text : prompt,
                       })
                     }
                   />

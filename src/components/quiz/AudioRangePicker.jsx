@@ -4,7 +4,39 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import { loadPageAnnotations, pageImageUrl, regionStyle } from "@/lib/quran/pages";
 import { audioUrl, loadTimeline, loadTimelineIndex, wordSpans } from "@/lib/quran/recitation";
+import { hizbOfPage, loadQuranMeta, placeWords } from "@/lib/quran/meta";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+
+/** What the student is asked once the passage has been played. */
+const ASKS = [
+  ["word", "audioQ.askWord"],
+  ["surah", "audioQ.askSurah"],
+  ["ayah", "audioQ.askAyah"],
+  ["hizb", "audioQ.askHizb"],
+];
+
+/** Three plausible wrong numbers around the right one, inside its range. */
+function nearbyNumbers(correct, min, max, count = 3) {
+  const pool = [];
+  for (let d = 1; pool.length < count * 3 && d <= 8; d += 1) {
+    if (correct - d >= min) pool.push(correct - d);
+    if (correct + d <= max) pool.push(correct + d);
+  }
+  const picked = [];
+  while (picked.length < count && pool.length) {
+    picked.push(pool.splice(Math.floor(Math.random() * Math.min(pool.length, 5)), 1)[0]);
+  }
+  return picked;
+}
+
+function shuffled(list) {
+  const copy = [...list];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
 /**
  * AudioRangePicker — build an audio question's clip by tapping two words.
@@ -32,6 +64,12 @@ export default function AudioRangePicker({ onPick }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [startId, setStartId] = useState(null);
   const [endId, setEndId] = useState(null);
+  const [ask, setAsk] = useState("word");
+  const [meta, setMeta] = useState(null);
+
+  useEffect(() => {
+    if (open) loadQuranMeta().then(setMeta);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -83,6 +121,26 @@ export default function AudioRangePicker({ onPick }) {
     };
   }, [startId, endId, usable, spans]);
 
+  // Where the passage sits: the surah and ayah of its first word, and the hizb
+  // quarter of the page.
+  const placement = useMemo(() => {
+    if (!meta || !range || page == null) return null;
+    const placed = placeWords(page, words, meta);
+    const first = placed.get(range.words[0].id);
+    const hizb = hizbOfPage(page, meta);
+    const surah = first ? meta.surahs.find((s) => s.n === first.surah) : null;
+    return { first, hizb, surah };
+  }, [meta, range, words, page]);
+
+  /** A passage nobody chose — four to ten consecutive words, anywhere. */
+  const pickRandom = () => {
+    if (usable.length < 4) return;
+    const length = 4 + Math.floor(Math.random() * 7);
+    const from = Math.floor(Math.random() * Math.max(1, usable.length - length));
+    setStartId(usable[from].id);
+    setEndId(usable[Math.min(usable.length - 1, from + length - 1)].id);
+  };
+
   // Media fragments are a request to the browser, not a promise: it may hand
   // back the whole file, so the end is enforced here as well.
   const preview = () => {
@@ -104,13 +162,58 @@ export default function AudioRangePicker({ onPick }) {
 
   useEffect(() => () => cancelAnimationFrame(frameRef.current), []);
 
+  /**
+   * What is asked, and what counts as right.
+   *
+   * Naming a surah, an ayah or a hizb is multiple choice rather than typing:
+   * answers are graded by exact string match, and no student should lose a
+   * point for spelling الجُمعَة without its vowels. Giving the last word stays
+   * typed — there is only one way to write it, and it is the word they just
+   * heard.
+   */
+  const buildAsk = () => {
+    if (ask === "word" || !placement?.first) {
+      return { answerText: range.last, choices: null, prompt: t("audioQ.promptWord") };
+    }
+    if (ask === "surah") {
+      const right = placement.first.surahName;
+      const others = nearbyNumbers(placement.first.surah, 1, 114)
+        .map((n) => meta.surahs.find((s) => s.n === n)?.name)
+        .filter((name) => name && name !== right);
+      return {
+        answerText: right,
+        choices: shuffled([right, ...others]),
+        prompt: t("audioQ.promptSurah"),
+      };
+    }
+    if (ask === "ayah") {
+      const right = placement.first.aya;
+      const max = placement.surah?.ayas ?? right + 5;
+      return {
+        answerText: String(right),
+        choices: shuffled([right, ...nearbyNumbers(right, 1, max)].map(String)),
+        prompt: t("audioQ.promptAyah"),
+      };
+    }
+    const right = placement.hizb?.hizb;
+    if (right == null) return { answerText: range.last, choices: null, prompt: t("audioQ.promptWord") };
+    return {
+      answerText: String(right),
+      choices: shuffled([right, ...nearbyNumbers(right, 1, 60)].map(String)),
+      prompt: t("audioQ.promptHizb"),
+    };
+  };
+
   const confirm = () => {
     if (!range || !timeline?.audio) return;
+    const built = buildAsk();
     onPick({
       audioUrl: `${audioUrl(timeline.audio)}#t=${(range.from / 1000).toFixed(2)},${(range.to / 1000).toFixed(2)}`,
       passage: range.text,
       lastWord: range.last,
       page,
+      ask,
+      ...built,
     });
     setOpen(false);
   };
@@ -159,7 +262,39 @@ export default function AudioRangePicker({ onPick }) {
 
       {timeline?.audio && <audio ref={audioRef} src={audioUrl(timeline.audio)} preload="none" />}
 
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-ink-muted">{t("audioQ.askLabel")}</span>
+        {ASKS.map(([id, key]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setAsk(id)}
+            aria-pressed={ask === id}
+            className={`press rounded px-2 py-1 text-xs font-semibold ${
+              ask === id ? "bg-primary text-primary-contrast" : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            {t(key)}
+          </button>
+        ))}
+      </div>
+
+      {/* What the answer will be, so the host sees it before committing. */}
+      {range && placement && ask !== "word" && (
+        <p className="text-xs text-ink-muted">
+          {ask === "surah" && t("audioQ.answerIs", { answer: placement.first?.surahName ?? "—" })}
+          {ask === "ayah" && t("audioQ.answerIs", { answer: placement.first?.aya ?? "—" })}
+          {ask === "hizb" && t("audioQ.answerIs", { answer: placement.hizb?.hizb ?? "—" })}
+        </p>
+      )}
+      {ask === "hizb" && placement?.hizb?.boundary && (
+        <p className="text-xs text-warning-strong">{t("audioQ.hizbBoundary")}</p>
+      )}
+
       <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="ghost" icon="dice" onClick={pickRandom} disabled={usable.length < 4}>
+          {t("audioQ.random")}
+        </Button>
         <Button size="sm" variant="outline" icon="play" onClick={preview} disabled={!range}>
           {t("audioQ.preview")}
         </Button>
