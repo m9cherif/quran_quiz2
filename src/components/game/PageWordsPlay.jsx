@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { normaliseArabic, pageImageUrl, regionStyle, stripTashkeel } from "@/lib/quran/pages";
+import RecitationReplay from "@/components/quran/RecitationReplay";
 
 /**
  * PageWordsPlay — the student half of the "mots cachés" exercise.
@@ -170,22 +171,30 @@ export default function PageWordsPlay({
                 if (!Number.isNaN(idx)) placeChip(i, idx);
               }}
               aria-label={t("pw.boxAria", { n: i + 1 })}
-              className={`absolute flex items-center justify-center overflow-hidden rounded border-2 text-center text-[11px] font-semibold leading-tight transition-colors sm:text-sm ${
+              className={`absolute flex items-center justify-center overflow-hidden rounded text-center text-[11px] font-semibold leading-tight transition-colors sm:text-sm ${
                 graded
                   ? right
-                    ? "border-emerald-600 bg-emerald-100 text-emerald-900"
-                    : "border-rose-500 bg-rose-100 text-rose-900"
+                    ? // Right answer: get out of the way entirely so the word
+                      // itself is read off the page, as it is printed.
+                      "border-0 bg-transparent"
+                    : "border-2 border-rose-500 bg-rose-100 text-rose-900"
                   : filled
-                    ? "border-primary bg-primary-soft text-primary"
+                    ? "border-2 border-primary bg-primary-soft text-primary"
                     : activeRegion === i
-                      ? "border-solid border-primary bg-primary/20 text-primary ring-2 ring-primary"
-                      : "border-dashed border-rose-400 bg-white text-slate-400 hover:bg-slate-50"
+                      ? "border-2 border-solid border-primary bg-primary/20 text-primary ring-2 ring-primary"
+                      : "border-2 border-dashed border-rose-400 bg-white text-slate-400 hover:bg-slate-50"
               }`}
               style={regionStyle(region)}
             >
               <span dir="rtl" className="px-0.5">
-                {graded && truth !== null && truth !== undefined
-                  ? chipLabel(truth)
+                {graded
+                  ? // A correct box shows nothing: the printed word is the
+                    // answer. A wrong one names the word that belonged there.
+                    right
+                    ? ""
+                    : truth !== null && truth !== undefined
+                      ? chipLabel(truth)
+                      : ""
                   : filled
                     ? chipLabel(chipIndex)
                     : i + 1}
@@ -194,6 +203,10 @@ export default function PageWordsPlay({
           );
         })}
       </div>
+
+      {/* Once the question is graded, hear the page read back: the third use of
+          the recitation data, and the moment a learner most wants it. */}
+      {solution && <RecitationReplay page={question.page_number} />}
 
       {!disabled && (
         <>

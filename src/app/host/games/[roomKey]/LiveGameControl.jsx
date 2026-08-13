@@ -34,6 +34,7 @@ import HostPlayerTools from "@/components/host/HostPlayerTools";
 import RandomPicker from "@/components/host/RandomPicker";
 import CommandPalette from "@/components/ui/CommandPalette";
 import ShortcutsHelp from "@/components/host/ShortcutsHelp";
+import StudentAnswers from "@/components/host/StudentAnswers";
 import { ReactionLayer } from "@/components/game/Reactions";
 import useGamePresence from "@/lib/presence/useGamePresence";
 import {
@@ -132,6 +133,7 @@ export default function LiveGameControl({ roomKey }) {
   const [linkCopied, setLinkCopied] = useState(false);
   const [presenting, setPresenting] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [answersFor, setAnswersFor] = useState(null);
   const [teamStandings, setTeamStandings] = useState([]);
   const [distribution, setDistribution] = useState([]);
   const [showDistribution, setShowDistribution] = useState(false);
@@ -895,6 +897,12 @@ export default function LiveGameControl({ roomKey }) {
 
       <CommandPalette />
       <ShortcutsHelp />
+      <StudentAnswers
+        open={answersFor !== null}
+        onClose={() => setAnswersFor(null)}
+        competitionId={game?.id}
+        question={answersFor}
+      />
       <RandomPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
@@ -1056,6 +1064,11 @@ export default function LiveGameControl({ roomKey }) {
                   <Badge variant="success">
                     {answeredCount} {t("host.answered")}
                   </Badge>
+                )}
+                {answeredCount > 0 && (
+                  <Button size="sm" variant="ghost" icon="eye" onClick={() => setAnswersFor(current)}>
+                    {t("answers.open")}
+                  </Button>
                 )}
               </div>
 
@@ -1261,9 +1274,17 @@ export default function LiveGameControl({ roomKey }) {
                       className="rounded-md border border-border bg-surface-2 px-4 py-2.5"
                     >
                       <div className="flex items-center justify-between gap-3 text-sm">
-                        <span className="min-w-0 flex-1 truncate font-medium text-ink">
-                          {row.position_number}. {row.text}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAnswersFor(questions.find((q) => q.position === row.position_number))
+                          }
+                          className="min-w-0 flex-1 truncate text-start font-medium text-ink underline-offset-4 hover:underline"
+                        >
+                          {row.position_number}.{" "}
+                          {questionLabel(questions.find((q) => q.position === row.position_number)) ||
+                            row.text}
+                        </button>
                         <span className="shrink-0 text-xs text-ink-muted">
                           {row.correct_count}/{row.answered_count} {t("student.correctOf")} ·{" "}
                           {row.accuracy}%

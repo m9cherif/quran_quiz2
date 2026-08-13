@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import RecitationPlayer from "@/components/quran/RecitationPlayer";
+import ReciteAndFill from "@/components/quran/ReciteAndFill";
+import AyahDictation from "@/components/quran/AyahDictation";
 import { loadPageAnnotations } from "@/lib/quran/pages";
 import { loadTimelineIndex } from "@/lib/quran/recitation";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -20,6 +22,7 @@ export default function PracticeBrowser() {
   const [page, setPage] = useState(null);
   const [words, setWords] = useState([]);
   const [playlist, setPlaylist] = useState(false);
+  const [mode, setMode] = useState("follow");
   const [states, setStates] = useState({});
 
   useEffect(() => setStates(getPageStates()), []);
@@ -122,7 +125,32 @@ export default function PracticeBrowser() {
                 <Badge variant="neutral">{t("recite.wordCount", { count: words.length })}</Badge>
               </div>
             </div>
-            {page != null && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {[
+                ["follow", "recite.modeFollow"],
+                ["fill", "recite.modeFill"],
+                ["dictation", "recite.modeDictation"],
+              ].map(([id, key]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setMode(id)}
+                  aria-pressed={mode === id}
+                  className={`press rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                    mode === id
+                      ? "border-primary bg-primary-soft text-primary"
+                      : "border-border bg-surface text-ink-muted hover:text-ink"
+                  }`}
+                >
+                  {t(key)}
+                </button>
+              ))}
+            </div>
+
+            {page != null && mode === "fill" && <ReciteAndFill page={page} words={words} />}
+            {page != null && mode === "dictation" && <AyahDictation page={page} words={words} />}
+
+            {page != null && mode === "follow" && (
               <RecitationPlayer
                 page={page}
                 words={words}

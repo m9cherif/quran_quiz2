@@ -413,6 +413,25 @@ export async function getTeamStandings(
   return (data as TeamStandingRow[]) ?? [];
 }
 
+/**
+ * Every answer to one question, for the host.
+ * RLS already lets the competition owner read its answers, so this needs no
+ * RPC — and it carries answer_text, which is what page and ordering questions
+ * store their whole solution in.
+ */
+export async function listQuestionAnswers(
+  competitionId: string,
+  questionId: string
+): Promise<Answer[]> {
+  const { data, error } = await getSupabase()
+    .from("answers")
+    .select("*")
+    .eq("competition_id", competitionId)
+    .eq("question_id", questionId);
+  if (error) throw error;
+  return (data as Answer[]) ?? [];
+}
+
 export interface ChoiceDistributionRow {
   choice_id: string;
   choice_text: string;

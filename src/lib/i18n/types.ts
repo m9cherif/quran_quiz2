@@ -772,6 +772,9 @@ moveDown: string;
     count: string;
   },
   recite: {
+    modeFollow: string;
+    modeFill: string;
+    modeDictation: string;
     repeats: string;
     repeatsLeft: string;
     playlist: string;
@@ -813,6 +816,39 @@ moveDown: string;
     mark: string;
     learning: string;
     known: string;
+  },
+  answers: {
+    open: string;
+    title: string;
+    desc: string;
+    none: string;
+    correct: string;
+    incorrect: string;
+    blank: string;
+    wrote: string;
+    expected: string;
+  },
+  fill: {
+    start: string;
+    restart: string;
+    progress: string;
+    finished: string;
+    whatWord: string;
+    check: string;
+    reveal: string;
+    notThat: string;
+    hint: string;
+  },
+  dictation: {
+    listen: string;
+    next: string;
+    ayahOf: string;
+    placeholder: string;
+    check: string;
+    score: string;
+  },
+  replay: {
+    hearPage: string;
   },
 
 }
