@@ -47,6 +47,7 @@ const en: Messages = {
       liveGames: "Live Games",
       classes: "Classes",
       analytics: "Analytics",
+      timeline: "Timeline builder",
       newQuiz: "New Quiz",
       dashboard: "Dashboard",
       history: "History",

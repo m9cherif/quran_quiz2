@@ -47,6 +47,7 @@ const ar: Messages = {
       liveGames: "الألعاب المباشرة",
       classes: "الصفوف",
       analytics: "التحليلات",
+      timeline: "محرّر التوقيتات",
       newQuiz: "اختبار جديد",
       dashboard: "لوحة البيانات",
       history: "السجل",

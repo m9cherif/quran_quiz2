@@ -47,6 +47,7 @@ const fr: Messages = {
       liveGames: "Jeux en direct",
       classes: "Classes",
       analytics: "Analytics",
+      timeline: "Éditeur de timeline",
       newQuiz: "Nouveau quiz",
       dashboard: "Tableau de bord",
       history: "Historique",

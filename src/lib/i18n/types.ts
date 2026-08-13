@@ -46,6 +46,7 @@ draft: string;
     liveGames: string;
     classes: string;
     analytics: string;
+    timeline: string;
     newQuiz: string;
     dashboard: string;
     history: string;

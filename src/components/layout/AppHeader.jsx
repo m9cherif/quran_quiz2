@@ -24,6 +24,7 @@ const NAV = {
     { href: "/host/games", labelKey: "nav.liveGames" },
     { href: "/host/classes", labelKey: "nav.classes" },
     { href: "/host/analytics", labelKey: "nav.analytics" },
+    { href: "/host/timeline", labelKey: "nav.timeline" },
     { href: "/host/quizzes/new", labelKey: "nav.newQuiz" },
   ],
   student: [
