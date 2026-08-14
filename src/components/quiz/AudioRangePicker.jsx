@@ -310,50 +310,57 @@ export default function AudioRangePicker({ onPick }) {
         </Button>
       </div>
 
-      <div className="relative max-h-[50vh] overflow-auto rounded-lg border border-border bg-white">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={page != null ? pageImageUrl(page) : ""}
-          alt=""
-          className="block w-full"
-          draggable={false}
-          onLoad={(e) =>
-            setSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })
-          }
-        />
-        {size.width > 0 &&
-          usable.map((word) => {
-            const inRange = range?.ids.has(word.id);
-            const isEdge = word.id === startId || word.id === endId;
-            return (
-              <button
-                key={word.id}
-                type="button"
-                aria-label={word.text}
-                onClick={() => {
-                  if (startId == null || (startId != null && endId != null)) {
-                    setStartId(word.id);
-                    setEndId(null);
-                  } else {
-                    setEndId(word.id);
-                  }
-                }}
-                className={`absolute rounded ${
-                  isEdge
-                    ? "bg-amber-400/40 ring-2 ring-amber-500"
-                    : inRange
-                      ? "bg-primary/15"
-                      : "hover:bg-primary/10"
-                }`}
-                style={regionStyle({
-                  x1: word.x1 / size.width,
-                  y1: word.y1 / size.height,
-                  x2: word.x2 / size.width,
-                  y2: word.y2 / size.height,
-                })}
-              />
-            );
-          })}
+      {/* The scrolling frame and the word boxes must be two separate elements.
+          The boxes are positioned as a percentage of their parent, so if that
+          parent is the frame — capped at half the screen while the page image
+          is twice as tall — every box comes out flattened and too high. The
+          inner div takes the image's own height, which is what they mean. */}
+      <div className="max-h-[50vh] overflow-auto rounded-lg border border-border bg-white">
+        <div className="relative">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={page != null ? pageImageUrl(page) : ""}
+            alt=""
+            className="block w-full"
+            draggable={false}
+            onLoad={(e) =>
+              setSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })
+            }
+          />
+          {size.width > 0 &&
+            usable.map((word) => {
+              const inRange = range?.ids.has(word.id);
+              const isEdge = word.id === startId || word.id === endId;
+              return (
+                <button
+                  key={word.id}
+                  type="button"
+                  aria-label={word.text}
+                  onClick={() => {
+                    if (startId == null || (startId != null && endId != null)) {
+                      setStartId(word.id);
+                      setEndId(null);
+                    } else {
+                      setEndId(word.id);
+                    }
+                  }}
+                  className={`absolute rounded ${
+                    isEdge
+                      ? "bg-amber-400/40 ring-2 ring-amber-500"
+                      : inRange
+                        ? "bg-primary/15"
+                        : "hover:bg-primary/10"
+                  }`}
+                  style={regionStyle({
+                    x1: word.x1 / size.width,
+                    y1: word.y1 / size.height,
+                    x2: word.x2 / size.width,
+                    y2: word.y2 / size.height,
+                  })}
+                />
+              );
+            })}
+        </div>
       </div>
     </div>
   );
