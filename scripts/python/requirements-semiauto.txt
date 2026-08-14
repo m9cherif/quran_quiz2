@@ -1,0 +1,5 @@
+# The semi-automatic route: mp3 in, annotation workbook in, review workbook out.
+# No model and no ffmpeg — soundfile's wheel decodes mp3 on its own.
+numpy>=1.24
+soundfile>=0.12
+openpyxl>=3.1

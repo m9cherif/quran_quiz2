@@ -160,6 +160,47 @@ its neighbours.
 two words span, and prints what should be heard. If those disagree, the
 timeline is wrong — this is the only test that cannot lie to you.
 
+### Option D — a draft from the mp3, corrected in Excel (semi-automatic)
+
+No model, no download: the mp3, the annotation workbook, and a review
+spreadsheet. `pip install -r scripts/python/requirements-semiauto.txt` (numpy,
+soundfile, openpyxl — soundfile's wheel decodes mp3 by itself, so no ffmpeg).
+
+```bash
+python scripts/python/propose_timeline.py \
+    --page 553 --audio ~/audio/062.mp3 --start-ms 6300 --end-ms 178500 \
+    --out review_553.xlsx
+```
+
+Words come from `public/annotations/{page}.json`, or straight from the data
+repo's workbook with `--xlsx-words a553.xlsx`. Open the sheet, listen, and type
+a corrected millisecond in the **fixed_ms** column for any row that is off —
+empty cells keep the proposal. Then:
+
+```bash
+python scripts/python/xlsx_to_timeline.py --xlsx review_553.xlsx
+```
+
+**What it is worth, measured.** Against the hand-made timeline for page 553
+(`--compare public/timeline/553.json` prints this for any page):
+
+| | error |
+| --- | --- |
+| ayah boundaries | 73–412 ms |
+| every word | median 1.1 s, p90 2.4 s, 34/118 within half a second |
+
+So the ayah rows are right and the word rows are a draft. That is not a tuning
+failure, it is the method's ceiling: page 553 has about 300 energy onsets for
+118 words, and nothing in the loudness of a recording says which of them start
+a word rather than a syllable. What the draft does buy you is that the page is
+already in order, already split at every pause, and — because each ayah start is
+pinned to the reciter's long silence — a mistake can never travel past the end
+of its ayah.
+
+Use it when you want to correct a page rather than build one from nothing, or
+when you need ayah times (dictation, ayah clips) and nothing finer. For
+word-level precision without a human in the loop, use option C.
+
 ### Practical notes
 
 - **You do not have to finish a page in one pass.** A partial timeline is valid:
