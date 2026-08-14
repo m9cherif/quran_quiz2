@@ -67,6 +67,10 @@ silently. Run it whenever the upstream repo gains pages — it needs
 
 ### Option B — author one by tapping along (`/host/timeline`)
 
+Best when you want a page done now, with no setup: it needs nothing but a
+browser and an ear. For a whole surah, or for boundaries tighter than a hand
+can tap, use option C.
+
 For a page with no recording upstream, or one whose marks are wrong or stop
 early (554, 587, 588, 600 and 604 are only partly marked), sign in as a host and
 open **Timeline builder** in the header.
@@ -103,6 +107,58 @@ drill downstream trusts it silently. Pass `--force` to override. It keeps the
 previous file as `{page}.json.bak` and updates `index.json`.
 
 Commit `public/timeline/{page}.json` and `public/timeline/index.json`.
+
+### Option C — forced alignment in Python (the precise one)
+
+Tapping is accurate to how steady your hand is; alignment is accurate to about
+a frame. Use this when you want a whole surah timed properly, or a page timed
+better than a human can tap it.
+
+It is **alignment, not transcription**: the words are already known, so a CTC
+acoustic model is asked how likely each Arabic letter is in every 20 ms frame,
+and the path through those frames that spells the known page is the answer.
+Nothing can be invented — the model is never allowed to choose the words.
+
+```bash
+pip install -r scripts/python/requirements.txt
+```
+
+```bash
+python scripts/python/align_timeline.py --pages 553 554 555 --audio ~/audio/062.mp3
+```
+
+Pass every page that shares one recording, **in reading order**. Each page is
+aligned in a window that opens where the previous page ended, so no offsets
+need to be known and the memory cost stays flat — forcing a whole surah in one
+pass would stretch one page's words over another's audio. `--start-ms` says
+where the first page begins if the recording opens with something else (an
+isti'adha, a basmala); `--pad-s` widens the window if a page is reported as
+having run to its edge.
+
+CPU is enough — a page takes a couple of minutes; the first run downloads the
+model (~1 GB).
+
+Then check what it produced, and sharpen it if you like:
+
+```bash
+python scripts/python/check_timeline.py --pages 553 554 555 --audio ~/audio/062.mp3
+```
+
+The checker reports coverage, marks that run backwards, events naming words
+that are not on the page, and — usefully — gaps far larger than that page's
+median, which are either a genuine waqf or a word the alignment lost. It prints
+the first and last words each timeline claims, which is the fastest way to see
+that a page is off.
+
+`--snap` moves every mark to the quietest instant within ±120 ms. A reciter
+leaves a dip in energy between words, while the aligner marks where the next
+letter becomes likely — usually a few tens of milliseconds late. Snapping puts
+the boundary in the gap, where the ear expects it, and never lets a mark cross
+its neighbours.
+
+`--clip FIRST_ID LAST_ID --out sample.wav` exports what the timeline *claims*
+two words span, and prints what should be heard. If those disagree, the
+timeline is wrong — this is the only test that cannot lie to you.
 
 ### Practical notes
 

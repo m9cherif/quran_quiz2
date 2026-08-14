@@ -1,0 +1,7 @@
+# Forced alignment for recitation timelines.
+# CPU is enough: a page takes a couple of minutes. torchaudio 2.1 brought
+# forced_align/merge_tokens, which keep memory linear in the audio length —
+# a hand-rolled trellis over a whole surah does not fit comfortably in RAM.
+torch>=2.1
+torchaudio>=2.1
+transformers>=4.35
