@@ -372,6 +372,91 @@ def propose(
     return out
 
 
+def write_parts(page: int, parts: list[dict], timelines: Path) -> Path:
+    """
+    Write a page whose words are spread over more than one recording.
+
+    A page can straddle two surahs — 554 ends al-Jumu'a and begins
+    al-Munafiqun — and each surah is its own file. The first part is repeated in
+    the plain fields so a reader that knows nothing of parts still gets a
+    working timeline for the start of the page instead of nothing.
+    """
+    first = parts[0]
+    out = {
+        "page": page,
+        "audio": first["audio"],
+        "start": first["start"],
+        "duration": first["duration"],
+        "events": first["events"],
+    }
+    if len(parts) > 1:
+        out["parts"] = parts
+    timelines.mkdir(parents=True, exist_ok=True)
+    path = timelines / f"{page}.json"
+    path.write_text(json.dumps(out), encoding="utf8")
+    return path
+
+
+def run_plan(plan: list[dict], floor: float, timelines: Path) -> None:
+    """
+    Follow a plan — which words of which page live in which recording — and
+    write the timelines straight out, no review sheet.
+
+        [{"page": 554, "audio": "062.mp3", "words": "0:57",
+          "start_ms": 178600, "end_ms": 259800},
+         {"page": 554, "audio": "063.mp3", "words": "57:", "end_ms": 103100}]
+    """
+    parts: dict[int, list[dict]] = {}
+    for entry in plan:
+        page = int(entry["page"])
+        # "keep" takes a stretch from the timeline that is already there. Where
+        # someone has timed a page by ear, that is better than anything this
+        # script produces, and it should not be thrown away to fill in the rest.
+        if entry.get("keep"):
+            existing = json.loads((timelines / f"{page}.json").read_text(encoding="utf8"))
+            kept = existing.get("parts") or [
+                {
+                    "audio": existing["audio"],
+                    "start": existing["start"],
+                    "duration": existing["duration"],
+                    "events": existing["events"],
+                }
+            ]
+            parts.setdefault(page, []).extend(kept)
+            print(f"page {page} · keeping {sum(len(k['events']) for k in kept)} words "
+                  f"already timed in {kept[0]['audio']}")
+            continue
+        audio = Path(entry["audio"])
+        words = words_from_json(page)
+        if entry.get("words"):
+            a, _, b = entry["words"].partition(":")
+            words = words[int(a or 0) : int(b) if b else None]
+
+        start_ms = int(entry.get("start_ms", 0))
+        rms, offset = energy(audio, start_ms, entry.get("end_ms"))
+        phrases, silence = tune_phrases(rms, len(words), floor)
+        rows = propose(rms, words, phrases, offset, anchors=ayah_anchors(rms, words))
+        print(
+            f"page {page} · {audio.name} · {len(words)} words · "
+            f"{start_ms / 1000:.1f}s–{(start_ms + len(rms) * HOP_MS) / 1000:.1f}s · "
+            f"{len(phrases)} phrases at {silence} ms"
+        )
+        first = rows[0]["ms"]
+        parts.setdefault(page, []).append(
+            {
+                "audio": audio.name,
+                "start": first,
+                "duration": max(0, start_ms + len(rms) * HOP_MS - first),
+                "events": [{"t": r["ms"] - first, "w": r["id"]} for r in rows],
+            }
+        )
+
+    for page, page_parts in parts.items():
+        path = write_parts(page, page_parts, timelines)
+        total = sum(len(p["events"]) for p in page_parts)
+        print(f"wrote {path} — {total} words over {len(page_parts)} recording(s)")
+
+
 def write_review(rows: list[dict], path: Path, page: int, audio: str, start_ms: int, duration_ms: int) -> None:
     book = Workbook()
     sheet = book.active
@@ -400,8 +485,10 @@ def write_review(rows: list[dict], path: Path, page: int, audio: str, start_ms: 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--page", type=int, required=True)
-    parser.add_argument("--audio", type=Path, required=True)
+    parser.add_argument("--plan", type=Path,
+                        help="a JSON plan: which words of which page are in which recording")
+    parser.add_argument("--page", type=int)
+    parser.add_argument("--audio", type=Path)
     parser.add_argument("--xlsx-words", type=Path, help="annotation workbook; defaults to public/annotations/{page}.json")
     parser.add_argument("--start-ms", type=int, default=0, help="where the page begins in the recording")
     parser.add_argument("--end-ms", type=int, default=None)
@@ -414,6 +501,13 @@ def main() -> int:
                         help="do not pin ayah starts to the long pauses")
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
+
+    if args.plan:
+        run_plan(json.loads(args.plan.read_text(encoding="utf8")), args.floor,
+                 REPO / "public" / "timeline")
+        return 0
+    if args.page is None or args.audio is None:
+        parser.error("give --plan, or --page and --audio")
 
     words = words_from_xlsx(args.xlsx_words) if args.xlsx_words else words_from_json(args.page)
     print(f"page {args.page}: {len(words)} words")

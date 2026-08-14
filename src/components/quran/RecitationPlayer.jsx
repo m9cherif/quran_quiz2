@@ -4,7 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { pageImageUrl, regionStyle } from "@/lib/quran/pages";
-import { audioUrl, loadTimeline, timeOfWord, wordAt } from "@/lib/quran/recitation";
+import {
+  audioUrl,
+  loadTimeline,
+  partOfWord,
+  timelineParts,
+  timeOfWord,
+  wordAt,
+} from "@/lib/quran/recitation";
 import { readBookmark, saveBookmark } from "@/lib/quran/progress";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
@@ -41,12 +48,21 @@ export default function RecitationPlayer({ page, words = [], className = "", onF
   const [repeats, setRepeats] = useState(1);
   const [repeatsLeft, setRepeatsLeft] = useState(0);
   const repeatDoneRef = useRef(0);
+  const pendingSeekRef = useRef(null);
+  /**
+   * Which recording is playing. Almost every page has one, but a page that
+   * straddles two surahs has two, and "play the page" has to run through both.
+   */
+  const [partIndex, setPartIndex] = useState(0);
+  const parts = useMemo(() => (timeline ? timelineParts(timeline) : []), [timeline]);
+  const part = parts[partIndex] ?? null;
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setTimeline(null);
     setCurrentWord(null);
+    setPartIndex(0);
     loadTimeline(page)
       .then((data) => {
         if (!active) return;
@@ -62,12 +78,12 @@ export default function RecitationPlayer({ page, words = [], className = "", onF
   // Follow playback on animation frames: `timeupdate` only fires ~4×/second,
   // which is visibly late for word-level highlighting.
   useEffect(() => {
-    if (!playing || !timeline) return;
+    if (!playing || !part) return;
     const tick = () => {
       const el = audioRef.current;
       if (el) {
         const ms = el.currentTime * 1000;
-        setCurrentWord(wordAt(timeline, ms));
+        setCurrentWord(wordAt(part, ms));
 
         // A selected ayah owns the transport until its repeats are spent.
         if (activeAyah && ms >= activeAyah.to) {
@@ -81,11 +97,16 @@ export default function RecitationPlayer({ page, words = [], className = "", onF
             setActiveAyah(null);
             repeatDoneRef.current = 0;
           }
-        } else if (!activeAyah && timeline.duration > 0) {
-          const endMs = timeline.start + timeline.duration;
+        } else if (!activeAyah && part.duration > 0) {
+          const endMs = part.start + part.duration;
           if (ms >= endMs) {
-            if (loop) el.currentTime = timeline.start / 1000;
-            else {
+            if (partIndex + 1 < parts.length) {
+              // The page continues in the next surah's recording.
+              setPartIndex(partIndex + 1);
+            } else if (loop) {
+              setPartIndex(0);
+              el.currentTime = parts[0].start / 1000;
+            } else {
               el.pause();
               // Playlist mode: hand over to the next page.
               onFinished?.();
@@ -97,11 +118,28 @@ export default function RecitationPlayer({ page, words = [], className = "", onF
     };
     frameRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameRef.current);
-  }, [playing, timeline, loop]);
+  }, [playing, part, partIndex, parts, loop]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.playbackRate = speed;
   }, [speed]);
+
+  // Changing recording swaps the <audio> source, which resets the clock: seek
+  // to where this stretch begins (or to the word that was asked for) and carry
+  // on playing if it was playing.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !part) return;
+    const target = pendingSeekRef.current ?? part.start;
+    pendingSeekRef.current = null;
+    const seek = () => {
+      el.currentTime = target / 1000;
+      if (playing) el.play().catch(() => setFailed(true));
+    };
+    if (el.readyState >= 1) seek();
+    else el.addEventListener("loadedmetadata", seek, { once: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partIndex, part?.audio]);
 
   // Remember where this page was left, and offer to resume next visit.
   useEffect(() => {
@@ -129,12 +167,12 @@ export default function RecitationPlayer({ page, words = [], className = "", onF
    * actually builds memorisation — a whole page is too long to repeat.
    */
   const ayahs = useMemo(() => {
-    if (!timeline) return [];
+    if (!part) return [];
+    const inPart = new Set(part.events.map((e) => e.w));
     const groups = new Map();
     for (const word of words) {
-      if (!word.aya || word.id == null) continue;
-      const at = timeOfWord(timeline, word.id);
-      if (at == null) continue;
+      if (!word.aya || word.id == null || !inPart.has(word.id)) continue;
+      const at = part.start + part.events.find((e) => e.w === word.id).t;
       const found = groups.get(word.aya) ?? { aya: word.aya, from: at, to: at };
       found.from = Math.min(found.from, at);
       found.to = Math.max(found.to, at);
@@ -144,9 +182,9 @@ export default function RecitationPlayer({ page, words = [], className = "", onF
     // An ayah ends where the next begins; the last runs to the recording end.
     return list.map((item, i) => ({
       ...item,
-      to: i + 1 < list.length ? list[i + 1].from : timeline.start + timeline.duration,
+      to: i + 1 < list.length ? list[i + 1].from : part.start + part.duration,
     }));
-  }, [words, timeline]);
+  }, [words, part]);
 
   const playAyah = (ayah) => {
     const el = audioRef.current;
@@ -164,7 +202,15 @@ export default function RecitationPlayer({ page, words = [], className = "", onF
     if (ms == null) return;
     const el = audioRef.current;
     if (!el) return;
-    el.currentTime = ms / 1000;
+    // The word may live in the page's other recording; load it first, and let
+    // the effect below seek once the browser has the new source.
+    const index = parts.findIndex((p) => p === partOfWord(timeline, word.id));
+    if (index >= 0 && index !== partIndex) {
+      pendingSeekRef.current = ms;
+      setPartIndex(index);
+    } else {
+      el.currentTime = ms / 1000;
+    }
     setCurrentWord(word.id);
     if (!playing) el.play().catch(() => setFailed(true));
   };
@@ -177,16 +223,21 @@ export default function RecitationPlayer({ page, words = [], className = "", onF
       return;
     }
     // Start at the page's own offset: several pages share one surah recording.
-    if (timeline && el.currentTime * 1000 < timeline.start) {
-      el.currentTime = timeline.start / 1000;
+    if (part && el.currentTime * 1000 < part.start) {
+      el.currentTime = part.start / 1000;
     }
     el.play().catch(() => setFailed(true));
   };
 
   const restart = () => {
     const el = audioRef.current;
-    if (!el || !timeline) return;
-    el.currentTime = timeline.start / 1000;
+    if (!el || !parts.length) return;
+    if (partIndex !== 0) {
+      pendingSeekRef.current = parts[0].start;
+      setPartIndex(0);
+    } else {
+      el.currentTime = parts[0].start / 1000;
+    }
     setCurrentWord(null);
   };
 
@@ -206,7 +257,7 @@ export default function RecitationPlayer({ page, words = [], className = "", onF
     <div className={`space-y-3 ${className}`}>
       <audio
         ref={audioRef}
-        src={audioUrl(timeline.audio)}
+        src={part?.audio ? audioUrl(part.audio) : undefined}
         preload="none"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}

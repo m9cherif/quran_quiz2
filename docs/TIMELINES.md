@@ -201,6 +201,55 @@ Use it when you want to correct a page rather than build one from nothing, or
 when you need ayah times (dictation, ayah clips) and nothing finer. For
 word-level precision without a human in the loop, use option C.
 
+## A page that straddles two surahs
+
+Page 554 is the last three ayat of al-Jumu'a and the first four of
+al-Munafiqun, and the two surahs are recorded separately — so one page needs
+`062.mp3` **and** `063.mp3`. That is why it had only 61 of its 119 words timed:
+the format held one recording per page, so the second half could not be
+expressed at all.
+
+A timeline may now carry `parts`:
+
+```json
+{
+  "page": 554,
+  "audio": "062.mp3", "start": 0, "duration": 259586, "events": [...],
+  "parts": [
+    { "audio": "062.mp3", "start": 0,    "duration": 259586, "events": [...] },
+    { "audio": "063.mp3", "start": 6050, "duration": 97050,  "events": [...] }
+  ]
+}
+```
+
+The first part is repeated in the plain fields, so anything reading only those
+still gets a working timeline for the start of the page rather than nothing.
+`timelineParts`, `partOfWord` and `locateWord` in
+[`recitation.ts`](../src/lib/quran/recitation.ts) hide the difference; "follow
+along" plays straight through from one recording into the next, dictation takes
+each ayah from the file it was recited in, and a range that would cross the two
+is refused rather than half played.
+
+**Both builders take a plan**, which is how a page gets built from two files —
+and `keep` protects work already done by ear:
+
+```json
+[
+  { "page": 554, "keep": true },
+  { "page": 554, "audio": "063.mp3", "words": "57:", "start_ms": 5000, "end_ms": 103100 }
+]
+```
+
+```bash
+python scripts/python/propose_timeline.py --plan plan.json   # energy, runs anywhere
+python scripts/python/align_timeline.py   --plan plan.json   # forced alignment
+```
+
+`words` is a slice of the page's words in reading order (`"0:57"`, `"57:"`),
+and `start_ms`/`end_ms` bound the stretch of recording to look in. Entries are
+taken in order; without `start_ms` each one begins where the previous entry in
+that same recording ended.
+
 ### Practical notes
 
 - **You do not have to finish a page in one pass.** A partial timeline is valid:

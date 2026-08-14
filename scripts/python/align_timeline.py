@@ -180,6 +180,93 @@ def align(
     return [(words[i], bounds[i][0], bounds[i][1]) for i in spelled if i in bounds]
 
 
+def write_parts(page: int, parts: list[dict]) -> Path:
+    """
+    Write a page whose words are spread over more than one recording.
+
+    A page can straddle two surahs — 554 is the last three ayat of al-Jumu'a
+    and the first four of al-Munafiqun — and the surahs are recorded in separate
+    files, so one page needs two. The first part is also written at the top
+    level, in the old shape, so anything reading the plain fields still gets a
+    working (if partial) timeline instead of nothing.
+    """
+    first = parts[0]
+    out = {
+        "page": page,
+        "audio": first["audio"],
+        "start": first["start"],
+        "duration": first["duration"],
+        "events": first["events"],
+    }
+    if len(parts) > 1:
+        out["parts"] = parts
+    TIMELINES.mkdir(parents=True, exist_ok=True)
+    path = TIMELINES / f"{page}.json"
+    path.write_text(json.dumps(out), encoding="utf8")
+    return path
+
+
+def part_from_marks(audio_name: str, marks: list[tuple[Word, float, float]], end_s: float) -> dict:
+    start_ms = int(round(marks[0][1] * 1000))
+    return {
+        "audio": audio_name,
+        "start": start_ms,
+        "duration": max(0, int(round(end_s * 1000)) - start_ms),
+        "events": [{"t": max(0, int(round(s * 1000)) - start_ms), "w": w.id} for w, s, _ in marks],
+    }
+
+
+def run_plan(plan: list[dict], model, processor, device: str, pad_s: float) -> None:
+    """
+    Follow a plan: which words of which page live in which recording.
+
+        [{"page": 553, "audio": "062.mp3"},
+         {"page": 554, "audio": "062.mp3", "words": "0:57", "start_ms": 178300},
+         {"page": 554, "audio": "063.mp3", "words": "57:"},
+         {"page": 555, "audio": "063.mp3"}]
+
+    Entries are taken in order and grouped by recording, each one starting where
+    the previous entry in that recording ended.
+    """
+    parts: dict[int, list[dict]] = {}
+    cursors: dict[str, float] = {}
+    cache: dict[str, torch.Tensor] = {}
+
+    for entry in plan:
+        page = int(entry["page"])
+        audio = Path(entry["audio"])
+        if str(audio) not in cache:
+            cache[str(audio)] = load_audio(audio)
+        waveform = cache[str(audio)]
+        total_s = waveform.size(1) / SAMPLE_RATE
+
+        words = load_words(page)
+        if entry.get("words"):
+            a, _, b = entry["words"].partition(":")
+            words = words[int(a or 0) : int(b) if b else None]
+
+        cursor_s = entry.get("start_ms", cursors.get(str(audio), 0)) / 1000 if "start_ms" in entry else cursors.get(str(audio), 0.0)
+        window_start = max(0.0, cursor_s - 1.0)
+        window_end = min(total_s, entry.get("end_ms", 1e9) / 1000, cursor_s + len(words) * 1.6 + pad_s)
+
+        print(f"page {page} · {audio.name} · {len(words)} words · {window_start:.1f}s–{window_end:.1f}s")
+        segment = waveform[:, int(window_start * SAMPLE_RATE) : int(window_end * SAMPLE_RATE)]
+        marks = align(segment, words, model, processor, device)
+        marks = [(w, s + window_start, e + window_start) for w, s, e in marks]
+        last_end = marks[-1][2]
+        print(f"   {len(marks)}/{len(words)} placed, {marks[0][1]:.1f}s → {last_end:.1f}s")
+        if window_end - last_end < 1.0 and window_end < total_s:
+            print("   ! ran to the edge of its window — give it more room")
+
+        parts.setdefault(page, []).append(part_from_marks(audio.name, marks, last_end))
+        cursors[str(audio)] = last_end
+
+    for page, page_parts in parts.items():
+        path = write_parts(page, page_parts)
+        total = sum(len(p["events"]) for p in page_parts)
+        print(f"wrote {path.relative_to(REPO)} — {total} words over {len(page_parts)} recording(s)")
+
+
 def write_timeline(page: int, audio_name: str, marks: list[tuple[Word, float, float]], end_s: float) -> Path:
     start_ms = int(round(marks[0][1] * 1000))
     events = [{"t": max(0, int(round(s * 1000)) - start_ms), "w": w.id} for w, s, _ in marks]
@@ -199,9 +286,10 @@ def write_timeline(page: int, audio_name: str, marks: list[tuple[Word, float, fl
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--plan", type=Path, help="a JSON plan: which words of which page are in which recording")
     parser.add_argument("--page", type=int, help="a single page")
     parser.add_argument("--pages", type=int, nargs="+", help="pages sharing one recording, in reading order")
-    parser.add_argument("--audio", required=True, type=Path, help="the surah mp3")
+    parser.add_argument("--audio", type=Path, help="the surah mp3")
     parser.add_argument("--start-ms", type=int, default=0, help="where the first page begins in it")
     parser.add_argument("--end-ms", type=int, default=None, help="where the last page ends")
     parser.add_argument("--pad-s", type=float, default=20.0, help="slack around each page's estimated window")
@@ -210,12 +298,18 @@ def main() -> int:
     args = parser.parse_args()
 
     pages = args.pages or ([args.page] if args.page else [])
-    if not pages:
-        parser.error("give --page or --pages")
+    if not pages and not args.plan:
+        parser.error("give --page, --pages or --plan")
+    if not args.plan and not args.audio:
+        parser.error("--audio is required without --plan")
 
     print(f"loading {args.model} on {args.device} …")
     processor = Wav2Vec2Processor.from_pretrained(args.model)
     model = Wav2Vec2ForCTC.from_pretrained(args.model).to(args.device).eval()
+
+    if args.plan:
+        run_plan(json.loads(args.plan.read_text(encoding="utf8")), model, processor, args.device, args.pad_s)
+        return 0
 
     waveform = load_audio(args.audio)
     total_s = waveform.size(1) / SAMPLE_RATE

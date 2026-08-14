@@ -85,10 +85,14 @@ export default function RangeReciter({ page, words = [], className = "" }) {
     let endIdx = spans.findIndex((s, i) => i >= startIdx && s.w === lastId);
     if (endIdx < 0) endIdx = spans.map((s) => s.w).lastIndexOf(lastId);
     if (startIdx < 0 || endIdx < 0) return null;
+    // A page that straddles two surahs is recited in two files, and one clip
+    // cannot span both — such a selection is refused rather than half played.
+    if (spans[startIdx].audio !== spans[endIdx].audio) return null;
 
     return {
       words: slice,
       ids: new Set(slice.map((w) => w.id)),
+      audio: spans[startIdx].audio,
       from: spans[startIdx].from,
       to: Math.max(spans[endIdx].to, spans[startIdx].to),
       text: slice.map((w) => w.text).join(" "),
@@ -186,7 +190,7 @@ export default function RangeReciter({ page, words = [], className = "" }) {
     <div className={`space-y-3 ${className}`}>
       <audio
         ref={audioRef}
-        src={audioUrl(timeline.audio)}
+        src={audioUrl(range?.audio || timeline.audio)}
         preload="none"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}

@@ -111,9 +111,13 @@ export default function AudioRangePicker({ onPick }) {
     let endIdx = spans.findIndex((s, i) => i >= startIdx && s.w === lastId);
     if (endIdx < 0) endIdx = spans.map((s) => s.w).lastIndexOf(lastId);
     if (startIdx < 0 || endIdx < 0) return null;
+    // One clip, one recording: a page that straddles two surahs has two, and a
+    // selection across them cannot be played as a single media fragment.
+    if (spans[startIdx].audio !== spans[endIdx].audio) return null;
     return {
       words: slice,
       ids: new Set(slice.map((w) => w.id)),
+      audio: spans[startIdx].audio,
       from: spans[startIdx].from,
       to: Math.max(spans[endIdx].to, spans[startIdx].to),
       text: slice.map((w) => w.text).join(" "),
@@ -205,10 +209,10 @@ export default function AudioRangePicker({ onPick }) {
   };
 
   const confirm = () => {
-    if (!range || !timeline?.audio) return;
+    if (!range?.audio) return;
     const built = buildAsk();
     onPick({
-      audioUrl: `${audioUrl(timeline.audio)}#t=${(range.from / 1000).toFixed(2)},${(range.to / 1000).toFixed(2)}`,
+      audioUrl: `${audioUrl(range.audio)}#t=${(range.from / 1000).toFixed(2)},${(range.to / 1000).toFixed(2)}`,
       passage: range.text,
       lastWord: range.last,
       page,
@@ -260,7 +264,10 @@ export default function AudioRangePicker({ onPick }) {
         </p>
       )}
 
-      {timeline?.audio && <audio ref={audioRef} src={audioUrl(timeline.audio)} preload="none" />}
+      {/* The clip's own recording — the page may use more than one. */}
+      {(range?.audio || timeline?.audio) && (
+        <audio ref={audioRef} src={audioUrl(range?.audio || timeline.audio)} preload="none" />
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold text-ink-muted">{t("audioQ.askLabel")}</span>

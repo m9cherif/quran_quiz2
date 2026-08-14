@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { pageImageUrl, regionStyle, normaliseArabic } from "@/lib/quran/pages";
-import { audioUrl, loadTimeline, timeOfWord } from "@/lib/quran/recitation";
+import { audioUrl, loadTimeline, timelineParts } from "@/lib/quran/recitation";
 import { playCue } from "@/lib/sound";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
@@ -44,13 +44,27 @@ export default function ReciteAndFill({ page, words = [], gapCount = 6, classNam
   }, [page]);
 
   /** Words that both have a box and a moment in the recording can be gaps. */
+  /**
+   * The stretch of recording the drill runs in. This one plays continuously and
+   * stops at each gap, so it cannot hop between files: a page split over two
+   * surahs is drilled on whichever half is longer.
+   */
+  const part = useMemo(() => {
+    if (!timeline) return null;
+    return timelineParts(timeline).reduce(
+      (best, p) => (!best || p.events.length > best.events.length ? p : best),
+      null
+    );
+  }, [timeline]);
+
   const candidates = useMemo(() => {
-    if (!timeline) return [];
+    if (!part) return [];
+    const at = new Map(part.events.map((e) => [e.w, part.start + e.t]));
     return words
-      .filter((w) => w.id != null && w.text.trim() && timeOfWord(timeline, w.id) != null)
-      .map((w) => ({ ...w, at: timeOfWord(timeline, w.id) }))
+      .filter((w) => w.id != null && w.text.trim() && at.has(w.id))
+      .map((w) => ({ ...w, at: at.get(w.id) }))
       .sort((a, b) => a.at - b.at);
-  }, [words, timeline]);
+  }, [words, part]);
 
   const start = () => {
     if (candidates.length === 0) return;
@@ -68,7 +82,7 @@ export default function ReciteAndFill({ page, words = [], gapCount = 6, classNam
 
     const el = audioRef.current;
     if (el && timeline) {
-      el.currentTime = timeline.start / 1000;
+      el.currentTime = part.start / 1000;
       el.play().catch(() => {});
     }
   };
@@ -87,8 +101,8 @@ export default function ReciteAndFill({ page, words = [], gapCount = 6, classNam
           setTyped("");
           playCue("tick");
         } else if (
-          timeline.duration > 0 &&
-          ms >= timeline.start + timeline.duration
+          part.duration > 0 &&
+          ms >= part.start + part.duration
         ) {
           el.pause();
           setDone(true);
@@ -130,7 +144,7 @@ export default function ReciteAndFill({ page, words = [], gapCount = 6, classNam
     if (el) el.play().catch(() => {});
   };
 
-  if (!timeline?.audio) {
+  if (!part?.audio) {
     return (
       <div className={`rounded-lg border border-dashed border-border p-6 text-center ${className}`}>
         <p className="text-sm text-ink-muted">{t("recite.none")}</p>
@@ -144,7 +158,7 @@ export default function ReciteAndFill({ page, words = [], gapCount = 6, classNam
     <div className={`space-y-3 ${className}`}>
       <audio
         ref={audioRef}
-        src={audioUrl(timeline.audio)}
+        src={audioUrl(part.audio)}
         preload="none"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}

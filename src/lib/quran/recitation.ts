@@ -15,14 +15,45 @@ export interface TimelineEvent {
   w: number;
 }
 
-export interface PageTimeline {
-  page: number;
+export interface TimelinePart {
   /** File name inside the upstream audio folder, e.g. "062.mp3". */
   audio: string | null;
-  /** Where in the mp3 this page begins (ms) — pages share a surah recording. */
+  /** Where in that mp3 this stretch begins (ms) — pages share a recording. */
   start: number;
   duration: number;
   events: TimelineEvent[];
+}
+
+export interface PageTimeline extends TimelinePart {
+  page: number;
+  /**
+   * Present when the page's words are spread over more than one recording.
+   *
+   * A page can straddle two surahs — 554 ends al-Jumu'a and begins
+   * al-Munafiqun — and each surah is a separate file. The first part is also
+   * repeated in the plain fields above, so a reader that knows nothing of parts
+   * still gets a working timeline for the beginning of the page rather than
+   * nothing at all.
+   */
+  parts?: TimelinePart[];
+}
+
+/** Every stretch of recording this page uses, oldest format included. */
+export function timelineParts(timeline: PageTimeline): TimelinePart[] {
+  if (timeline.parts?.length) return timeline.parts;
+  return [
+    {
+      audio: timeline.audio,
+      start: timeline.start,
+      duration: timeline.duration,
+      events: timeline.events,
+    },
+  ];
+}
+
+/** The stretch of recording a given word is recited in. */
+export function partOfWord(timeline: PageTimeline, wordId: number): TimelinePart | null {
+  return timelineParts(timeline).find((p) => p.events.some((e) => e.w === wordId)) ?? null;
 }
 
 export function audioUrl(file: string): string {
@@ -61,7 +92,10 @@ export async function loadTimeline(page: number): Promise<PageTimeline | null> {
  * Events are ordered, so this is a binary search over "last event at or before
  * now" rather than a scan — it runs on every animation frame.
  */
-export function wordAt(timeline: PageTimeline, audioMs: number): number | null {
+export function wordAt(
+  timeline: PageTimeline | TimelinePart,
+  audioMs: number
+): number | null {
   const rel = audioMs - timeline.start;
   const events = timeline.events;
   if (rel < 0 || events.length === 0) return null;
@@ -84,9 +118,11 @@ export function wordAt(timeline: PageTimeline, audioMs: number): number | null {
 export interface WordSpan {
   /** Annotation word id. */
   w: number;
-  /** Absolute audio positions (ms). */
+  /** Absolute audio positions (ms), inside `audio`. */
   from: number;
   to: number;
+  /** Which recording these positions belong to. */
+  audio: string | null;
 }
 
 /**
@@ -98,17 +134,40 @@ export interface WordSpan {
  * extra file to keep in step.
  */
 export function wordSpans(timeline: PageTimeline): WordSpan[] {
-  const events = timeline.events;
-  const end = timeline.start + (timeline.duration || 0);
-  return events.map((event, i) => ({
-    w: event.w,
-    from: timeline.start + event.t,
-    to: i + 1 < events.length ? timeline.start + events[i + 1].t : end,
-  }));
+  return timelineParts(timeline).flatMap((part) => {
+    const end = part.start + (part.duration || 0);
+    return part.events.map((event, i) => ({
+      w: event.w,
+      from: part.start + event.t,
+      to: i + 1 < part.events.length ? part.start + part.events[i + 1].t : end,
+      audio: part.audio,
+    }));
+  });
 }
 
-/** Audio position (ms) at which a given word starts, if the recording has it. */
+/**
+ * Audio position (ms) at which a given word starts, if the recording has it.
+ *
+ * Looks through every part, so a word in the second half of a page that
+ * straddles two surahs is found — pair it with `partOfWord` to know which
+ * recording that position is in.
+ */
 export function timeOfWord(timeline: PageTimeline, wordId: number): number | null {
-  const event = timeline.events.find((e) => e.w === wordId);
-  return event ? timeline.start + event.t : null;
+  for (const part of timelineParts(timeline)) {
+    const event = part.events.find((e) => e.w === wordId);
+    if (event) return part.start + event.t;
+  }
+  return null;
+}
+
+/** The recording a word is in, and where in it — everything needed to play it. */
+export function locateWord(
+  timeline: PageTimeline,
+  wordId: number
+): { audio: string | null; ms: number } | null {
+  for (const part of timelineParts(timeline)) {
+    const event = part.events.find((e) => e.w === wordId);
+    if (event) return { audio: part.audio, ms: part.start + event.t };
+  }
+  return null;
 }

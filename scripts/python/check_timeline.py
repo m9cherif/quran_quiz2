@@ -50,11 +50,26 @@ def words_of(page: int) -> dict[int, str]:
 def report(page: int) -> tuple[dict, bool]:
     timeline = load_json(TIMELINES / f"{page}.json")
     known = words_of(page)
-    events = timeline.get("events", [])
+    # A page that straddles two surahs is recited in two files; check both.
+    parts = timeline.get("parts") or [timeline]
+    events = [e for part in parts for e in part.get("events", [])]
+    if len(parts) > 1:
+        print(f"page {page}: {len(parts)} recordings — "
+              + ", ".join(f"{p['audio']} ({len(p['events'])} words)" for p in parts))
 
     unmatched = [e for e in events if e["w"] not in known]
-    backwards = [e for i, e in enumerate(events) if i and e["t"] < events[i - 1]["t"]]
-    gaps = [b["t"] - a["t"] for a, b in zip(events, events[1:])]
+    # Each part counts from its own start, so order is only meaningful inside one.
+    backwards = [
+        e
+        for part in parts
+        for i, e in enumerate(part.get("events", []))
+        if i and e["t"] < part["events"][i - 1]["t"]
+    ]
+    gaps = [
+        b["t"] - a["t"]
+        for part in parts
+        for a, b in zip(part.get("events", []), part.get("events", [])[1:])
+    ]
 
     print(f"page {page}: {len(events)} events for {len(known)} words, audio {timeline.get('audio')}")
     print(f"   opens: {' '.join(known.get(e['w'], '?') for e in events[:6])}")

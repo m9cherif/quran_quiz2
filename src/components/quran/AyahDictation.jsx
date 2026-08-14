@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { normaliseArabic } from "@/lib/quran/pages";
-import { audioUrl, loadTimeline, timeOfWord } from "@/lib/quran/recitation";
+import { audioUrl, loadTimeline, partOfWord, timeOfWord } from "@/lib/quran/recitation";
 import { playCue } from "@/lib/sound";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
@@ -43,7 +43,14 @@ export default function AyahDictation({ page, words = [], className = "" }) {
       if (!word.aya || word.id == null) continue;
       const at = timeOfWord(timeline, word.id);
       if (at == null) continue;
-      const entry = groups.get(word.aya) ?? { aya: word.aya, from: at, to: at, words: [] };
+      const entry = groups.get(word.aya) ?? {
+        aya: word.aya,
+        from: at,
+        to: at,
+        words: [],
+        // An ayah never crosses a surah, so one recording holds all of it.
+        audio: partOfWord(timeline, word.id)?.audio ?? timeline.audio,
+      };
       entry.from = Math.min(entry.from, at);
       entry.to = Math.max(entry.to, at);
       entry.words.push(word);
@@ -52,7 +59,10 @@ export default function AyahDictation({ page, words = [], className = "" }) {
     const list = [...groups.values()].sort((a, b) => a.from - b.from);
     return list.map((item, i) => ({
       ...item,
-      to: i + 1 < list.length ? list[i + 1].from : timeline.start + timeline.duration,
+      to:
+        i + 1 < list.length && list[i + 1].audio === item.audio
+          ? list[i + 1].from
+          : item.to + 4000,
       text: item.words.map((w) => w.text).join(" "),
     }));
   }, [words, timeline]);
@@ -103,7 +113,7 @@ export default function AyahDictation({ page, words = [], className = "" }) {
     <div className={`space-y-3 ${className}`}>
       <audio
         ref={audioRef}
-        src={audioUrl(timeline.audio)}
+        src={audioUrl(current?.audio || timeline.audio)}
         preload="none"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}

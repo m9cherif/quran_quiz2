@@ -9,7 +9,7 @@
  */
 import type { AnnotatedWord } from "./pages";
 import type { PageTimeline } from "./recitation";
-import { audioUrl, timeOfWord } from "./recitation";
+import { audioUrl, locateWord } from "./recitation";
 
 export type GeneratedKind = "hidden_words" | "continue" | "listen";
 
@@ -128,16 +128,22 @@ export function generateQuestions(options: GenerateOptions): GeneratedQuestion[]
       const first = list[0];
       const last = list[list.length - 1];
       if (first?.id == null || last?.id == null) continue;
-      const from = timeOfWord(timeline, first.id);
-      const to = timeOfWord(timeline, last.id);
-      if (from == null || to == null || to <= from) continue;
+      const opening = locateWord(timeline, first.id);
+      const closing = locateWord(timeline, last.id);
+      // A clip is one media fragment, so both ends must be in one recording.
+      // On a page that straddles two surahs each ayah still is, so this only
+      // ever skips a malformed timeline.
+      if (!opening?.audio || !closing || opening.audio !== closing.audio) continue;
+      const from = opening.ms;
+      const to = closing.ms;
+      if (to <= from) continue;
       out.push({
         type: "audio",
         text: `${from ? "" : ""}${listeningPrompt(aya)}`,
         duration_seconds: 45,
         correct_answer_text: last.text,
         // A media fragment: the player only sounds this slice of the surah.
-        audio_url: `${audioUrl(timeline.audio)}#t=${(from / 1000).toFixed(2)},${(to / 1000).toFixed(2)}`,
+        audio_url: `${audioUrl(opening.audio)}#t=${(from / 1000).toFixed(2)},${(to / 1000).toFixed(2)}`,
         hint: null,
         page_number: page,
         surah_number: null,
