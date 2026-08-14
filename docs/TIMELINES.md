@@ -54,9 +54,34 @@ be too.
 
 ### Option A — import the upstream files (all 17 pages at once)
 
+**This runs on its own before every build** (`prebuild` → `scripts/refresh-data.mjs`),
+so a deploy always ships what the data repo says today. The site never reads
+GitHub while serving pages: annotations, timelines and the surah/hizb tables are
+imported into `public/` and served from there. That is why editing or deleting a
+file upstream used to change nothing until someone remembered to re-import.
+
 ```bash
-node scripts/fetch-timelines.mjs
+npm run data:refresh          # annotations, then timelines, then the tables
+node scripts/fetch-timelines.mjs   # timelines only
 ```
+
+A failure is not fatal: what is committed is a complete working copy, and the
+build carries on with it rather than taking the site down over a network
+hiccup. `SKIP_DATA_REFRESH=1` works offline.
+
+A page the data repo no longer covers is **removed** here too — unless it holds
+a stretch that was timed locally and exists in no upstream file, which is kept
+and reported instead of being silently lost.
+
+**Two upstream shapes.** The older is one file per page (`page553.json`),
+numbering words by their rank on the page. The newer is one file per recording
+(`062.json`), covering every page that recording spans, saying on each event
+which page it belongs to, and numbering words by their **annotation id**. A
+per-recording file wins over a per-page one for the pages it covers. The
+importer works out which numbering a file uses from the numbers themselves —
+ids land on values the ordinals skip and run past the word count — because
+guessing wrong is silent: it shifts the highlight by a word, or drops the end of
+the page.
 
 Fetches every `timeline/pageNNN.json` from the data repo, converts the word
 ordinals to annotation ids, and rewrites `public/timeline/` plus its index. It
