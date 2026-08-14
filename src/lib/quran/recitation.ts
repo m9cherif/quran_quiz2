@@ -64,27 +64,57 @@ let indexPromise: Promise<Record<string, { audio: string; words: number; duratio
   null;
 const cache = new Map<number, PageTimeline | null>();
 
-/** page -> { audio, words, duration } for every page that has a recording. */
+/**
+ * page -> { audio, words, duration } for every page that has a recording.
+ *
+ * Asked of the API route rather than the committed file, so a timeline edited
+ * in the data repo shows up without redeploying this site. The file stays as
+ * the fallback: if the route or the data repo is unreachable, a slightly old
+ * timeline beats an empty practice page.
+ */
 export function loadTimelineIndex() {
   if (!indexPromise) {
-    indexPromise = fetch("/timeline/index.json")
-      .then((r) => (r.ok ? r.json() : {}))
-      .catch(() => ({}));
+    indexPromise = fetch("/api/quran/timeline")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .catch(() =>
+        fetch("/timeline/index.json")
+          .then((r) => (r.ok ? r.json() : {}))
+          .catch(() => ({}))
+      );
   }
   return indexPromise;
 }
 
 export async function loadTimeline(page: number): Promise<PageTimeline | null> {
   if (cache.has(page)) return cache.get(page) ?? null;
+
+  let data: PageTimeline | null = null;
   try {
-    const res = await fetch(`/timeline/${page}.json`);
-    const data: PageTimeline | null = res.ok ? await res.json() : null;
-    cache.set(page, data);
-    return data;
+    const res = await fetch(`/api/quran/timeline/${page}`);
+    if (res.ok) {
+      data = (await res.json()) as PageTimeline;
+    } else if (res.status === 404) {
+      // Not a failure: the data repo no longer covers this page, and falling
+      // back to the copy on disk would resurrect a timeline that was deleted
+      // on purpose.
+      cache.set(page, null);
+      return null;
+    }
   } catch {
-    cache.set(page, null);
-    return null;
+    // The route could not be reached at all — the committed copy is better
+    // than nothing.
   }
+
+  if (!data) {
+    try {
+      const res = await fetch(`/timeline/${page}.json`);
+      data = res.ok ? ((await res.json()) as PageTimeline) : null;
+    } catch {
+      data = null;
+    }
+  }
+  cache.set(page, data);
+  return data;
 }
 
 /**

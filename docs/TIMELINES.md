@@ -54,11 +54,22 @@ be too.
 
 ### Option A — import the upstream files (all 17 pages at once)
 
-**This runs on its own before every build** (`prebuild` → `scripts/refresh-data.mjs`),
-so a deploy always ships what the data repo says today. The site never reads
-GitHub while serving pages: annotations, timelines and the surah/hizb tables are
-imported into `public/` and served from there. That is why editing or deleting a
-file upstream used to change nothing until someone remembered to re-import.
+**Timelines are read from the data repo while the site runs**, through
+`/api/quran/timeline` (and `/api/quran/timeline/{page}`), so editing one
+upstream shows up on its own — no deploy, no rebuild. Editing the data repo
+triggers nothing here, which is why a build-time import alone was not enough.
+
+The result is held a few minutes server-side and sixty seconds in the browser,
+so a class full of students costs the data repo one request rather than one
+each. If it cannot be reached, the committed copies under `public/timeline` are
+served instead: a slightly old timeline beats an empty practice page. A page the
+repo no longer covers answers 404, and the client respects that rather than
+falling back — a deletion is an answer, not a failure.
+
+The import **also runs before every build** (`prebuild` →
+`scripts/refresh-data.mjs`), which is what keeps those fallback copies current.
+Annotations and the surah/hizb tables are still build-time only: they are xlsx
+upstream, and they change rarely.
 
 ```bash
 npm run data:refresh          # annotations, then timelines, then the tables

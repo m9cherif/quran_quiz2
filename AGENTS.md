@@ -52,3 +52,13 @@ NEXT_PUBLIC_DB_TABLE             # legacy leaderboard table — being retired
 - Auth: hosts/students via Supabase Auth (roles `host`/`student` via `profiles` table, RLS `auth.uid()`); players join games anonymously via `participants.access_token`; admin via `admin_keys` (hashed) — raw keys server-only, never in browser code. Never trust client-claimed roles.
 - Security: no service-role keys in client code; no bypassing RLS from the frontend; users may not change scores, mark own answers correct, mutate game state, or touch others' rows.
 - See `docs/ARCHITECTURE.md` for the full audit, known bugs, and the 17-phase plan. Follow its phase order; end each phase with a green build.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
