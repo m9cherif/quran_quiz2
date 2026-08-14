@@ -32,7 +32,24 @@ function annotationIds(page) {
 
 mkdirSync(OUT_DIR, { recursive: true });
 
-const pages = await buildTimelines({ annotationIds, log: (line) => console.log(line) });
+const known = (() => {
+  try {
+    return JSON.parse(readFileSync(join(OUT_DIR, "sources.json"), "utf8"));
+  } catch {
+    return [];
+  }
+})();
+
+const { pages, names } = await buildTimelines({
+  annotationIds,
+  token: process.env.GITHUB_TOKEN,
+  known,
+  log: (line) => console.log(line),
+});
+
+// The names are remembered for the running site: listing a folder needs the
+// GitHub API, whose anonymous quota a shared hosting IP rarely has to spare.
+writeFileSync(join(OUT_DIR, "sources.json"), JSON.stringify(names), "utf8");
 
 const index = {};
 for (const [page, parts] of [...pages].sort((a, b) => a[0] - b[0])) {

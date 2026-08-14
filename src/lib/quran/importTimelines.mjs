@@ -55,17 +55,47 @@ export function convertPart(rawEvents, raw, ids) {
  * `fetchOptions` is passed to every request — the API route uses it to say how
  * long a response may be reused.
  */
-export async function buildTimelines({ annotationIds, fetchOptions = {}, log = () => {} }) {
-  const listing = await (
-    await fetch(API, { headers: { "User-Agent": "quran-quiz" }, ...fetchOptions })
-  ).json();
-  if (!Array.isArray(listing)) throw new Error("unexpected listing from the data repo");
+/**
+ * The names of the files in the timeline folder.
+ *
+ * Listing a folder means the GitHub API, which allows sixty calls an hour per
+ * IP address without a token — and a shared hosting IP has usually spent them
+ * on somebody else. So the listing is asked for, and when it is refused the
+ * names remembered at build time are used instead. Only the *names* need that
+ * fallback: the contents come from raw.githubusercontent, which is a CDN with
+ * no such limit, so an edited file is still read fresh.
+ *
+ * The cost is that a brand-new file appears at the next build rather than
+ * immediately. Edits and deletions to files we know about are live.
+ */
+export async function listTimelineFiles({ fetchOptions = {}, token, known = [], log = () => {} }) {
+  try {
+    const headers = { "User-Agent": "quran-quiz" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const listing = await (await fetch(API, { headers, ...fetchOptions })).json();
+    if (Array.isArray(listing)) return listing.map((f) => f.name).filter(Boolean);
+    log(`could not list the data repo (${listing?.message ?? "unexpected response"}) — using the names from the last build`);
+  } catch (error) {
+    log(`could not list the data repo (${error.message}) — using the names from the last build`);
+  }
+  return known;
+}
+
+export async function buildTimelines({
+  annotationIds,
+  fetchOptions = {},
+  token,
+  known = [],
+  log = () => {},
+}) {
+  const names = await listTimelineFiles({ fetchOptions, token, known, log });
+  if (names.length === 0) throw new Error("no timeline files to read");
 
   // A file per recording (062.json) covers every page that recording spans and
   // knows where the page boundaries fall, so it wins over the older file per
   // page (page553.json) for the pages it covers.
-  const perRecording = listing.filter((f) => /^\d{1,3}\.json$/i.test(f.name || ""));
-  const perPage = listing.filter((f) => /^page\d{1,3}\.json$/i.test(f.name || ""));
+  const perRecording = names.filter((n) => /^\d{1,3}\.json$/i.test(n));
+  const perPage = names.filter((n) => /^page\d{1,3}\.json$/i.test(n));
 
   const pages = new Map();
   const claimed = new Set();
@@ -77,11 +107,17 @@ export async function buildTimelines({ annotationIds, fetchOptions = {}, log = (
     pages.set(page, [...(pages.get(page) ?? []), part]);
   };
 
-  for (const file of perRecording) {
-    const raw = await (await fetch(file.download_url ?? `${RAW}/${file.name}`, fetchOptions)).json();
+  for (const name of perRecording) {
+    const raw = await readUpstream(name, fetchOptions);
+    // A file we knew about that has since been deleted: 404, and it simply
+    // stops contributing pages.
+    if (!raw) {
+      log(`${name}: gone from the data repo`);
+      continue;
+    }
     const all = raw.events ?? [];
     const covered = [...new Set(all.map((e) => Number(e.page)).filter(Number.isFinite))];
-    log(`${file.name}: ${all.length} events over page(s) ${covered.join(", ")}`);
+    log(`${name}: ${all.length} events over page(s) ${covered.join(", ")}`);
     for (const page of covered) {
       const ids = annotationIds(page);
       if (!ids.length) continue;
@@ -90,19 +126,31 @@ export async function buildTimelines({ annotationIds, fetchOptions = {}, log = (
     }
   }
 
-  for (const file of perPage) {
-    const page = Number(/^page(\d{1,3})\.json$/i.exec(file.name)[1]);
+  for (const name of perPage) {
+    const page = Number(/^page(\d{1,3})\.json$/i.exec(name)[1]);
     if (claimed.has(page)) {
-      log(`${file.name}: skipped — that page comes from a per-recording file now`);
+      log(`${name}: skipped — that page comes from a per-recording file now`);
       continue;
     }
     const ids = annotationIds(page);
     if (!ids.length) continue;
-    const raw = await (await fetch(file.download_url ?? `${RAW}/${file.name}`, fetchOptions)).json();
+    const raw = await readUpstream(name, fetchOptions);
+    if (!raw) {
+      log(`${name}: gone from the data repo`);
+      continue;
+    }
     add(page, convertPart(raw.events ?? [], raw, ids));
   }
 
-  return pages;
+  return { pages, names };
+}
+
+/** One upstream file, or null when it is no longer there. */
+async function readUpstream(name, fetchOptions) {
+  const res = await fetch(`${RAW}/${name}`, fetchOptions);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`${name}: ${res.status}`);
+  return res.json();
 }
 
 /** Assemble the file the app reads, oldest readers included. */

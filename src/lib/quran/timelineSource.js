@@ -49,11 +49,17 @@ function fromDisk() {
 }
 
 async function build() {
-  const built = await buildTimelines({
+  const { pages: built } = await buildTimelines({
     annotationIds,
     // Next keeps each upstream response this long; the memo above keeps the
     // assembled result, so the two together bound the traffic either way.
     fetchOptions: { next: { revalidate: 120 } },
+    // A token lifts the listing quota from sixty an hour to five thousand;
+    // without one the names from the last build are used, and the contents are
+    // still read fresh.
+    token: process.env.GITHUB_TOKEN,
+    known: readJson(join(PUBLIC, "timeline", "sources.json")) ?? [],
+    log: (line) => console.log("[timelines]", line),
   });
 
   const index = {};
