@@ -99,11 +99,10 @@ export default function LoginPage() {
     try {
       const { data, error: verifyError } = await verifySignInCode(email.trim().toLowerCase(), token);
       if (verifyError || !data?.user) {
-        setError(
-          /expired/i.test(verifyError?.message ?? "")
-            ? t("auth.codeExpired")
-            : t("auth.codeWrong")
-        );
+        // Supabase answers "Token has expired or is invalid" for both a wrong
+        // code and an old one, so telling them apart was a fiction: it always
+        // said "expired". One message, honest about both.
+        setError(t("auth.codeWrong"));
         return;
       }
 
@@ -150,10 +149,13 @@ export default function LoginPage() {
             label={t("auth.codeLabel")}
             inputMode="numeric"
             autoComplete="one-time-code"
-            maxLength={6}
-            placeholder="123456"
+            maxLength={10}
+            placeholder="••••••"
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            // Supabase decides how long the code is — six by default, eight
+            // here. Capping the field at six silently cut the last digits off
+            // and every attempt failed.
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 10))}
             className="text-center text-2xl tracking-[0.4em]"
             required
           />

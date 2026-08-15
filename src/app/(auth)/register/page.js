@@ -121,7 +121,7 @@ export default function RegisterPage() {
     try {
       const { data, error: verifyError } = await verifySignInCode(email.trim().toLowerCase(), token);
       if (verifyError || !data?.user) {
-        setError(/expired/i.test(verifyError?.message ?? "") ? t("auth.codeExpired") : t("auth.codeWrong"));
+        setError(t("auth.codeWrong"));
         return;
       }
 
@@ -210,10 +210,13 @@ export default function RegisterPage() {
             label={t("auth.codeLabel")}
             inputMode="numeric"
             autoComplete="one-time-code"
-            maxLength={6}
-            placeholder="123456"
+            maxLength={10}
+            placeholder="••••••"
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            // Supabase decides how long the code is — six by default, eight
+            // here. Capping the field at six silently cut the last digits off
+            // and every attempt failed.
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 10))}
             className="text-center text-2xl tracking-[0.4em]"
             required
           />
