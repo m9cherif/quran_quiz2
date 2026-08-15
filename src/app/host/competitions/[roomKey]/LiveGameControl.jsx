@@ -232,14 +232,30 @@ export default function LiveGameControl({ roomKey }) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "questions", filter: `competition_id=eq.${game.id}` },
         (payload) => {
-          setQuestions((prev) => [...prev, payload.new]);
+          // Adding a question reloads the whole list and also arrives here as a
+          // realtime insert. Whichever lands second used to append a second
+          // copy, and the duplicate then showed up in the deck, in "question N
+          // of M", and in the results. The row is merged, not stacked, and the
+          // list stays in reading order however it arrived.
+          setQuestions((prev) => {
+            const next = prev.some((q) => q.id === payload.new.id)
+              ? prev.map((q) => (q.id === payload.new.id ? { ...q, ...payload.new } : q))
+              : [...prev, payload.new];
+            return [...next].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+          });
         }
       )
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "participants", filter: `competition_id=eq.${game.id}` },
         (payload) => {
-          setParticipants((prev) => [...prev, payload.new]);
+          // Same race for a player joining: the roster is refetched elsewhere,
+          // so an unguarded append shows the same student twice.
+          setParticipants((prev) =>
+            prev.some((p) => p.id === payload.new.id)
+              ? prev.map((p) => (p.id === payload.new.id ? { ...p, ...payload.new } : p))
+              : [...prev, payload.new]
+          );
         }
       )
       .on(
