@@ -1,7 +1,7 @@
 import GameLobby from "./GameLobby";
 
 export const metadata = {
-  title: "Game lobby",
+  title: "Competition lobby",
 };
 
 export default async function GameLobbyPage({ params }) {

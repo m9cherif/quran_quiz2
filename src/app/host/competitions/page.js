@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "My games",
+  title: "My competitions",
 };
 
 import MyGames from "./MyGames";

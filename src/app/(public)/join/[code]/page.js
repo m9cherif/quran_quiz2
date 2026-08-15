@@ -1,7 +1,7 @@
 import JoinGameForm from "@/components/join/JoinGameForm";
 
 export const metadata = {
-  title: "Join a game",
+  title: "Join a competition",
 };
 
 export default async function JoinWithCodePage({ params }) {

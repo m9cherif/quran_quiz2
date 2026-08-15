@@ -21,7 +21,7 @@ const NAV = {
   ],
   host: [
     { href: "/host/quizzes", labelKey: "nav.myQuizzes" },
-    { href: "/host/games", labelKey: "nav.liveGames" },
+    { href: "/host/competitions", labelKey: "nav.liveGames" },
     { href: "/host/classes", labelKey: "nav.classes" },
     { href: "/host/analytics", labelKey: "nav.analytics" },
     { href: "/host/timeline", labelKey: "nav.timeline" },

@@ -517,7 +517,7 @@ export default function LiveGameControl({ roomKey }) {
         description: t("host.gameDeletedDesc"),
         variant: "success",
       });
-      router.push("/host/games");
+      router.push("/host/competitions");
     });
 
   // Auto-advance: once the open window closes, roll straight into the next
@@ -867,7 +867,7 @@ export default function LiveGameControl({ roomKey }) {
         title={t("host.couldNotOpen")}
         description={loadError}
       >
-        <Button variant="outline" onClick={() => router.push("/host/games")}>
+        <Button variant="outline" onClick={() => router.push("/host/competitions")}>
           {t("host.backToGames")}
         </Button>
         <Button onClick={() => window.location.reload()}>{t("common.tryAgain")}</Button>
@@ -913,7 +913,7 @@ export default function LiveGameControl({ roomKey }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" href="/host/games">
+          <Button variant="ghost" size="sm" href="/host/competitions">
             ← {t("nav.liveGames")}
           </Button>
           <h1 className="text-xl font-bold text-ink sm:text-2xl">{game.title}</h1>
@@ -1005,7 +1005,7 @@ export default function LiveGameControl({ roomKey }) {
             </>
           )}
           {(phase === "finished" || phase === "cancelled") && (
-            <Button variant="outline" onClick={() => router.push("/host/games")}>
+            <Button variant="outline" onClick={() => router.push("/host/competitions")}>
               {t("host.backToGames")}
             </Button>
           )}

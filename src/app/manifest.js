@@ -16,7 +16,7 @@ export default function manifest() {
       { src: "/logo.png", sizes: "512x512", type: "image/png", purpose: "any" },
     ],
     shortcuts: [
-      { name: "Join a game", short_name: "Join", url: "/join" },
+      { name: "Join a competition", short_name: "Join", url: "/join" },
       { name: "My quizzes", short_name: "Quizzes", url: "/host/quizzes" },
     ],
   };

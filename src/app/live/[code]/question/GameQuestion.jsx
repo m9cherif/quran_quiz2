@@ -122,7 +122,7 @@ export default function GameQuestion({ code }) {
     } else if (status === "waiting") {
       setOverlay("waiting");
     } else if (status === "finished") {
-      router.push(`/game/${code}/result`);
+      router.push(`/live/${code}/result`);
     } else if (status === "cancelled") {
       setGameEnded(true);
     }

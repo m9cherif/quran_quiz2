@@ -521,7 +521,7 @@ export function QuizEditor({ quizId }) {
         description: t("editor.launchToastDesc"),
         variant: "success",
       });
-      router.push(`/host/games/${quiz.code}`);
+      router.push(`/host/competitions/${quiz.code}`);
     } catch (err) {
       console.error("Launch failed:", err);
       toast({

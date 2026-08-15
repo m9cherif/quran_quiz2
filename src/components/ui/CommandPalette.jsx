@@ -22,7 +22,7 @@ export default function CommandPalette({ extraItems = [] }) {
     () => [
       { id: "quizzes", label: t("nav.myQuizzes"), href: "/host/quizzes" },
       { id: "new", label: t("nav.newQuiz"), href: "/host/quizzes/new" },
-      { id: "games", label: t("nav.liveGames"), href: "/host/games" },
+      { id: "games", label: t("nav.liveGames"), href: "/host/competitions" },
       { id: "classes", label: t("nav.classes"), href: "/host/classes" },
       { id: "analytics", label: t("nav.analytics"), href: "/host/analytics" },
       ...extraItems,

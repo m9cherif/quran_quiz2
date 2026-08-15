@@ -114,7 +114,7 @@ export default function StudentClasses() {
           joinedAt: participant.joined_at,
         })
       );
-      router.push(`/game/${game.code}`);
+      router.push(`/live/${game.code}`);
     } catch (err) {
       console.error("Enter class game failed:", err);
       toast({
@@ -257,7 +257,7 @@ export default function StudentClasses() {
                         </Button>
                       )
                     ) : (
-                      <Button size="sm" variant="outline" icon="chart" href={`/game/${game.code}/result`}>
+                      <Button size="sm" variant="outline" icon="chart" href={`/live/${game.code}/result`}>
                         {t("classGames.results")}
                       </Button>
                     )}

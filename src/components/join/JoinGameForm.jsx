@@ -67,7 +67,7 @@ export function JoinGameForm({ defaultCode = "" }) {
           joinedAt: participant.joined_at,
         })
       );
-      router.push(`/game/${trimmedCode}`);
+      router.push(`/live/${trimmedCode}`);
     } catch (err) {
       console.error("Join failed:", err);
       if (err?.code === "P0003") {
@@ -142,7 +142,7 @@ export function JoinGameForm({ defaultCode = "" }) {
             <Button
               className="flex-1"
               icon="play"
-              onClick={() => router.push(`/game/${existing.code}`)}
+              onClick={() => router.push(`/live/${existing.code}`)}
             >
               {t("join.rejoin")}
             </Button>

@@ -9,6 +9,16 @@ const nextConfig = {
     // whole module graph into each client chunk.
     optimizePackageImports: ["@reduxjs/toolkit", "react-redux", "qrcode"],
   },
+  async redirects() {
+    // The routes were renamed away from the word "game". Codes and QR posters
+    // already handed out point at the old paths, and a student holding one is
+    // not going to retype it — so the old paths keep working.
+    return [
+      { source: "/game/:path*", destination: "/live/:path*", permanent: true },
+      { source: "/host/games/:path*", destination: "/host/competitions/:path*", permanent: true },
+      { source: "/host/games", destination: "/host/competitions", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

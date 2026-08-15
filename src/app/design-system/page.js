@@ -125,7 +125,7 @@ export default function DesignSystemPage() {
           <EmptyState
             icon={ICONS.quiz}
             title="No quizzes yet"
-            description="Create your first quiz to start hosting live games with your students."
+            description="Create your first quiz to start hosting live competitions with your students."
           >
             <Button size="sm" href="/">
               Create quiz
@@ -194,7 +194,7 @@ export default function DesignSystemPage() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => toast({ title: "Info", description: "3 students joined the game.", variant: "info" })}
+            onClick={() => toast({ title: "Info", description: "3 students joined the competition.", variant: "info" })}
           >
             Info toast
           </Button>

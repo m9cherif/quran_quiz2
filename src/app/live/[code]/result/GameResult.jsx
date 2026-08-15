@@ -142,7 +142,7 @@ export default function GameResult({ code }) {
         <Card padding="lg" className="w-full max-w-sm text-center">
           <h1 className="text-lg font-semibold text-ink">{t("game.gameStillRunning")}</h1>
           <p className="mt-2 text-sm text-ink-muted">{t("game.resultsAfterFinish")}</p>
-          <Button href={`/game/${code}`} className="mt-6 w-full" icon="back">
+          <Button href={`/live/${code}`} className="mt-6 w-full" icon="back">
             {t("game.backToGame")}
           </Button>
         </Card>

@@ -61,7 +61,7 @@ export default function MyGames() {
       await setQuizStatus(newId, "waiting");
       const fresh = await getQuiz(newId);
       toast({ title: t("host.playAgainReady"), variant: "success" });
-      router.push(`/host/games/${fresh?.code ?? ""}`);
+      router.push(`/host/competitions/${fresh?.code ?? ""}`);
     } catch (err) {
       console.error("Play again failed:", err);
       toast({ title: t("host.playAgainFailed"), description: t("common.tryAgain"), variant: "error" });
@@ -170,7 +170,7 @@ export default function MyGames() {
                     {t("host.cancel")}
                   </Button>
                 )}
-                <Button size="sm" href={`/host/games/${game.code}`} icon="settings">
+                <Button size="sm" href={`/host/competitions/${game.code}`} icon="settings">
                   {t("host.openControlRoom")}
                 </Button>
               </div>

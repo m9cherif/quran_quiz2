@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Game history",
+  title: "Competition history",
 };
 
 import StudentHistory from "./StudentHistory";

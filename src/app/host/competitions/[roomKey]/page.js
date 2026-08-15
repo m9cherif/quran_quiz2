@@ -1,7 +1,7 @@
 import LiveGameControl from "./LiveGameControl";
 
 export const metadata = {
-  title: "Live game",
+  title: "Live competition",
 };
 
 export default async function HostGamePage({ params }) {

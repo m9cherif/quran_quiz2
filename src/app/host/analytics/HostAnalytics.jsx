@@ -181,7 +181,7 @@ export default function HostAnalytics() {
           <Button variant="outline" size="sm" onClick={exportMissed} disabled={!analytics} icon="download">
             {t("host.exportCsv")}
           </Button>
-          <Button variant="outline" size="sm" href="/host/games" icon="settings">
+          <Button variant="outline" size="sm" href="/host/competitions" icon="settings">
             {t("host.manageGames")}
           </Button>
         </div>

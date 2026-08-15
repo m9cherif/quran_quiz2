@@ -86,8 +86,8 @@ export default function GameLobby({ code }) {
     if (!competitionId || !game || expired) return;
 
     const redirectByStatus = (status) => {
-      if (status === "running") router.push(`/game/${code}/question`);
-      else if (status === "finished") router.push(`/game/${code}/result`);
+      if (status === "running") router.push(`/live/${code}/question`);
+      else if (status === "finished") router.push(`/live/${code}/result`);
       else if (status === "cancelled") setExpired(true);
     };
 

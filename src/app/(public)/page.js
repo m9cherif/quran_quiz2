@@ -9,7 +9,7 @@ export default function LandingPage() {
 
   const roles = [
     {
-      href: "/host/games",
+      href: "/host/competitions",
       title: t("landing.hostTitle"),
       description: t("landing.hostDescription"),
       icon: (
@@ -49,7 +49,7 @@ export default function LandingPage() {
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link
-            href="/host/games"
+            href="/host/competitions"
             className="inline-flex h-11 items-center gap-2 rounded-md bg-primary px-6 text-sm font-medium text-primary-contrast transition-colors hover:bg-primary-strong focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-focus-ring"
           >
             {t("landing.hostQuiz")}
