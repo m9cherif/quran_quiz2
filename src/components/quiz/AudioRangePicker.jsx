@@ -9,7 +9,6 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /** What the student is asked once the passage has been played. */
 const ASKS = [
-  ["word", "audioQ.askWord"],
   ["surah", "audioQ.askSurah"],
   ["ayah", "audioQ.askAyah"],
   ["hizb", "audioQ.askHizb"],
@@ -64,7 +63,7 @@ export default function AudioRangePicker({ onPick }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [startId, setStartId] = useState(null);
   const [endId, setEndId] = useState(null);
-  const [ask, setAsk] = useState("word");
+  const [ask, setAsk] = useState("surah");
   const [meta, setMeta] = useState(null);
 
   useEffect(() => {
@@ -176,9 +175,7 @@ export default function AudioRangePicker({ onPick }) {
    * heard.
    */
   const buildAsk = () => {
-    if (ask === "word" || !placement?.first) {
-      return { answerText: range.last, choices: null, prompt: t("audioQ.promptWord") };
-    }
+    if (!placement?.first) return null;
     if (ask === "surah") {
       const right = placement.first.surahName;
       const others = nearbyNumbers(placement.first.surah, 1, 114)
@@ -200,7 +197,7 @@ export default function AudioRangePicker({ onPick }) {
       };
     }
     const right = placement.hizb?.hizb;
-    if (right == null) return { answerText: range.last, choices: null, prompt: t("audioQ.promptWord") };
+    if (right == null) return null;
     return {
       answerText: String(right),
       choices: shuffled([right, ...nearbyNumbers(right, 1, 60)].map(String)),
@@ -211,6 +208,8 @@ export default function AudioRangePicker({ onPick }) {
   const confirm = () => {
     if (!range?.audio) return;
     const built = buildAsk();
+    // Where the passage sits has to be known to ask about it.
+    if (!built) return;
     onPick({
       audioUrl: `${audioUrl(range.audio)}#t=${(range.from / 1000).toFixed(2)},${(range.to / 1000).toFixed(2)}`,
       passage: range.text,
@@ -287,7 +286,7 @@ export default function AudioRangePicker({ onPick }) {
       </div>
 
       {/* What the answer will be, so the host sees it before committing. */}
-      {range && placement && ask !== "word" && (
+      {range && placement && (
         <p className="text-xs text-ink-muted">
           {ask === "surah" && t("audioQ.answerIs", { answer: placement.first?.surahName ?? "—" })}
           {ask === "ayah" && t("audioQ.answerIs", { answer: placement.first?.aya ?? "—" })}
@@ -305,7 +304,7 @@ export default function AudioRangePicker({ onPick }) {
         <Button size="sm" variant="outline" icon="play" onClick={preview} disabled={!range}>
           {t("audioQ.preview")}
         </Button>
-        <Button size="sm" icon="check" onClick={confirm} disabled={!range}>
+        <Button size="sm" icon="check" onClick={confirm} disabled={!range || !placement?.first}>
           {t("audioQ.useRange")}
         </Button>
       </div>
