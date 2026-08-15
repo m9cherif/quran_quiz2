@@ -20,9 +20,27 @@ export async function getProfile(userId: string): Promise<AuthProfile | null> {
   return (data as AuthProfile) ?? null;
 }
 
-/** Sign in with email/password (client-side, anon key). */
-export async function signInWithEmail(email: string, password: string) {
-  return getSupabase().auth.signInWithPassword({ email, password });
+/**
+ * Email a six-digit code to sign in with.
+ *
+ * `shouldCreateUser: false` matters: signing in must never quietly create an
+ * account, because the role is decided once, on the server, when the account is
+ * made. A typo in the address should be told to the person, not turned into a
+ * second account.
+ *
+ * The mail carries a code rather than a link — the code can be read on a phone
+ * and typed on a laptop, which a link cannot.
+ */
+export async function sendSignInCode(email: string) {
+  return getSupabase().auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false },
+  });
+}
+
+/** Exchange the emailed code for a session. */
+export async function verifySignInCode(email: string, token: string) {
+  return getSupabase().auth.verifyOtp({ email, token, type: "email" });
 }
 
 /** Sign out and clear the persisted session. */

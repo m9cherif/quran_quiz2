@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 const ROLES = new Set(["host", "student"]);
 
 export async function POST(request: Request) {
-  let body: { name?: unknown; email?: unknown; password?: unknown; role?: unknown };
+  let body: { name?: unknown; email?: unknown; role?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -15,7 +15,6 @@ export async function POST(request: Request) {
 
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
-  const password = typeof body?.password === "string" ? body.password : "";
   const role = typeof body?.role === "string" ? body.role : "";
 
   if (name.length < 2 || name.length > 50) {
@@ -24,15 +23,12 @@ export async function POST(request: Request) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
   }
-  if (password.length < 6) {
-    return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
-  }
   if (!ROLES.has(role)) {
     return NextResponse.json({ error: "Invalid account role" }, { status: 400 });
   }
 
   try {
-    await createUserAccount({ name, email, password, role: role as "host" | "student" });
+    await createUserAccount({ name, email, role: role as "host" | "student" });
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Registration failed";
