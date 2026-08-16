@@ -12,8 +12,9 @@ import { getProfile, identify, sendSignInCode, verifySignInCode } from "@/lib/au
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
-/** Long enough that a slow inbox is not a reason to ask for a second mail. */
-const RESEND_SECONDS = 45;
+/** Supabase rate-limits codes; a minute is its own default, and long enough
+ * that a slow inbox or a late SMS is not a reason to ask for another. */
+const RESEND_SECONDS = 60;
 
 /**
  * Signing in is two steps: give the address, then type the code that arrives.

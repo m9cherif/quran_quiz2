@@ -132,7 +132,7 @@ const fr: Messages = {
       tooManyCodes: "Trop de codes demandés. Attendez une minute et réessayez.",
       accountMadeButNoCode: "Votre compte est prêt, mais le code n'a pas pu être envoyé. Demandez-en un depuis la page de connexion.",
       emailOrPhone: "E-mail ou numéro de téléphone",
-      emailOrPhonePlaceholder: "vous@exemple.com  ou  +216 12 345 678",
+      emailOrPhonePlaceholder: "vous@exemple.com  ou  +216 22 345 678",
       emailOrPhoneHint: "Une adresse reçoit le code par e-mail, un numéro le reçoit par SMS.",
       contactInvalid: "Entrez une adresse e-mail, ou un numéro avec son indicatif pays.",
     },

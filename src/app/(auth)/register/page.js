@@ -17,7 +17,7 @@ const ROLES = [
   { value: "student", label: "auth.iAmStudent", description: "auth.studentDescription" },
 ];
 
-const RESEND_SECONDS = 45;
+const RESEND_SECONDS = 60;
 
 /**
  * Creating an account: say who you are, then confirm the address with the code

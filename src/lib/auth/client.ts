@@ -38,6 +38,13 @@ export interface Identity {
 /** Where the code goes when a number is typed without its country code. */
 export const DEFAULT_COUNTRY_CODE = "+216";
 
+/**
+ * Tunisian mobiles are eight digits starting with 2, 4, 5 or 9. The other
+ * prefixes are landlines: an SMS sent there is paid for and never arrives, so
+ * it is better to say no here than to charge for silence.
+ */
+const TUNISIAN_MOBILE = /^\+216[2459]\d{7}$/;
+
 export function identify(input: string): Identity | null {
   const raw = input.trim();
   if (!raw) return null;
@@ -58,7 +65,9 @@ export function identify(input: string): Identity | null {
     ? digits
     : DEFAULT_COUNTRY_CODE + digits.replace(/^0+/, "");
   value = "+" + value.slice(1).replace(/\+/g, "");
-  return /^\+\d{8,15}$/.test(value) ? { channel: "phone", value } : null;
+  if (!/^\+[1-9]\d{7,14}$/.test(value)) return null;
+  if (value.startsWith("+216") && !TUNISIAN_MOBILE.test(value)) return null;
+  return { channel: "phone", value };
 }
 
 /**

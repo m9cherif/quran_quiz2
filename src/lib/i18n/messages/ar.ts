@@ -131,7 +131,7 @@ const ar: Messages = {
       tooManyCodes: "طلبت رموزًا كثيرة. انتظر دقيقة ثم حاول مجددًا.",
       accountMadeButNoCode: "أُنشئ حسابك، لكن تعذّر إرسال الرمز. اطلبه من صفحة تسجيل الدخول.",
       emailOrPhone: "البريد الإلكتروني أو رقم الهاتف",
-      emailOrPhonePlaceholder: "you@example.com  أو  ‎+216 12 345 678",
+      emailOrPhonePlaceholder: "you@example.com  أو  ‎+216 22 345 678",
       emailOrPhoneHint: "بالبريد يصلك الرمز في بريدك، وبالرقم يصلك برسالة نصية.",
       contactInvalid: "أدخل بريدًا إلكترونيًا، أو رقم هاتف مع رمز الدولة.",
     },

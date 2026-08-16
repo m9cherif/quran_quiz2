@@ -62,6 +62,19 @@ function signatureIsValid(secret: string, headers: Headers, body: string): boole
   });
 }
 
+/**
+ * Tunisian mobile numbers are eight digits after +216, and they start with 2,
+ * 4, 5 or 9. The other prefixes are landlines, which cannot receive an SMS —
+ * accepting one would spend a message on a number that can never answer.
+ */
+const TUNISIAN_MOBILE = /^\+216[2459]\d{7}$/;
+const E164 = /^\+[1-9]\d{7,14}$/;
+
+/** Never write a whole number to a log: the last three digits identify it. */
+function redact(phone: string): string {
+  return phone.length > 4 ? `…${phone.slice(-3)}` : "…";
+}
+
 type Sender = (phone: string, text: string) => Promise<void>;
 
 /** Whatever the provider says when it refuses — far more useful than our words. */
@@ -166,8 +179,23 @@ export async function POST(request: Request) {
   if (!otp || !raw) {
     return NextResponse.json({ error: "Payload has no phone or code" }, { status: 400 });
   }
-  // Supabase stores the number without its plus; Bird wants E.164.
-  const phone = raw.startsWith("+") ? raw : `+${raw}`;
+  // Supabase sends the number with its plus, but not every version does, and
+  // every provider here wants E.164.
+  const phone = (raw.startsWith("+") ? raw : `+${raw}`).replace(/[^\d+]/g, "");
+  if (!E164.test(phone)) {
+    console.error(`[sms] refusing a number that is not E.164: ${redact(phone)}`);
+    return NextResponse.json(
+      { error: { http_code: 400, message: "That phone number is not in international format." } },
+      { status: 400 }
+    );
+  }
+  if (phone.startsWith("+216") && !TUNISIAN_MOBILE.test(phone)) {
+    console.error(`[sms] refusing a Tunisian number that cannot receive SMS: ${redact(phone)}`);
+    return NextResponse.json(
+      { error: { http_code: 400, message: "That Tunisian number is not a mobile number." } },
+      { status: 400 }
+    );
+  }
 
   const provider = (process.env.SMS_PROVIDER ?? "bird").toLowerCase();
   const send = SENDERS[provider];
@@ -177,11 +205,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    await send(phone, `${otp} — رمز الدخول إلى مسابقات القرآن`);
+    await send(phone, `Quran Quiz verification code: ${otp}`);
     return NextResponse.json({});
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown error";
-    console.error("[sms] could not send:", message);
+    // The provider's answer can quote the number back at us, so it is trimmed
+    // to its first line and the recipient is only ever logged redacted.
+    console.error(`[sms] ${provider} failed for ${redact(phone)}: ${message.split(String.fromCharCode(10))[0].slice(0, 200)}`);
     // Supabase shows this to the person trying to sign in, so it says what
     // happened without repeating a provider's internals.
     return NextResponse.json(
