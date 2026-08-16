@@ -18,11 +18,19 @@ export const dynamic = "force-dynamic";
  * checks the code, which is the part that matters: nothing about how a session
  * is granted moves into this file.
  *
+ * The provider is a setting, not a decision baked into this file. Twilio has no
+ * trials in Tunisia and Bird issues no SMS channel there, so which company can
+ * actually be signed up for is not something to hard-code — SMS_PROVIDER picks,
+ * and adding another is one function.
+ *
  * Needs, in the environment:
  *   SEND_SMS_HOOK_SECRET  the secret Supabase shows when the hook is created
- *   BIRD_API_KEY          an API key from Bird
- *   BIRD_WORKSPACE_ID     the workspace the SMS channel belongs to
- *   BIRD_CHANNEL_ID       the SMS channel to send from
+ *   SMS_PROVIDER          "bird" | "infobip" | "vonage"
+ *
+ *   bird     BIRD_API_KEY, BIRD_WORKSPACE_ID, BIRD_CHANNEL_ID
+ *   infobip  INFOBIP_BASE_URL (yours, e.g. xyz.api.infobip.com),
+ *            INFOBIP_API_KEY, INFOBIP_SENDER
+ *   vonage   VONAGE_API_KEY, VONAGE_API_SECRET, VONAGE_SENDER
  */
 
 /**
@@ -54,6 +62,13 @@ function signatureIsValid(secret: string, headers: Headers, body: string): boole
   });
 }
 
+type Sender = (phone: string, text: string) => Promise<void>;
+
+/** Whatever the provider says when it refuses — far more useful than our words. */
+async function refuse(name: string, response: Response): Promise<never> {
+  throw new Error(`${name} refused the message (${response.status}): ${await response.text()}`);
+}
+
 async function sendViaBird(phone: string, text: string) {
   const { BIRD_API_KEY, BIRD_WORKSPACE_ID, BIRD_CHANNEL_ID } = process.env;
   if (!BIRD_API_KEY || !BIRD_WORKSPACE_ID || !BIRD_CHANNEL_ID) {
@@ -75,11 +90,57 @@ async function sendViaBird(phone: string, text: string) {
     }
   );
 
-  if (!response.ok) {
-    // Bird's own words are far more useful here than ours would be.
-    throw new Error(`Bird refused the message (${response.status}): ${await response.text()}`);
+  if (!response.ok) await refuse("Bird", response);
+}
+
+async function sendViaInfobip(phone: string, text: string) {
+  const { INFOBIP_BASE_URL, INFOBIP_API_KEY, INFOBIP_SENDER } = process.env;
+  if (!INFOBIP_BASE_URL || !INFOBIP_API_KEY) {
+    throw new Error("Infobip credentials are missing from the environment");
+  }
+  const base = INFOBIP_BASE_URL.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const response = await fetch(`https://${base}/sms/2/text/advanced`, {
+    method: "POST",
+    headers: { Authorization: `App ${INFOBIP_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [
+        { destinations: [{ to: phone }], from: INFOBIP_SENDER || "QuranQuiz", text },
+      ],
+    }),
+  });
+  if (!response.ok) await refuse("Infobip", response);
+}
+
+async function sendViaVonage(phone: string, text: string) {
+  const { VONAGE_API_KEY, VONAGE_API_SECRET, VONAGE_SENDER } = process.env;
+  if (!VONAGE_API_KEY || !VONAGE_API_SECRET) {
+    throw new Error("Vonage credentials are missing from the environment");
+  }
+  const response = await fetch("https://rest.nexmo.com/sms/json", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: VONAGE_API_KEY,
+      api_secret: VONAGE_API_SECRET,
+      to: phone.replace(/^\+/, ""),
+      from: VONAGE_SENDER || "QuranQuiz",
+      text,
+    }),
+  });
+  if (!response.ok) await refuse("Vonage", response);
+  // Vonage answers 200 even when it did not send; the status is in the body.
+  const result = await response.json();
+  const first = result?.messages?.[0];
+  if (first?.status !== "0") {
+    throw new Error(`Vonage refused the message (${first?.status}): ${first?.["error-text"]}`);
   }
 }
+
+const SENDERS: Record<string, Sender> = {
+  bird: sendViaBird,
+  infobip: sendViaInfobip,
+  vonage: sendViaVonage,
+};
 
 export async function POST(request: Request) {
   const secret = process.env.SEND_SMS_HOOK_SECRET;
@@ -108,8 +169,15 @@ export async function POST(request: Request) {
   // Supabase stores the number without its plus; Bird wants E.164.
   const phone = raw.startsWith("+") ? raw : `+${raw}`;
 
+  const provider = (process.env.SMS_PROVIDER ?? "bird").toLowerCase();
+  const send = SENDERS[provider];
+  if (!send) {
+    console.error(`[sms] unknown SMS_PROVIDER "${provider}"`);
+    return NextResponse.json({ error: "SMS sending is not configured" }, { status: 500 });
+  }
+
   try {
-    await sendViaBird(phone, `${otp} — رمز الدخول إلى مسابقات القرآن`);
+    await send(phone, `${otp} — رمز الدخول إلى مسابقات القرآن`);
     return NextResponse.json({});
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown error";
