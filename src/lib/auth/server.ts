@@ -24,7 +24,9 @@ export function getServiceClient(): SupabaseClient {
 
 export interface NewAccountInput {
   name: string;
-  email: string;
+  /** Exactly one of these — the account is reached by whichever was given. */
+  email?: string;
+  phone?: string;
   role: "host" | "student";
 }
 
@@ -36,12 +38,15 @@ export interface NewAccountInput {
 export async function createUserAccount(input: NewAccountInput) {
   const client = getServiceClient();
   const { data, error } = await client.auth.admin.createUser({
-    email: input.email,
+    // A phone account has no address and an email account has no number;
+    // sending an empty string for the other one makes Supabase reject it.
+    ...(input.email
+      ? { email: input.email, email_confirm: true }
+      : { phone: input.phone, phone_confirm: true }),
     // Nobody signs in with a password any more — a code is emailed instead —
     // but the account still needs one, and it must be unguessable rather than
     // absent or shared.
     password: crypto.randomUUID() + crypto.randomUUID(),
-    email_confirm: true,
     app_metadata: { role: input.role },
     user_metadata: { name: input.name },
   });

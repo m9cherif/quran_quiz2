@@ -8,7 +8,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
 import { setAuthStatus, setUser } from "@/store/Slices/userSlice";
-import { getProfile, sendSignInCode, verifySignInCode } from "@/lib/auth/client";
+import { getProfile, identify, sendSignInCode, verifySignInCode } from "@/lib/auth/client";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
@@ -24,7 +24,9 @@ const RESEND_SECONDS = 45;
  */
 export default function LoginPage() {
   const [step, setStep] = useState("email");
-  const [email, setEmail] = useState("");
+  const [contact, setContact] = useState("");
+  /** What the typed value turned out to be — kept so the code goes to the same place. */
+  const [identity, setIdentity] = useState(null);
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -53,15 +55,16 @@ export default function LoginPage() {
       setError(t("auth.notConfigured"));
       return;
     }
-    const address = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
-      setError(t("auth.emailInvalid"));
+    const who = identify(contact);
+    if (!who) {
+      setError(t("auth.contactInvalid"));
       return;
     }
+    setIdentity(who);
 
     setIsLoading(true);
     try {
-      const { error: sendError } = await sendSignInCode(address);
+      const { error: sendError } = await sendSignInCode(who);
       if (sendError) {
         const message = sendError.message ?? "";
         // Supabase refuses to create an account here, which is how an unknown
@@ -97,7 +100,7 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const { data, error: verifyError } = await verifySignInCode(email.trim().toLowerCase(), token);
+      const { data, error: verifyError } = await verifySignInCode(identity, token);
       if (verifyError || !data?.user) {
         // Supabase answers "Token has expired or is invalid" for both a wrong
         // code and an old one, so telling them apart was a fiction: it always
@@ -122,18 +125,21 @@ export default function LoginPage() {
     <Card padding="lg" className="w-full max-w-md">
       <h1 className="text-xl font-semibold text-ink">{t("auth.welcomeBack")}</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        {step === "email" ? t("auth.codeIntro") : t("auth.codeSentTo", { email })}
+        {step === "email"
+          ? t("auth.codeIntro")
+          : t("auth.codeSentTo", { email: identity?.value ?? contact })}
       </p>
 
       {step === "email" ? (
         <form onSubmit={requestCode} className="mt-6 space-y-4">
           <Input
-            label={t("auth.email")}
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            label={t("auth.emailOrPhone")}
+            type="text"
+            autoComplete="username"
+            placeholder={t("auth.emailOrPhonePlaceholder")}
+            value={contact}
+            onChange={(e) => setContact(e.target.value)}
+            hint={t("auth.emailOrPhoneHint")}
             required
             autoFocus
           />

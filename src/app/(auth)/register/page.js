@@ -9,7 +9,7 @@ import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { setAuthStatus, setUser } from "@/store/Slices/userSlice";
-import { getProfile, sendSignInCode, verifySignInCode } from "@/lib/auth/client";
+import { getProfile, identify, sendSignInCode, verifySignInCode } from "@/lib/auth/client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const ROLES = [
@@ -30,7 +30,8 @@ const RESEND_SECONDS = 45;
 export default function RegisterPage() {
   const [step, setStep] = useState("details");
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [contact, setContact] = useState("");
+  const [identity, setIdentity] = useState(null);
   const [role, setRole] = useState("host");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -60,18 +61,23 @@ export default function RegisterPage() {
       setError(t("auth.nameTooShort"));
       return;
     }
-    const address = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
-      setError(t("auth.emailInvalid"));
+    const who = identify(contact);
+    if (!who) {
+      setError(t("auth.contactInvalid"));
       return;
     }
+    setIdentity(who);
 
     setIsLoading(true);
     try {
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: address, role }),
+        body: JSON.stringify({
+          name: name.trim(),
+          [who.channel]: who.value,
+          role,
+        }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -79,7 +85,7 @@ export default function RegisterPage() {
         return;
       }
 
-      const { error: sendError } = await sendSignInCode(address);
+      const { error: sendError } = await sendSignInCode(who);
       if (sendError) {
         // The account exists now, so this is worth saying rather than hiding:
         // they can ask for a code from the sign-in page.
@@ -100,7 +106,7 @@ export default function RegisterPage() {
     setError("");
     setIsLoading(true);
     try {
-      const { error: sendError } = await sendSignInCode(email.trim().toLowerCase());
+      const { error: sendError } = await sendSignInCode(identity);
       if (sendError) setError(t("auth.tooManyCodes"));
       else setCooldown(RESEND_SECONDS);
     } finally {
@@ -119,7 +125,7 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      const { data, error: verifyError } = await verifySignInCode(email.trim().toLowerCase(), token);
+      const { data, error: verifyError } = await verifySignInCode(identity, token);
       if (verifyError || !data?.user) {
         setError(t("auth.codeWrong"));
         return;
@@ -146,7 +152,9 @@ export default function RegisterPage() {
     <Card padding="lg" className="w-full max-w-md">
       <h1 className="text-xl font-semibold text-ink">{t("auth.createAccount")}</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        {step === "details" ? t("auth.registerSub") : t("auth.codeSentTo", { email })}
+        {step === "details"
+          ? t("auth.registerSub")
+          : t("auth.codeSentTo", { email: identity?.value ?? contact })}
       </p>
 
       {step === "details" ? (
@@ -189,14 +197,14 @@ export default function RegisterPage() {
             onChange={(e) => setName(e.target.value)}
           />
           <Input
-            label={t("auth.email")}
-            type="email"
+            label={t("auth.emailOrPhone")}
+            type="text"
             required
-            autoComplete="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            hint={t("auth.codeIntro")}
+            autoComplete="username"
+            placeholder={t("auth.emailOrPhonePlaceholder")}
+            value={contact}
+            onChange={(e) => setContact(e.target.value)}
+            hint={t("auth.emailOrPhoneHint")}
             error={error || undefined}
           />
           <Button type="submit" loading={isLoading} className="w-full" size="lg" icon="send">

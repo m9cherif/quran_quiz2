@@ -127,6 +127,10 @@ draft: string;
     noAccountForEmail: string;
     tooManyCodes: string;
     accountMadeButNoCode: string;
+    emailOrPhone: string;
+    emailOrPhonePlaceholder: string;
+    emailOrPhoneHint: string;
+    contactInvalid: string;
   };
   join: {
     nameTaken: string;
