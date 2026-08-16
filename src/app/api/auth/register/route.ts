@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { normalizePhone } from "@/lib/auth/phoneNumber";
 import { createUserAccount } from "@/lib/auth/server";
 
 export const runtime = "nodejs";
@@ -15,7 +16,11 @@ export async function POST(request: Request) {
 
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
-  const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
+  // The same normaliser the browser and the Verify routes use. An account
+  // stored in one form and verified in another is an account nobody can sign
+  // in to, and the number only has to survive one round trip to prove it.
+  const phoneGiven = typeof body?.phone === "string" && body.phone.trim() !== "";
+  const phone = phoneGiven ? (normalizePhone(body.phone as string) ?? "") : "";
   const role = typeof body?.role === "string" ? body.role : "";
 
   if (name.length < 2 || name.length > 50) {
@@ -29,8 +34,14 @@ export async function POST(request: Request) {
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
   }
-  if (phone && !/^\+\d{8,15}$/.test(phone)) {
-    return NextResponse.json({ error: "Enter the phone number in international format" }, { status: 400 });
+  // A number that survived being typed but not being normalised is a number,
+  // just not a usable one — saying "enter an email or a phone" to someone who
+  // did enter a phone would send them looking for the wrong mistake.
+  if (phoneGiven && !phone) {
+    return NextResponse.json(
+      { error: "Enter the phone number in international format, e.g. +21622345678" },
+      { status: 400 }
+    );
   }
   if (!email && !phone) {
     return NextResponse.json({ error: "Enter an email address or a phone number" }, { status: 400 });

@@ -9,11 +9,13 @@ import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
 import { setAuthStatus, setUser } from "@/store/Slices/userSlice";
 import { getProfile, identify, sendSignInCode, verifySignInCode } from "@/lib/auth/client";
+import { SIGN_IN_MESSAGE_KEYS } from "@/lib/auth/messages";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
-/** Supabase rate-limits codes; a minute is its own default, and long enough
- * that a slow inbox or a late SMS is not a reason to ask for another. */
+/** Both senders refuse a second code inside a minute — Supabase by its own
+ * default, Bird Verify by its resend cooldown. Counting it down on screen is
+ * kinder than letting someone press the button into a refusal. */
 const RESEND_SECONDS = 60;
 
 /**
@@ -65,19 +67,9 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const { error: sendError } = await sendSignInCode(who);
-      if (sendError) {
-        const message = sendError.message ?? "";
-        // Supabase refuses to create an account here, which is how an unknown
-        // address announces itself. Say so plainly instead of repeating the
-        // API's wording.
-        setError(
-          /signups not allowed|not found|no user/i.test(message)
-            ? t("auth.noAccountForEmail")
-            : /rate|limit|seconds/i.test(message)
-              ? t("auth.tooManyCodes")
-              : message || t("auth.couldNotSignIn")
-        );
+      const result = await sendSignInCode(who);
+      if (!result.ok) {
+        setError(t(SIGN_IN_MESSAGE_KEYS[result.issue]));
         return;
       }
       setStep("code");
@@ -101,16 +93,13 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const { data, error: verifyError } = await verifySignInCode(identity, token);
-      if (verifyError || !data?.user) {
-        // Supabase answers "Token has expired or is invalid" for both a wrong
-        // code and an old one, so telling them apart was a fiction: it always
-        // said "expired". One message, honest about both.
-        setError(t("auth.codeWrong"));
+      const result = await verifySignInCode(identity, token);
+      if (!result.ok) {
+        setError(t(SIGN_IN_MESSAGE_KEYS[result.issue]));
         return;
       }
 
-      const profile = await getProfile(data.user.id);
+      const profile = await getProfile(result.userId);
       if (profile) dispatch(setUser(profile));
       dispatch(setAuthStatus("authenticated"));
       router.push(profile?.role === "host" ? "/host/quizzes" : "/student/dashboard");

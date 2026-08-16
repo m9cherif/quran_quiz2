@@ -10,6 +10,7 @@ import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { setAuthStatus, setUser } from "@/store/Slices/userSlice";
 import { getProfile, identify, sendSignInCode, verifySignInCode } from "@/lib/auth/client";
+import { SIGN_IN_MESSAGE_KEYS } from "@/lib/auth/messages";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const ROLES = [
@@ -85,11 +86,13 @@ export default function RegisterPage() {
         return;
       }
 
-      const { error: sendError } = await sendSignInCode(who);
-      if (sendError) {
+      const result = await sendSignInCode(who);
+      if (!result.ok) {
         // The account exists now, so this is worth saying rather than hiding:
-        // they can ask for a code from the sign-in page.
-        setError(t("auth.accountMadeButNoCode"));
+        // they can ask for a code from the sign-in page. Why it did not arrive
+        // is still worth naming — an unreachable number and an empty Bird
+        // wallet call for very different next moves.
+        setError(`${t("auth.accountMadeButNoCode")} ${t(SIGN_IN_MESSAGE_KEYS[result.issue])}`);
         return;
       }
       setStep("code");
@@ -106,8 +109,8 @@ export default function RegisterPage() {
     setError("");
     setIsLoading(true);
     try {
-      const { error: sendError } = await sendSignInCode(identity);
-      if (sendError) setError(t("auth.tooManyCodes"));
+      const result = await sendSignInCode(identity);
+      if (!result.ok) setError(t(SIGN_IN_MESSAGE_KEYS[result.issue]));
       else setCooldown(RESEND_SECONDS);
     } finally {
       setIsLoading(false);
@@ -125,9 +128,9 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      const { data, error: verifyError } = await verifySignInCode(identity, token);
-      if (verifyError || !data?.user) {
-        setError(t("auth.codeWrong"));
+      const result = await verifySignInCode(identity, token);
+      if (!result.ok) {
+        setError(t(SIGN_IN_MESSAGE_KEYS[result.issue]));
         return;
       }
 
@@ -136,7 +139,7 @@ export default function RegisterPage() {
         description: t("auth.accountCreatedDesc"),
         variant: "success",
       });
-      const profile = await getProfile(data.user.id);
+      const profile = await getProfile(result.userId);
       if (profile) dispatch(setUser(profile));
       dispatch(setAuthStatus("authenticated"));
       router.push(profile?.role === "host" ? "/host/quizzes" : "/student/dashboard");

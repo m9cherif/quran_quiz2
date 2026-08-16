@@ -135,6 +135,13 @@ const fr: Messages = {
       emailOrPhonePlaceholder: "vous@exemple.com  ou  +216 22 345 678",
       emailOrPhoneHint: "Une adresse reçoit le code par e-mail, un numéro le reçoit par SMS.",
       contactInvalid: "Entrez une adresse e-mail, ou un numéro avec son indicatif pays.",
+      smsUnsupported: "Nous ne pouvons pas envoyer de SMS à ce numéro. Utilisez une adresse e-mail.",
+      smsNotConfigured:
+        "La connexion par SMS n'est pas encore configurée. Utilisez une adresse e-mail.",
+      smsUnavailable:
+        "Les codes ne peuvent pas être envoyés par SMS pour le moment. Utilisez une adresse e-mail.",
+      smsFailed: "Le code n'a pas pu être envoyé. Réessayez, ou utilisez une adresse e-mail.",
+      tooManyAttempts: "Trop de codes erronés. Demandez-en un nouveau.",
     },
     join: {
       nameTaken: "Ce pseudo est déjà pris dans cette compétition. Choisissez-en un autre.",
