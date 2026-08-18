@@ -136,6 +136,8 @@ const fr: Messages = {
       emailOrPhoneHint: "Une adresse reçoit le code par e-mail, un numéro le reçoit par SMS.",
       contactInvalid: "Entrez une adresse e-mail, ou un numéro avec son indicatif pays.",
       smsUnsupported: "Nous ne pouvons pas envoyer de SMS à ce numéro. Utilisez une adresse e-mail.",
+      noOtherChannel:
+        "Il n'existe aucun autre moyen de joindre ce numéro. Utilisez une adresse e-mail.",
       smsNotConfigured:
         "La connexion par SMS n'est pas encore configurée. Utilisez une adresse e-mail.",
       smsUnavailable:

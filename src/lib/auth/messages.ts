@@ -16,6 +16,7 @@ export const SIGN_IN_MESSAGE_KEYS: Record<SignInIssue, string> = {
   too_many_codes: "auth.tooManyCodes",
   invalid_number: "auth.contactInvalid",
   unsupported_destination: "auth.smsUnsupported",
+  no_next_channel: "auth.noOtherChannel",
   // A missing key is a deployment that was never finished. The person cannot
   // fix it and should not be told to try again — email still works.
   not_configured: "auth.smsNotConfigured",

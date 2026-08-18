@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { startPhoneVerification, type VerifyFailure } from "@/lib/auth/bird";
+import {
+  advancePhoneVerification,
+  startPhoneVerification,
+  type VerifyFailure,
+} from "@/lib/auth/bird";
 import { normalizePhone, redactPhone } from "@/lib/auth/phoneNumber";
 import { getServiceClient } from "@/lib/auth/server";
 
@@ -22,6 +26,7 @@ export const dynamic = "force-dynamic";
 
 /** How the failure is reported: a wrong number is the caller's, a missing key is ours. */
 const STATUS: Record<VerifyFailure, number> = {
+  no_next_channel: 409,
   not_configured: 500,
   bad_credentials: 500,
   invalid_number: 400,
@@ -33,11 +38,13 @@ const STATUS: Record<VerifyFailure, number> = {
 };
 
 export async function POST(request: Request) {
-  let body: { phone?: unknown };
+  let body: { phone?: unknown; advance?: unknown };
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, reason: "invalid_number" }, { status: 400 });
+    // A body that is not JSON at all is a caller mistake rather than a bad
+    // number, and saying so saves the next person a confusing 400.
+    return NextResponse.json({ ok: false, reason: "malformed_request" }, { status: 400 });
   }
 
   const phone = typeof body?.phone === "string" ? normalizePhone(body.phone) : null;
@@ -67,7 +74,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, reason: "no_account" }, { status: 404 });
   }
 
-  const outcome = await startPhoneVerification(phone);
+  // "I did not get it": move the verification on to the next channel in its
+  // plan instead of resending into the same silence.
+  const outcome =
+    body?.advance === true
+      ? await advancePhoneVerification(phone)
+      : await startPhoneVerification(phone);
+
   if (outcome.status === "failed") {
     return NextResponse.json(
       { ok: false, reason: outcome.reason },
@@ -76,6 +89,11 @@ export async function POST(request: Request) {
   }
 
   // The expiry is Bird's, not ours — the screen can say when the code dies
-  // without this repo holding an opinion about how long that is.
-  return NextResponse.json({ ok: true, expiresAt: outcome.verification.expiresAt });
+  // without this repo holding an opinion about how long that is. The channel
+  // is reported because it is not always the one that was asked for.
+  return NextResponse.json({
+    ok: true,
+    expiresAt: outcome.verification.expiresAt,
+    channel: outcome.verification.channel,
+  });
 }

@@ -70,6 +70,41 @@ Re-creating a verification for the same number is the **resend**: Bird continues
 the one in progress rather than starting a second. Inside its cooldown it sends
 nothing and costs nothing.
 
+## "Sent" means accepted, not delivered
+
+This is the one thing about Verify that will waste an afternoon.
+
+`POST /v1/verify/verifications` answers **200 with the verification `pending`**
+the moment Bird accepts the request. Delivery happens afterwards and is reported
+separately — and Verify has **no read endpoint to poll** (create, check and
+next-channel are the whole API). So a screen saying "code sent" can only ever
+mean *asked for*. A number that is accepted and then dropped by the carrier
+looks identical, from the API, to one that arrived.
+
+Two consequences the code now takes seriously:
+
+**Do not pin the channel list.** Naming `channels: ["sms"]` narrows the plan to
+SMS *and removes the failover with it* — if the SMS route to that country is
+refusing, there is nothing left to try and the code silently never lands.
+`VERIFY_CHANNELS` is empty by default so Bird uses the destination's own plan,
+which already prefers SMS and can fall back.
+
+**Log what Bird resolved.** The create response carries the channel plan and the
+channel the code actually went out on, so every request logs:
+
+```
+[verify] requested for …838: id=vrf_… status=pending plan=sms,whatsapp sent_on=sms
+```
+
+`plan=none` means Bird accepted a verification it has no way to deliver — the
+number's country has no channel enabled. That line is the fastest diagnosis
+available without opening the dashboard, and `id=` is what Bird support asks for.
+
+For "I did not get it", `POST /api/auth/phone/start` with `{"advance": true}`
+calls next-channel: a fresh code on the next channel in the plan, skipping the
+resend cooldown, with earlier codes still valid. A plan with nothing left
+answers `no_next_channel`.
+
 ## Files
 
 | File | What it does |
@@ -107,6 +142,7 @@ for every number in Tunisia.
 | --- | --- |
 | `BIRD_API_KEY` | a live Bird access key with the **verify** scope |
 | `BIRD_REGION` | only for a key minted before the `bk_{region}_` prefix existed |
+| `VERIFY_CHANNELS` | leave **empty**; `sms` forces SMS only, at the cost of failover |
 | `SUPABASE_SERVICE_ROLE_KEY` | already set — the session is minted with it |
 
 Neither is `NEXT_PUBLIC_`, so neither reaches the browser. Without

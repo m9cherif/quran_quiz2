@@ -43,6 +43,8 @@ export type VerifyFailure =
   | "invalid_number"
   /** A valid number Bird cannot deliver to over SMS. */
   | "unsupported_destination"
+  /** Asked for another channel, and the plan has none left to try. */
+  | "no_next_channel"
   /** Codes asked for (or checked) faster than Bird allows. */
   | "too_many_requests"
   /** The workspace wallet will not cover the message. */
@@ -67,6 +69,13 @@ export type CheckOutcome =
 export interface StartedVerification {
   /** When the code stops being accepted, ISO 8601, straight from Bird. */
   expiresAt: string;
+  /**
+   * The channel the code actually went out on, or null before the first send.
+   *
+   * Worth passing on rather than assuming: a verification can fail over, so
+   * promising "by SMS" on a screen is only honest if this says sms.
+   */
+  channel: string | null;
 }
 
 export type StartOutcome =
@@ -106,6 +115,11 @@ function classify(err: unknown): VerifyFailure {
   if (err instanceof BirdRateLimitError) return "too_many_requests";
   if (err instanceof BirdBillingError) return "insufficient_balance";
   if (err instanceof BirdConnectionError || err instanceof BirdTimeoutError) return "network_error";
+  // Bird names this one, and it is not a fault: it means every channel that
+  // could reach this number has already been tried.
+  if (err instanceof BirdAPIError && /NoNextChannel/i.test(err.errorName ?? "")) {
+    return "no_next_channel";
+  }
   if (err instanceof BirdValidationError) {
     const aboutTheNumber =
       err.param?.includes("to") ||
@@ -128,26 +142,102 @@ function describe(err: unknown): string {
 }
 
 /**
+ * Which channels to try, in order, or undefined to use the ones Bird has
+ * configured for the destination country.
+ *
+ * Naming them here narrows the plan: a channel left out is not used for the
+ * request. That sounds harmless and is not — pinning the list to `sms` also
+ * removes the failover, so a country whose SMS route is refusing has nothing
+ * left to try and the code silently never arrives. Bird's own order for the
+ * destination already prefers SMS, so the default is to let it decide and fall
+ * back if it must.
+ *
+ * VERIFY_CHANNELS forces the matter when SMS and nothing else will do:
+ * `VERIFY_CHANNELS=sms`.
+ */
+function configuredChannels(): string[] | undefined {
+  const raw = process.env.VERIFY_CHANNELS?.trim();
+  if (!raw) return undefined;
+  const channels = raw.split(",").map((c) => c.trim().toLowerCase()).filter(Boolean);
+  return channels.length > 0 ? channels : undefined;
+}
+
+/**
  * Ask Bird to send a code to a number.
  *
  * Asking again for the same number is the resend: Verify continues the
  * verification already in progress rather than starting a second one, which is
  * why there is no separate resend call and no verification id to keep.
  *
- * The channel list is pinned to SMS on purpose. Left off, Verify would deliver
- * over whichever channels the destination country has enabled — WhatsApp among
- * them — and the screen promises a text message.
+ * A word on what "sent" means here. Bird answers 200 the moment it accepts the
+ * request, with the verification `pending` — delivery happens after that and is
+ * reported separately. So this returning `sent` means asked-for, not arrived,
+ * and no synchronous call can tell the difference: Verify has no read endpoint
+ * to poll, only create, check and next-channel. What it does return is the
+ * channel plan it resolved for the number, which is the one clue available at
+ * this point about whether the message had anywhere to go — so it is logged.
  */
 export async function startPhoneVerification(phone: string): Promise<StartOutcome> {
   try {
+    const channels = configuredChannels();
     const verification = await getClient().verify.verifications.create({
       to: { phone_number: phone },
-      options: { channels: ["sms"], code_length: 6 },
+      options: {
+        code_length: 6,
+        ...(channels ? { channels } : {}),
+      },
     });
-    return { status: "sent", verification: { expiresAt: verification.expires_at } };
+
+    const plan = verification.channels?.map((entry) => entry.channel).join(",") || "none";
+    const lastChannel = verification.last_channel ?? null;
+    // The verification id is what Bird support asks for, and the plan is what
+    // says whether this number had a route at all: a plan of "none" means Bird
+    // accepted a verification it has no way to deliver.
+    console.info(
+      `[verify] requested for ${redactPhone(phone)}: id=${verification.id} ` +
+        `status=${verification.status} plan=${plan} sent_on=${lastChannel ?? "pending"}`
+    );
+
+    return {
+      status: "sent",
+      verification: { expiresAt: verification.expires_at, channel: lastChannel },
+    };
   } catch (err) {
     const reason = classify(err);
     console.error(`[verify] could not send to ${redactPhone(phone)}: ${reason}: ${describe(err)}`);
+    return { status: "failed", reason };
+  }
+}
+
+/**
+ * Send a fresh code on the next channel in the plan: the "I did not get it"
+ * action, for when SMS is accepted and then quietly goes nowhere.
+ *
+ * The send skips the resend cooldown, because deliberately changing channel is
+ * a different act from pressing resend, and every code already sent stays
+ * valid — one arriving late can still be typed in.
+ */
+export async function advancePhoneVerification(phone: string): Promise<StartOutcome> {
+  try {
+    const verification = await getClient().verify.verifications.nextChannel({
+      to: { phone_number: phone },
+    });
+    console.info(
+      `[verify] advanced ${redactPhone(phone)}: id=${verification.id} ` +
+        `sent_on=${verification.last_channel ?? "pending"}`
+    );
+    return {
+      status: "sent",
+      verification: {
+        expiresAt: verification.expires_at,
+        channel: verification.last_channel ?? null,
+      },
+    };
+  } catch (err) {
+    // 422 NoNextChannel means the plan is exhausted — there is no other way to
+    // reach this number, which is an answer in itself.
+    const reason = classify(err);
+    console.error(`[verify] could not advance ${redactPhone(phone)}: ${reason}: ${describe(err)}`);
     return { status: "failed", reason };
   }
 }

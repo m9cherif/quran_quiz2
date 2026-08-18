@@ -132,6 +132,7 @@ draft: string;
     emailOrPhoneHint: string;
     contactInvalid: string;
     smsUnsupported: string;
+    noOtherChannel: string;
     smsNotConfigured: string;
     smsUnavailable: string;
     smsFailed: string;

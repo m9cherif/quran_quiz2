@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
  */
 
 const STATUS: Record<VerifyFailure, number> = {
+  no_next_channel: 409,
   not_configured: 500,
   bad_credentials: 500,
   invalid_number: 400,

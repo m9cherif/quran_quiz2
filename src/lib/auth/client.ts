@@ -64,6 +64,7 @@ export type SignInIssue =
   | "too_many_codes"
   | "invalid_number"
   | "unsupported_destination"
+  | "no_next_channel"
   | "not_configured"
   | "insufficient_balance"
   | "sms_failed"
@@ -79,7 +80,9 @@ export type CodeResult = { ok: true } | { ok: false; issue: SignInIssue };
 const PHONE_ISSUES: Record<string, SignInIssue> = {
   no_account: "no_account",
   invalid_number: "invalid_number",
+  malformed_request: "unknown",
   unsupported_destination: "unsupported_destination",
+  no_next_channel: "no_next_channel",
   too_many_requests: "too_many_codes",
   attempts_exhausted: "attempts_exhausted",
   insufficient_balance: "insufficient_balance",

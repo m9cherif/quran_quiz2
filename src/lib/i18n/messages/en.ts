@@ -136,6 +136,7 @@ const en: Messages = {
       emailOrPhoneHint: "An address gets the code by email, a number gets it by SMS.",
       contactInvalid: "Enter an email address, or a phone number with its country code.",
       smsUnsupported: "We cannot text this number. Use an email address instead.",
+      noOtherChannel: "There is no other way to reach this number. Use an email address instead.",
       smsNotConfigured: "Signing in by SMS is not set up yet. Use an email address instead.",
       smsUnavailable: "Codes cannot be sent by SMS right now. Use an email address instead.",
       smsFailed: "The code could not be sent. Try again, or use an email address.",
