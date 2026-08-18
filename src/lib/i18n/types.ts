@@ -133,6 +133,8 @@ draft: string;
     contactInvalid: string;
     smsUnsupported: string;
     noOtherChannel: string;
+    sentByChannel: string;
+    tryAnotherWay: string;
     smsNotConfigured: string;
     smsUnavailable: string;
     smsFailed: string;

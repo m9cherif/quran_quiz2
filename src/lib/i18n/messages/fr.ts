@@ -138,6 +138,8 @@ const fr: Messages = {
       smsUnsupported: "Nous ne pouvons pas envoyer de SMS à ce numéro. Utilisez une adresse e-mail.",
       noOtherChannel:
         "Il n'existe aucun autre moyen de joindre ce numéro. Utilisez une adresse e-mail.",
+      sentByChannel: "Envoyé par {channel}.",
+      tryAnotherWay: "Rien reçu ? Essayer autrement",
       smsNotConfigured:
         "La connexion par SMS n'est pas encore configurée. Utilisez une adresse e-mail.",
       smsUnavailable:

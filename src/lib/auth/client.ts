@@ -74,7 +74,10 @@ export type SignInIssue =
   | "attempts_exhausted"
   | "unknown";
 
-export type CodeResult = { ok: true } | { ok: false; issue: SignInIssue };
+export type CodeResult =
+  /** `channel` is the one Bird actually used, and null for email. */
+  | { ok: true; channel: string | null }
+  | { ok: false; issue: SignInIssue };
 
 /** What the phone routes answer with, mapped onto the vocabulary above. */
 const PHONE_ISSUES: Record<string, SignInIssue> = {
@@ -102,7 +105,7 @@ function issueFromSupabase(message: string): SignInIssue {
 }
 
 async function callPhoneRoute(path: string, body: unknown): Promise<CodeResult> {
-  let payload: { ok?: boolean; reason?: string };
+  let payload: { ok?: boolean; reason?: string; channel?: string | null };
   try {
     const response = await fetch(path, {
       method: "POST",
@@ -110,7 +113,7 @@ async function callPhoneRoute(path: string, body: unknown): Promise<CodeResult> 
       body: JSON.stringify(body),
     });
     payload = await response.json().catch(() => ({}));
-    if (response.ok && payload?.ok) return { ok: true };
+    if (response.ok && payload?.ok) return { ok: true, channel: payload.channel ?? null };
   } catch {
     // The request never landed: no network, or the site is being redeployed.
     return { ok: false, issue: "network_error" };
@@ -144,7 +147,25 @@ export async function sendSignInCode(identity: Identity): Promise<CodeResult> {
     email: identity.value,
     options: { shouldCreateUser: false },
   });
-  return error ? { ok: false, issue: issueFromSupabase(error.message ?? "") } : { ok: true };
+  return error
+    ? { ok: false, issue: issueFromSupabase(error.message ?? "") }
+    : { ok: true, channel: null };
+}
+
+/**
+ * "It never came": send a fresh code by some other means.
+ *
+ * A carrier that dropped one text will drop the next one too, so offering only
+ * "send it again" leaves the person pressing a button that cannot work. Bird
+ * keeps an ordered plan of ways to reach a number — a Tunisian mobile has
+ * WhatsApp and Telegram behind the SMS — and this steps to the next one.
+ *
+ * Codes already sent stay valid, so a text that turns up late is still usable.
+ * Email has no second channel: there is only the one address.
+ */
+export async function advanceSignInChannel(identity: Identity): Promise<CodeResult> {
+  if (identity.channel !== "phone") return { ok: false, issue: "no_next_channel" };
+  return callPhoneRoute("/api/auth/phone/start", { phone: identity.value, advance: true });
 }
 
 export type VerifyResult = { ok: true; userId: string } | { ok: false; issue: SignInIssue };
