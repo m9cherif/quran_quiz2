@@ -3,7 +3,7 @@ import {
   advancePhoneVerification,
   startPhoneVerification,
   type VerifyFailure,
-} from "@/lib/auth/bird";
+} from "@/lib/auth/verify";
 import { normalizePhone, redactPhone } from "@/lib/auth/phoneNumber";
 import { getServiceClient } from "@/lib/auth/server";
 
@@ -95,5 +95,8 @@ export async function POST(request: Request) {
     ok: true,
     expiresAt: outcome.verification.expiresAt,
     channel: outcome.verification.channel,
+    // Only some providers name a verification; the browser hands whatever it
+    // gets straight back on the check and never reads it.
+    reference: outcome.verification.reference,
   });
 }

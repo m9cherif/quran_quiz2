@@ -48,6 +48,8 @@ export default function RegisterPage() {
   const [channel, setChannel] = useState(null);
   /** Set once the other channels are used up, so the offer stops being made. */
   const [noOtherWay, setNoOtherWay] = useState(false);
+  /** How the provider names this verification, when it names one. Opaque. */
+  const [reference, setReference] = useState(null);
   const codeRef = useRef(null);
   const router = useRouter();
   const dispatch = useDispatch();
@@ -106,6 +108,7 @@ export default function RegisterPage() {
         return;
       }
       setChannel(result.channel);
+      setReference(result.reference);
       setNoOtherWay(false);
       setStep("code");
       setCooldown(RESEND_SECONDS);
@@ -125,6 +128,7 @@ export default function RegisterPage() {
       if (!result.ok) setError(t(SIGN_IN_MESSAGE_KEYS[result.issue]));
       else {
         setChannel(result.channel);
+        setReference(result.reference);
         setCooldown(RESEND_SECONDS);
       }
     } finally {
@@ -147,6 +151,7 @@ export default function RegisterPage() {
         return;
       }
       setChannel(result.channel);
+      setReference(result.reference);
       setCooldown(RESEND_SECONDS);
     } catch (err) {
       console.error("Switching the code's channel failed:", err);
@@ -167,7 +172,7 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      const result = await verifySignInCode(identity, token);
+      const result = await verifySignInCode(identity, token, reference);
       if (!result.ok) {
         setError(t(SIGN_IN_MESSAGE_KEYS[result.issue]));
         return;

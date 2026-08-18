@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { checkPhoneVerification, type VerifyFailure } from "@/lib/auth/bird";
+import { checkPhoneVerification, type VerifyFailure } from "@/lib/auth/verify";
 import { normalizePhone, redactPhone } from "@/lib/auth/phoneNumber";
 import { createPhoneSession } from "@/lib/auth/server";
 
@@ -31,7 +31,7 @@ const STATUS: Record<VerifyFailure, number> = {
 };
 
 export async function POST(request: Request) {
-  let body: { phone?: unknown; code?: unknown };
+  let body: { phone?: unknown; code?: unknown; reference?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -51,7 +51,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, reason: "code_wrong" }, { status: 401 });
   }
 
-  const outcome = await checkPhoneVerification(phone, code);
+  const reference = typeof body?.reference === "string" ? body.reference : null;
+  const outcome = await checkPhoneVerification(phone, code, reference);
 
   switch (outcome.status) {
     case "incorrect":
@@ -76,9 +77,11 @@ export async function POST(request: Request) {
       break;
   }
 
-  // Bird has confirmed the number. Everything from here is Supabase's side.
+  // The provider has confirmed a number. Everything from here is Supabase's
+  // side — and the number signed in is the provider's, not the browser's: a
+  // correct code must open the account it was sent to and no other.
   try {
-    const session = await createPhoneSession(phone);
+    const session = await createPhoneSession(outcome.phone);
     if (!session) {
       // The account went away between asking for the code and typing it.
       return NextResponse.json({ ok: false, reason: "no_account" }, { status: 404 });
@@ -95,7 +98,7 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     console.error(
-      `[verify] verified ${redactPhone(phone)} but could not start a session:`,
+      `[verify] verified ${redactPhone(outcome.phone)} but could not start a session:`,
       err instanceof Error ? err.message : err
     );
     return NextResponse.json({ ok: false, reason: "provider_error" }, { status: 502 });

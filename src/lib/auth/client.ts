@@ -75,8 +75,12 @@ export type SignInIssue =
   | "unknown";
 
 export type CodeResult =
-  /** `channel` is the one Bird actually used, and null for email. */
-  | { ok: true; channel: string | null }
+  /**
+   * `channel` is the one the provider actually used, and null for email.
+   * `reference` is how that provider names the verification, when it names one
+   * at all — opaque here, handed straight back on the check.
+   */
+  | { ok: true; channel: string | null; reference: string | null }
   | { ok: false; issue: SignInIssue };
 
 /** What the phone routes answer with, mapped onto the vocabulary above. */
@@ -105,7 +109,12 @@ function issueFromSupabase(message: string): SignInIssue {
 }
 
 async function callPhoneRoute(path: string, body: unknown): Promise<CodeResult> {
-  let payload: { ok?: boolean; reason?: string; channel?: string | null };
+  let payload: {
+    ok?: boolean;
+    reason?: string;
+    channel?: string | null;
+    reference?: string | null;
+  };
   try {
     const response = await fetch(path, {
       method: "POST",
@@ -113,7 +122,9 @@ async function callPhoneRoute(path: string, body: unknown): Promise<CodeResult> 
       body: JSON.stringify(body),
     });
     payload = await response.json().catch(() => ({}));
-    if (response.ok && payload?.ok) return { ok: true, channel: payload.channel ?? null };
+    if (response.ok && payload?.ok) {
+      return { ok: true, channel: payload.channel ?? null, reference: payload.reference ?? null };
+    }
   } catch {
     // The request never landed: no network, or the site is being redeployed.
     return { ok: false, issue: "network_error" };
@@ -149,7 +160,7 @@ export async function sendSignInCode(identity: Identity): Promise<CodeResult> {
   });
   return error
     ? { ok: false, issue: issueFromSupabase(error.message ?? "") }
-    : { ok: true, channel: null };
+    : { ok: true, channel: null, reference: null };
 }
 
 /**
@@ -179,7 +190,11 @@ export type VerifyResult = { ok: true; userId: string } | { ok: false; issue: Si
  * the time either branch returns, a signed-in client is a signed-in client and
  * nothing downstream can tell which channel produced it.
  */
-export async function verifySignInCode(identity: Identity, token: string): Promise<VerifyResult> {
+export async function verifySignInCode(
+  identity: Identity,
+  token: string,
+  reference: string | null = null
+): Promise<VerifyResult> {
   if (identity.channel === "phone") {
     let payload: {
       ok?: boolean;
@@ -190,7 +205,7 @@ export async function verifySignInCode(identity: Identity, token: string): Promi
       const response = await fetch("/api/auth/phone/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: identity.value, code: token }),
+        body: JSON.stringify({ phone: identity.value, code: token, reference }),
       });
       payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.ok || !payload.session) {

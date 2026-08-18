@@ -10,6 +10,11 @@ import {
   BirdValidationError,
 } from "@messagebird/sdk";
 import { redactPhone } from "@/lib/auth/phoneNumber";
+import type {
+  CheckOutcome,
+  StartOutcome,
+  VerifyFailure,
+} from "@/lib/auth/verifyTypes";
 
 /**
  * Bird Verify: the one place a phone sign-in code is made and judged.
@@ -32,55 +37,6 @@ import { redactPhone } from "@/lib/auth/phoneNumber";
  * to, so there is no workspace id, no channel id and no base URL to configure.
  * A key from a different region simply talks to that region.
  */
-
-/** Every way asking for a code can fail, in words the UI can act on. */
-export type VerifyFailure =
-  /** BIRD_API_KEY is absent — the deployment was never finished. */
-  | "not_configured"
-  /** The key is rejected or lacks the scope: also a deployment problem. */
-  | "bad_credentials"
-  /** Bird will not accept this number at all. */
-  | "invalid_number"
-  /** A valid number Bird cannot deliver to over SMS. */
-  | "unsupported_destination"
-  /** Asked for another channel, and the plan has none left to try. */
-  | "no_next_channel"
-  /** Codes asked for (or checked) faster than Bird allows. */
-  | "too_many_requests"
-  /** The workspace wallet will not cover the message. */
-  | "insufficient_balance"
-  /** Bird answered, but with something we do not handle. */
-  | "provider_error"
-  /** Bird did not answer at all. */
-  | "network_error";
-
-/** What became of a code someone typed. */
-export type CheckOutcome =
-  | { status: "verified" }
-  /** Wrong digits, and Verify is still willing to hear another guess. */
-  | { status: "incorrect"; attemptsRemaining: number | null }
-  | { status: "expired" }
-  | { status: "attempts_exhausted" }
-  /** Nothing is in progress for this number: never started, or already over. */
-  | { status: "no_verification" }
-  | { status: "failed"; reason: VerifyFailure };
-
-/** The verification that was started, as far as the caller needs to know it. */
-export interface StartedVerification {
-  /** When the code stops being accepted, ISO 8601, straight from Bird. */
-  expiresAt: string;
-  /**
-   * The channel the code actually went out on, or null before the first send.
-   *
-   * Worth passing on rather than assuming: a verification can fail over, so
-   * promising "by SMS" on a screen is only honest if this says sms.
-   */
-  channel: string | null;
-}
-
-export type StartOutcome =
-  | { status: "sent"; verification: StartedVerification }
-  | { status: "failed"; reason: VerifyFailure };
 
 /** Thrown only for the one failure that is ours rather than Bird's. */
 class BirdNotConfigured extends Error {}
@@ -200,7 +156,11 @@ export async function startPhoneVerification(phone: string): Promise<StartOutcom
 
     return {
       status: "sent",
-      verification: { expiresAt: verification.expires_at, channel: lastChannel },
+      verification: {
+        expiresAt: verification.expires_at,
+        channel: lastChannel,
+        reference: null,
+      },
     };
   } catch (err) {
     const reason = classify(err);
@@ -231,6 +191,7 @@ export async function advancePhoneVerification(phone: string): Promise<StartOutc
       verification: {
         expiresAt: verification.expires_at,
         channel: verification.last_channel ?? null,
+        reference: null,
       },
     };
   } catch (err) {
@@ -260,7 +221,9 @@ export async function checkPhoneVerification(phone: string, code: string): Promi
       to: { phone_number: phone },
       code,
     });
-    if (result.success) return { status: "verified" };
+    // Bird identifies the verification by the number we sent, so the number
+    // verified is the number asked about.
+    if (result.success) return { status: "verified", phone };
 
     switch (result.reason) {
       case "expired":
