@@ -3,6 +3,7 @@ import {
   checkPhoneVerification as birdCheck,
   startPhoneVerification as birdStart,
 } from "@/lib/auth/bird";
+import { checkGatewayVerification, startGatewayVerification } from "@/lib/auth/smsGateway";
 import { checkTelegramVerification, startTelegramVerification } from "@/lib/auth/telegram";
 import type { CheckOutcome, StartOutcome, VerifyFailure } from "@/lib/auth/verifyTypes";
 
@@ -18,6 +19,10 @@ export type { CheckOutcome, StartOutcome, VerifyFailure } from "@/lib/auth/verif
  *   telegram  Telegram Gateway. No carrier involved, so nothing is filtered
  *             and no country is locked out, and codes to your own number cost
  *             nothing. Reaches only a number that has Telegram.
+ *   gateway   An Android phone with your own SIM, sending real local SMS. Free
+ *             beyond the phone's own plan, needs no account anywhere, and is
+ *             not foreign traffic — which is the reason hosted senders struggle
+ *             to reach Tunisia at all. Needs that phone switched on.
  *   bird      SMS, and WhatsApp where the workspace has a sender. Reaches any
  *             phone at all, and needs a funded wallet to do it.
  *
@@ -29,7 +34,7 @@ export type { CheckOutcome, StartOutcome, VerifyFailure } from "@/lib/auth/verif
  * counts the attempts, decides when it expired and says whether the digits
  * were right. Nothing here ever holds a code.
  */
-export type ProviderName = "bird" | "telegram";
+export type ProviderName = "bird" | "telegram" | "gateway";
 
 const DEFAULT_ORDER: ProviderName[] = ["bird"];
 
@@ -40,7 +45,10 @@ export function providerOrder(): ProviderName[] {
   const names = raw
     .split(",")
     .map((name) => name.trim())
-    .filter((name): name is ProviderName => name === "bird" || name === "telegram");
+    .filter(
+      (name): name is ProviderName =>
+        name === "bird" || name === "telegram" || name === "gateway"
+    );
   return names.length > 0 ? names : DEFAULT_ORDER;
 }
 
@@ -61,7 +69,9 @@ const WORTH_FALLING_THROUGH: ReadonlySet<VerifyFailure> = new Set<VerifyFailure>
 ]);
 
 function startWith(name: ProviderName, phone: string): Promise<StartOutcome> {
-  return name === "telegram" ? startTelegramVerification(phone) : birdStart(phone);
+  if (name === "telegram") return startTelegramVerification(phone);
+  if (name === "gateway") return startGatewayVerification(phone);
+  return birdStart(phone);
 }
 
 /**
@@ -104,7 +114,9 @@ function readReference(reference: string | null): { name: ProviderName; id: stri
     if (separator > 0) {
       const name = reference.slice(0, separator);
       const id = reference.slice(separator + 1);
-      if (name === "bird" || name === "telegram") return { name, id: id || null };
+      if (name === "bird" || name === "telegram" || name === "gateway") {
+        return { name, id: id || null };
+      }
     }
   }
   // No stamp: a code requested before this existed, or by the email path.
@@ -128,6 +140,8 @@ export function checkPhoneVerification(
     if (!id) return Promise.resolve({ status: "no_verification" } as CheckOutcome);
     return checkTelegramVerification(id, code);
   }
+  // The gateway keeps its codes here, under the number they were sent to.
+  if (name === "gateway") return checkGatewayVerification(phone, code);
   return birdCheck(phone, code);
 }
 
