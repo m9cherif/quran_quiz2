@@ -234,10 +234,14 @@ export async function advancePhoneVerification(phone: string): Promise<StartOutc
       },
     };
   } catch (err) {
-    // 422 NoNextChannel means the plan is exhausted — there is no other way to
-    // reach this number, which is an answer in itself.
     const reason = classify(err);
-    console.error(`[verify] could not advance ${redactPhone(phone)}: ${reason}: ${describe(err)}`);
+    // "No next channel" is an answer, not a fault: it means every way of
+    // reaching this number has been tried. Logging it as an error sends
+    // whoever reads the log hunting for a break that is not there — the real
+    // finding is that the number has exactly one usable channel.
+    const line = `[verify] could not advance ${redactPhone(phone)}: ${reason}: ${describe(err)}`;
+    if (reason === "no_next_channel") console.info(line);
+    else console.error(line);
     return { status: "failed", reason };
   }
 }
