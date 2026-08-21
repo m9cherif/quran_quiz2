@@ -61,7 +61,10 @@ function classify(error: string): VerifyFailure {
   return "provider_error";
 }
 
-async function call(method: string, body: Record<string, string | number>): Promise<GatewayResponse> {
+async function call(
+  method: string,
+  body: Record<string, string | number>
+): Promise<GatewayResponse & { httpStatus: number }> {
   const token = process.env.TELEGRAM_GATEWAY_TOKEN;
   if (!token) throw new Error("not_configured");
 
@@ -73,7 +76,19 @@ async function call(method: string, body: Record<string, string | number>): Prom
     },
     body: JSON.stringify(body),
   });
-  return (await response.json()) as GatewayResponse;
+
+  // Telegram reports its own failures inside a 200, so the HTTP status is
+  // usually 200 either way — but when it is not, that is worth knowing, and a
+  // body that will not parse at all is worth knowing even more.
+  const text = await response.text();
+  try {
+    return { ...(JSON.parse(text) as GatewayResponse), httpStatus: response.status };
+  } catch {
+    console.error(
+      `[verify] telegram ${method} returned ${response.status} and no JSON: ${text.slice(0, 200)}`
+    );
+    return { ok: false, error: `http_${response.status}`, httpStatus: response.status };
+  }
 }
 
 /**
@@ -151,7 +166,12 @@ export async function checkTelegramVerification(
       if ((body.error ?? "").toUpperCase().includes("REQUEST_ID")) {
         return { status: "no_verification" };
       }
-      console.error(`[verify] telegram check failed: ${reason}: ${body.error}`);
+      // Quoted verbatim: an unrecognised error is exactly the one worth
+      // reading, and guessing at its shape is what made this hard to diagnose.
+      console.error(
+        `[verify] telegram check failed: http=${body.httpStatus} ` +
+          `reason=${reason} error=${JSON.stringify(body.error)}`
+      );
       return { status: "failed", reason };
     }
 

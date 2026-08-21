@@ -145,6 +145,7 @@ const fr: Messages = {
       smsUnavailable:
         "Les codes ne peuvent pas être envoyés par SMS pour le moment. Utilisez une adresse e-mail.",
       smsFailed: "Le code n'a pas pu être envoyé. Réessayez, ou utilisez une adresse e-mail.",
+      checkFailed: "Nous n'avons pas pu vérifier ce code. Demandez-en un nouveau.",
       tooManyAttempts: "Trop de codes erronés. Demandez-en un nouveau.",
     },
     join: {

@@ -70,7 +70,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, reason: "code_expired" }, { status: 401 });
     case "failed":
       return NextResponse.json(
-        { ok: false, reason: outcome.reason },
+        {
+          // "provider_error" on this route means the check could not be
+          // evaluated — telling someone their code could not be *sent*, when
+          // they are holding it, sends them looking for the wrong problem.
+          ok: false,
+          reason: outcome.reason === "provider_error" ? "check_failed" : outcome.reason,
+        },
         { status: STATUS[outcome.reason] }
       );
     case "verified":

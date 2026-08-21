@@ -68,6 +68,7 @@ export type SignInIssue =
   | "not_configured"
   | "insufficient_balance"
   | "sms_failed"
+  | "check_failed"
   | "network_error"
   | "code_wrong"
   | "code_expired"
@@ -99,6 +100,7 @@ const PHONE_ISSUES: Record<string, SignInIssue> = {
   network_error: "network_error",
   code_wrong: "code_wrong",
   code_expired: "code_expired",
+  check_failed: "check_failed",
 };
 
 /** Read a Supabase auth error, which only ever arrives as prose. */

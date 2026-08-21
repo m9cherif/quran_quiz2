@@ -22,6 +22,7 @@ export const SIGN_IN_MESSAGE_KEYS: Record<SignInIssue, string> = {
   not_configured: "auth.smsNotConfigured",
   insufficient_balance: "auth.smsUnavailable",
   sms_failed: "auth.smsFailed",
+  check_failed: "auth.checkFailed",
   network_error: "auth.serverUnreachable",
   code_wrong: "auth.codeWrong",
   code_expired: "auth.codeExpired",

@@ -142,6 +142,7 @@ const en: Messages = {
       smsNotConfigured: "Signing in by SMS is not set up yet. Use an email address instead.",
       smsUnavailable: "Codes cannot be sent by SMS right now. Use an email address instead.",
       smsFailed: "The code could not be sent. Try again, or use an email address.",
+      checkFailed: "We could not check that code. Ask for a new one.",
       tooManyAttempts: "Too many wrong codes. Ask for a new one.",
     },
     join: {

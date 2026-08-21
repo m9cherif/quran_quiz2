@@ -138,6 +138,7 @@ draft: string;
     smsNotConfigured: string;
     smsUnavailable: string;
     smsFailed: string;
+    checkFailed: string;
     tooManyAttempts: string;
   };
   join: {
