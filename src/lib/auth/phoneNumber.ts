@@ -52,6 +52,22 @@ export function normalizePhone(input: string): string | null {
 }
 
 /**
+ * Read a number a provider handed back, which is already international.
+ *
+ * The distinction matters and is easy to miss. A number a *person* types
+ * without a country code is a local one, so `normalizePhone` prepends
+ * Tunisia's — that is the whole point of it. A number a *provider* returns is
+ * the one we gave it, in E.164, and some of them drop the plus on the way
+ * back. Passing that through the same door turns 21695009838 into
+ * +216 21695009838: still plausibly E.164, no longer anybody's phone, and
+ * rejected — which is how a correct code ended up refused.
+ */
+export function normalizeInternational(value: string): string | null {
+  const trimmed = value.trim();
+  return normalizePhone(trimmed.startsWith("+") ? trimmed : `+${trimmed}`);
+}
+
+/**
  * The same number as Supabase keeps it: digits only, no plus.
  *
  * Supabase stores `auth.users.phone` without the leading plus ("21612345678"),

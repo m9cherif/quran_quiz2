@@ -1,4 +1,4 @@
-import { normalizePhone, redactPhone } from "@/lib/auth/phoneNumber";
+import { normalizeInternational, redactPhone } from "@/lib/auth/phoneNumber";
 import type { CheckOutcome, StartOutcome, VerifyFailure } from "@/lib/auth/verifyTypes";
 
 /**
@@ -176,12 +176,17 @@ export async function checkTelegramVerification(
     }
 
     const status = body.result.verification_status?.status;
-    const phone = normalizePhone(body.result.phone_number);
+    // Telegram echoes the number back without its plus, and it is already
+    // international — reading it as a local number is how it got mangled.
+    const phone = normalizeInternational(body.result.phone_number);
 
     switch (status) {
       case "code_valid":
         if (!phone) {
-          console.error("[verify] telegram verified a number that will not normalise");
+          console.error(
+            `[verify] telegram verified a number that will not normalise: ` +
+              `${redactPhone(body.result.phone_number)}`
+          );
           return { status: "failed", reason: "provider_error" };
         }
         return { status: "verified", phone };
