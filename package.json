@@ -20,6 +20,7 @@
     "react-dom": "^19.2.0",
     "react-redux": "^9.3.0",
     "redux-persist": "^6.0.0"
+    "@supabase/supabase-js": "^2.0.0"
   },
   "devDependencies": {
     "@types/qrcode": "^1.5.5",
