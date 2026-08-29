@@ -99,6 +99,26 @@ SUPABASE_SERVICE_ROLE_KEY        # server-only; used by /api/auth/register
 > managed via versioned migrations in `supabase/migrations/` — apply them to
 > your project before the first deploy.
 
+### Deploying on Hostinger (hPanel Node.js app)
+
+Hostinger's Node.js app manager runs your app as a plain script and hands it
+a port through the `PORT` environment variable, expecting the process to bind
+it right away. `next start` also reads `PORT`, but only after its own CLI has
+booted — long enough that Hostinger's health check gives up, kills the
+process, and retries, forever. `server.js` in the repo root binds the port
+directly and is meant for this host specifically; Render is unaffected, since
+it runs `npm start` (`next start`) as before.
+
+1. Build once locally or via hPanel's terminal: `npm run build`.
+2. In hPanel → **Websites → quran.chrif.net → Node.js**, set:
+   - **Application startup file**: `server.js`
+   - **Node.js version**: matching `engines.node` if set, otherwise the
+     latest LTS available
+3. Add the same environment variables as the Render list above.
+4. Restart the app from that screen after every change to env vars or after
+   a new `npm run build` — `NEXT_PUBLIC_*` values are baked in at build time,
+   so editing them without rebuilding has no effect.
+
 ---
 
 ## Styling with Tailwind CSS and Flowbite
