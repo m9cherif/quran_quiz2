@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { Series } from "./format";
+import type { PageWord, Plan } from "./format";
 
 /**
- * Series as the data repo has them now — server side only.
+ * Plan as the data repo has them now — server side only.
  *
  * Same arrangement as the timelines, and for the same reason: a teacher edits a
  * series in the data repo and it takes effect without anyone deploying this
@@ -21,8 +21,8 @@ const API = "https://api.github.com/repos/m9cherif/flutter_quran_data/contents/s
 const TTL_MS = 3 * 60 * 1000;
 const PUBLIC = join(process.cwd(), "public");
 
-let cache: { at: number; series: Record<string, Series> } | null = null;
-let inflight: Promise<Record<string, Series>> | null = null;
+let cache: { at: number; series: Record<string, Plan> } | null = null;
+let inflight: Promise<Record<string, Plan>> | null = null;
 
 function readJson<T>(path: string): T | null {
   try {
@@ -32,12 +32,13 @@ function readJson<T>(path: string): T | null {
   }
 }
 
-function fromDisk(): Record<string, Series> {
+function fromDisk(): Record<string, Plan> {
   const names = readJson<string[]>(join(PUBLIC, "series", "index.json")) ?? [];
-  const series: Record<string, Series> = {};
+  const series: Record<string, Plan> = {};
   for (const name of names) {
-    const file = readJson<Series>(join(PUBLIC, "series", `${name}.json`));
-    if (file?.id) series[file.id] = file;
+    const file = readJson<Plan>(join(PUBLIC, "series", `${name}.json`));
+    const id = file?.id ?? name;
+    if (file?.nom) series[id] = { ...file, id };
   }
   return series;
 }
@@ -59,25 +60,26 @@ async function listNames(known: string[]): Promise<string[]> {
   return known;
 }
 
-async function build(): Promise<Record<string, Series>> {
+async function build(): Promise<Record<string, Plan>> {
   const known = readJson<string[]>(join(PUBLIC, "series", "index.json")) ?? [];
   const names = await listNames(known);
-  const series: Record<string, Series> = {};
+  const series: Record<string, Plan> = {};
 
   for (const name of names) {
     const response = await fetch(`${RAW}/${name}.json`, { next: { revalidate: 120 } });
     // A series deleted upstream simply stops existing here too.
     if (response.status === 404) continue;
     if (!response.ok) throw new Error(`${name}: ${response.status}`);
-    const file = (await response.json()) as Series;
-    if (file?.id && Array.isArray(file.exercises)) series[file.id] = file;
+    const file = (await response.json()) as Plan;
+    const id = file?.id ?? name;
+    if (file?.nom && Array.isArray(file.exercices)) series[id] = { ...file, id };
   }
 
   if (Object.keys(series).length === 0) throw new Error("the data repo returned no series");
   return series;
 }
 
-export async function getSeries(): Promise<Record<string, Series>> {
+export async function getSeries(): Promise<Record<string, Plan>> {
   const now = Date.now();
   if (cache && now - cache.at < TTL_MS) return cache.series;
   if (inflight) return inflight;
@@ -98,13 +100,19 @@ export async function getSeries(): Promise<Record<string, Series>> {
   return inflight;
 }
 
-/** The words a page exercise blanks out, in reading order. */
-export function wordsOnPage(page: number, ids: number[]): string[] {
-  const raw = readJson<unknown>(join(PUBLIC, "annotations", `${page}.json`));
+/**
+ * A page's words, in reading order, with the line and rank a student is asked
+ * to name. Read from the annotations, which are the only place that knows.
+ */
+export function pageWords(page: number | string): PageWord[] {
+  const raw = readJson<unknown>(join(PUBLIC, "annotations", `${Number(page)}.json`));
   const rows = (Array.isArray(raw) ? raw : (raw as { words?: unknown[] })?.words ?? []) as {
     id?: number;
     text?: string;
+    line?: number;
+    rank?: number;
   }[];
-  const byId = new Map(rows.filter((w) => w.id != null).map((w) => [w.id, w.text ?? ""]));
-  return ids.map((id) => byId.get(id) ?? "");
+  return rows
+    .filter((w) => w.id != null && w.text && w.line != null && w.rank != null)
+    .map((w) => ({ id: Number(w.id), text: String(w.text), line: Number(w.line), rank: Number(w.rank) }));
 }

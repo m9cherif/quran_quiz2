@@ -1,0 +1,79 @@
+{
+ "nom": "Série modèle — Lecture des pages 553 à 604",
+ "exercices": [
+  {
+   "diff": 50,
+   "page": "601",
+   "limite": 10,
+   "n": 10,
+   "n_fixe": true
+  },
+  {
+   "diff": 10,
+   "page": "602",
+   "limite": 2,
+   "n": 6,
+   "n_fixe": true
+  },
+  {
+   "diff": 10,
+   "page": "595",
+   "limite": 3,
+   "n": 10,
+   "n_fixe": true,
+   "ecrire_mot": true
+  },
+  {
+   "diff": 10,
+   "page": "600",
+   "limite": 3,
+   "n": 7,
+   "n_fixe": true,
+   "ecrire_mot": true
+  },
+  {
+   "diff": 20,
+   "page": "598",
+   "limite": 3,
+   "n": 100
+  },
+  {
+   "diff": 35,
+   "page": "596",
+   "limite": 5,
+   "n": 12,
+   "n_fixe": true
+  },
+  {
+   "diff": 50,
+   "page": "597",
+   "limite": 10,
+   "n": 10,
+   "n_fixe": true
+  },
+  {
+   "diff": 65,
+   "page": "596",
+   "limite": 8,
+   "n": 14,
+   "n_fixe": true
+  },
+  {
+   "diff": 80,
+   "page": "601",
+   "limite": 10,
+   "n": 12,
+   "n_fixe": true,
+   "ecrire_mot": true
+  },
+  {
+   "diff": 80,
+   "page": "598",
+   "limite": 10,
+   "n": 5,
+   "n_fixe": true,
+   "ecrire_mot": true
+  }
+ ],
+ "id": "serie-modele"
+}

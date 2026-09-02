@@ -73,6 +73,11 @@ for (const file of listing) {
       id: Number.isFinite(Number(row.id)) ? Number(row.id) : null,
       text,
       aya: Number.isFinite(Number(row.aya_no)) ? Number(row.aya_no) : null,
+      // The workbook's own line number, when it has one. Exercises that ask
+      // "which line is this word on" cannot exist without it. Zero means the
+      // column was left empty, not "line zero" — the desktop tool reads it the
+      // same way and falls back to the geometry.
+      line: Number(row.line) > 0 ? Number(row.line) : null,
       hidden: row.hidden === true || row.hidden === 1 || row.hidden === "1",
     });
   }
@@ -85,6 +90,35 @@ for (const file of listing) {
   // Reading order: top line first, right-to-left within a line.
   const lineTol = Math.max(...words.map((w) => w.y2 - w.y1)) * 0.5;
   words.sort((a, b) => (Math.abs(a.y1 - b.y1) < lineTol ? b.x2 - a.x2 : a.y1 - b.y1));
+
+  // Line and rank within the line — what a student is asked to name when the
+  // word is given and the position is the answer. The workbook's line number is
+  // kept when it has one; otherwise the lines are read off the geometry, which
+  // is the same grouping the sort above already relies on.
+  let lineNumber = 0;
+  let previousY = null;
+  for (const word of words) {
+    if (previousY === null || Math.abs(word.y1 - previousY) >= lineTol) {
+      lineNumber += 1;
+      previousY = word.y1;
+    }
+    word.line = word.line ?? lineNumber;
+  }
+
+  // Rank is counted inside whichever line the word ended up on, right to left,
+  // starting at one — the order a reader would point at them.
+  const byLine = new Map();
+  for (const word of words) {
+    const bucket = byLine.get(word.line) ?? [];
+    bucket.push(word);
+    byLine.set(word.line, bucket);
+  }
+  for (const bucket of byLine.values()) {
+    bucket.sort((a, b) => b.x1 - a.x1);
+    bucket.forEach((word, i) => {
+      word.rank = i + 1;
+    });
+  }
 
   const existing = pages.find((p) => p.page === page);
   if (existing) {
