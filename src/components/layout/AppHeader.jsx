@@ -24,11 +24,13 @@ const NAV = {
     { href: "/host/competitions", labelKey: "nav.liveGames" },
     { href: "/host/classes", labelKey: "nav.classes" },
     { href: "/host/analytics", labelKey: "nav.analytics" },
+    { href: "/host/series", labelKey: "nav.series" },
     { href: "/host/timeline", labelKey: "nav.timeline" },
     { href: "/host/quizzes/new", labelKey: "nav.newQuiz" },
   ],
   student: [
     { href: "/student/dashboard", labelKey: "nav.dashboard" },
+    { href: "/student/series", labelKey: "nav.series" },
     { href: "/student/history", labelKey: "nav.history" },
     { href: "/student/classes", labelKey: "nav.classes" },
     { href: "/join", labelKey: "nav.joinGame" },
