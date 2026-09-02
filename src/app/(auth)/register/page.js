@@ -9,7 +9,14 @@ import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { setAuthStatus, setUser } from "@/store/Slices/userSlice";
-import { getProfile, identify, sendSignInCode, verifySignInCode } from "@/lib/auth/client";
+import {
+  advanceSignInChannel,
+  getProfile,
+  identify,
+  sendSignInCode,
+  verifySignInCode,
+} from "@/lib/auth/client";
+import { SIGN_IN_MESSAGE_KEYS } from "@/lib/auth/messages";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const ROLES = [
@@ -37,6 +44,12 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  /** Which way the code went — Bird picks, and it is not always SMS. */
+  const [channel, setChannel] = useState(null);
+  /** Set once the other channels are used up, so the offer stops being made. */
+  const [noOtherWay, setNoOtherWay] = useState(false);
+  /** How the provider names this verification, when it names one. Opaque. */
+  const [reference, setReference] = useState(null);
   const codeRef = useRef(null);
   const router = useRouter();
   const dispatch = useDispatch();
@@ -85,13 +98,18 @@ export default function RegisterPage() {
         return;
       }
 
-      const { error: sendError } = await sendSignInCode(who);
-      if (sendError) {
+      const result = await sendSignInCode(who);
+      if (!result.ok) {
         // The account exists now, so this is worth saying rather than hiding:
-        // they can ask for a code from the sign-in page.
-        setError(t("auth.accountMadeButNoCode"));
+        // they can ask for a code from the sign-in page. Why it did not arrive
+        // is still worth naming — an unreachable number and an empty Bird
+        // wallet call for very different next moves.
+        setError(`${t("auth.accountMadeButNoCode")} ${t(SIGN_IN_MESSAGE_KEYS[result.issue])}`);
         return;
       }
+      setChannel(result.channel);
+      setReference(result.reference);
+      setNoOtherWay(false);
       setStep("code");
       setCooldown(RESEND_SECONDS);
     } catch (err) {
@@ -106,9 +124,38 @@ export default function RegisterPage() {
     setError("");
     setIsLoading(true);
     try {
-      const { error: sendError } = await sendSignInCode(identity);
-      if (sendError) setError(t("auth.tooManyCodes"));
-      else setCooldown(RESEND_SECONDS);
+      const result = await sendSignInCode(identity);
+      if (!result.ok) setError(t(SIGN_IN_MESSAGE_KEYS[result.issue]));
+      else {
+        setChannel(result.channel);
+        setReference(result.reference);
+        setCooldown(RESEND_SECONDS);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * "It never came." A carrier that swallowed one text will swallow the next,
+   * so resending is not the answer — another channel is.
+   */
+  const tryAnotherWay = async () => {
+    setError("");
+    setIsLoading(true);
+    try {
+      const result = await advanceSignInChannel(identity);
+      if (!result.ok) {
+        if (result.issue === "no_next_channel") setNoOtherWay(true);
+        setError(t(SIGN_IN_MESSAGE_KEYS[result.issue]));
+        return;
+      }
+      setChannel(result.channel);
+      setReference(result.reference);
+      setCooldown(RESEND_SECONDS);
+    } catch (err) {
+      console.error("Switching the code's channel failed:", err);
+      setError(t("auth.serverUnreachable"));
     } finally {
       setIsLoading(false);
     }
@@ -125,9 +172,9 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      const { data, error: verifyError } = await verifySignInCode(identity, token);
-      if (verifyError || !data?.user) {
-        setError(t("auth.codeWrong"));
+      const result = await verifySignInCode(identity, token, reference);
+      if (!result.ok) {
+        setError(t(SIGN_IN_MESSAGE_KEYS[result.issue]));
         return;
       }
 
@@ -136,7 +183,7 @@ export default function RegisterPage() {
         description: t("auth.accountCreatedDesc"),
         variant: "success",
       });
-      const profile = await getProfile(data.user.id);
+      const profile = await getProfile(result.userId);
       if (profile) dispatch(setUser(profile));
       dispatch(setAuthStatus("authenticated"));
       router.push(profile?.role === "host" ? "/host/quizzes" : "/student/dashboard");
@@ -155,6 +202,9 @@ export default function RegisterPage() {
         {step === "details"
           ? t("auth.registerSub")
           : t("auth.codeSentTo", { email: identity?.value ?? contact })}
+        {/* Which way it went, when that is not obvious — Bird may have used
+            WhatsApp or Telegram because the text could not get through. */}
+        {step === "code" && channel ? ` ${t("auth.sentByChannel", { channel })}` : ""}
       </p>
 
       {step === "details" ? (
@@ -253,6 +303,16 @@ export default function RegisterPage() {
               {cooldown > 0 ? t("auth.resendIn", { seconds: cooldown }) : t("auth.resendCode")}
             </button>
           </div>
+          {identity?.channel === "phone" && !noOtherWay && (
+            <button
+              type="button"
+              onClick={tryAnotherWay}
+              disabled={isLoading}
+              className="w-full text-center text-sm text-ink-muted underline-offset-2 hover:underline disabled:no-underline"
+            >
+              {t("auth.tryAnotherWay")}
+            </button>
+          )}
         </form>
       )}
 

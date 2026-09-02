@@ -132,6 +132,15 @@ draft: string;
     emailOrPhonePlaceholder: string;
     emailOrPhoneHint: string;
     contactInvalid: string;
+    smsUnsupported: string;
+    noOtherChannel: string;
+    sentByChannel: string;
+    tryAnotherWay: string;
+    smsNotConfigured: string;
+    smsUnavailable: string;
+    smsFailed: string;
+    checkFailed: string;
+    tooManyAttempts: string;
   };
   join: {
     nameTaken: string;

@@ -99,6 +99,35 @@ SUPABASE_SERVICE_ROLE_KEY        # server-only; used by /api/auth/register
 > managed via versioned migrations in `supabase/migrations/` — apply them to
 > your project before the first deploy.
 
+### Deploying on Hostinger (hPanel "Websites" git app)
+
+quran.chrif.net runs on Hostinger's git-connected app platform — not the
+classic shared-hosting Node.js/Passenger panel. hPanel → **Websites →
+quran.chrif.net** has its own **Deployments** (builds and runs the app itself
+on every push to the connected branch), **Environment variables**, and
+**Runtime logs**.
+
+1. **Environment variables**: set the same four as the Render list above
+   (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+   `NEXT_PUBLIC_SUPABASE_BUCKET`, `SUPABASE_SERVICE_ROLE_KEY`). Because
+   `NEXT_PUBLIC_*` values are baked into the app at build time, changing them
+   only takes effect on the *next* build — click **Redeploy** on the
+   Deployments tab after saving new values, not just a restart.
+2. **After every deploy, flush the CDN cache**: hPanel →
+   **Performance → CDN → Flush cache**. The CDN in front of this site does
+   not appear to purge itself automatically on a new deploy, so without this
+   step visitors can keep getting served an old cached build (stale
+   `NEXT_PUBLIC_*` values baked into old HTML/JS) at random alongside the new
+   one, which shows up as the app intermittently working and intermittently
+   failing from the same URL. There's no auto-purge-on-deploy toggle
+   available on this plan (checked Website optimisation and Security tabs
+   too) — flushing by hand is the only lever.
+3. `server.js` still exists in the repo root as a plain, portable entry point
+   (`node server.js`, binds `process.env.PORT` immediately) in case this
+   deploys differently on a plan where it's needed — but this platform's own
+   Deployments system builds and runs the app itself, so it isn't wired into
+   the current quran.chrif.net setup.
+
 ---
 
 ## Styling with Tailwind CSS and Flowbite

@@ -1,76 +1,169 @@
 # Signing in by phone
 
 The same field takes an email address or a phone number. An address gets the
-code by email (Brevo SMTP, configured in Supabase); a number gets it by SMS,
-which needs the pieces described here.
+code by email (Brevo SMTP, configured in Supabase); a number gets it by SMS from
+**Bird Verify**, which is what this page is about.
 
 ## Who does what
 
-Supabase generates the code, decides when it expires, counts the attempts and
-verifies it. That never moves into this repo — the browser calls
-`supabase.auth.signInWithOtp({ phone })` and then
-`supabase.auth.verifyOtp({ phone, token, type: "sms" })`, and a session comes
-back from Supabase or it does not.
+Two channels, two owners of the code:
 
-What Supabase cannot do here is deliver the message. Its built-in providers do
-not fit: Twilio has no trials in Tunisia, and its MessageBird integration speaks
-the old API with an `access_key`, which the current Bird platform no longer
-issues.
+| | who makes the code | who checks it | who grants the session |
+| --- | --- | --- | --- |
+| email | Supabase | Supabase | Supabase |
+| phone | **Bird Verify** | **Bird Verify** | Supabase |
 
-So the **Send SMS hook** carries it: Supabase posts the code it generated to
-`/api/auth/sms`, and that route hands it to the provider. One extra hop, and no
-second source of truth.
+For a number, Bird Verify owns the code end to end — it generates it, sends it
+over the workspace's SMS channel, counts the attempts, expires it, and answers
+whether the digits typed are the digits it sent. Nothing in this repo generates
+a code, stores one, or decides that one has expired.
 
-**Bird Verify is deliberately not used.** Verify invents its own code
-(`codeLength` in its API) and there is no field for supplying one, so it would
-mean two unrelated codes — the one Supabase expects and the one the person
-receives. `sms:write` on the Channels API is the scope that matters, not
-`verify:write`.
+That is why `signInWithOtp({ phone })` is **not** called. Supabase would mint a
+second, unrelated code, and only one of the two would open the door. Supabase
+still owns the session; it no longer owns the code.
+
+> An earlier version of this file described the opposite arrangement — Supabase
+> making the code and a **Send SMS hook** handing it to Bird's Channels API to
+> deliver. That is gone, along with `/api/auth/sms`. If the hook is still
+> configured in the Supabase dashboard, **delete it**: it points at a route that
+> no longer exists.
+
+## The flow
+
+```
+phone entered  ->  POST /api/auth/phone/start  ->  Bird: create verification
+                                                    -> SMS to the handset
+code entered   ->  POST /api/auth/phone/check  ->  Bird: check the passcode
+                                                    -> Supabase session
+```
+
+The browser never talks to Bird. It cannot: the key that would let it is the
+same key that spends this workspace's balance.
+
+## The Bird Verify API, as of this writing
+
+Checked against the official SDK `@messagebird/sdk` (0.28.0), which is generated
+from Bird's OpenAPI bundle.
+
+| | |
+| --- | --- |
+| base URL | `https://{region}.platform.bird.com` — derived from the key |
+| create | `POST /v1/verify/verifications` |
+| check | `POST /v1/verify/verifications/check` |
+| resend on another channel | `POST /v1/verify/verifications/next-channel` |
+| auth | `Authorization: Bearer {BIRD_API_KEY}` |
+| create body | `{ "to": { "phone_number": "+216…" }, "options": { "channels": ["sms"], "code_length": 6 } }` |
+| check body | `{ "to": { "phone_number": "+216…" }, "code": "123456" }` |
+
+Three things worth knowing, because older write-ups say otherwise:
+
+- **No workspace id and no channel id.** Both are carried by the key. The
+  `X-Workspace-Id` header exists but is only for session auth.
+- **`Bearer`, not `AccessKey`.** The `AccessKey` scheme belongs to the older API.
+- **A wrong code is not an HTTP error.** The check answers `200` with
+  `success: false` and a `reason` — `incorrect_code`, `expired`,
+  `attempts_exhausted`. An error status means the check could not be evaluated
+  at all: `404` no verification (or one already finished), `422` invalid
+  recipient, `429` checked too fast.
+
+Re-creating a verification for the same number is the **resend**: Bird continues
+the one in progress rather than starting a second. Inside its cooldown it sends
+nothing and costs nothing.
+
+## "Sent" means accepted, not delivered
+
+This is the one thing about Verify that will waste an afternoon.
+
+`POST /v1/verify/verifications` answers **200 with the verification `pending`**
+the moment Bird accepts the request. Delivery happens afterwards and is reported
+separately — and Verify has **no read endpoint to poll** (create, check and
+next-channel are the whole API). So a screen saying "code sent" can only ever
+mean *asked for*. A number that is accepted and then dropped by the carrier
+looks identical, from the API, to one that arrived.
+
+Two consequences the code now takes seriously:
+
+**Do not pin the channel list.** Naming `channels: ["sms"]` narrows the plan to
+SMS *and removes the failover with it* — if the SMS route to that country is
+refusing, there is nothing left to try and the code silently never lands.
+`VERIFY_CHANNELS` is empty by default so Bird uses the destination's own plan,
+which already prefers SMS and can fall back.
+
+**Log what Bird resolved.** The create response carries the channel plan and the
+channel the code actually went out on, so every request logs:
+
+```
+[verify] requested for …838: id=vrf_… status=pending plan=sms,whatsapp sent_on=sms
+```
+
+`plan=none` means Bird accepted a verification it has no way to deliver — the
+number's country has no channel enabled. That line is the fastest diagnosis
+available without opening the dashboard, and `id=` is what Bird support asks for.
+
+For "I did not get it", `POST /api/auth/phone/start` with `{"advance": true}`
+calls next-channel: a fresh code on the next channel in the plan, skipping the
+resend cooldown, with earlier codes still valid. A plan with nothing left
+answers `no_next_channel`.
 
 ## Files
 
 | File | What it does |
 | --- | --- |
-| [`src/app/api/auth/sms/route.ts`](../src/app/api/auth/sms/route.ts) | the hook: verifies Supabase's signature, validates the number, sends through the chosen provider |
-| [`src/lib/auth/client.ts`](../src/lib/auth/client.ts) | `identify()` tells an address from a number and normalises to E.164; `sendSignInCode` / `verifySignInCode` call Supabase |
-| [`src/app/(auth)/login/page.js`](../src/app/(auth)/login/page.js) | two steps: contact, then code — with a 60 second resend cooldown |
+| [`src/lib/auth/bird.ts`](../src/lib/auth/bird.ts) | the only place that talks to Bird; turns its errors into named reasons |
+| [`src/app/api/auth/phone/start/route.ts`](../src/app/api/auth/phone/start/route.ts) | checks the account exists, then asks Bird to text a code |
+| [`src/app/api/auth/phone/check/route.ts`](../src/app/api/auth/phone/check/route.ts) | asks Bird about the code and, on its word, starts the session |
+| [`src/lib/auth/phoneNumber.ts`](../src/lib/auth/phoneNumber.ts) | one normaliser, shared by browser and server |
+| [`src/lib/auth/server.ts`](../src/lib/auth/server.ts) | `createPhoneSession` — mints the Supabase session |
+| [`src/lib/auth/client.ts`](../src/lib/auth/client.ts) | `identify()`, and one failure vocabulary for both channels |
+| [`src/lib/auth/messages.ts`](../src/lib/auth/messages.ts) | what each failure is called on screen |
+| [`src/app/(auth)/login/page.js`](../src/app/(auth)/login/page.js) | two steps: contact, then code — 60 second resend cooldown |
 | [`src/app/(auth)/register/page.js`](../src/app/(auth)/register/page.js) | same, plus name and role |
-| [`src/app/api/auth/register/route.ts`](../src/app/api/auth/register/route.ts) | creates the account server-side, with an email **or** a phone |
-| [`src/lib/auth/server.ts`](../src/lib/auth/server.ts) | `createUserAccount` — writes the role into `app_metadata`, where a browser cannot |
+
+## How the session is granted
+
+Once Bird has done the proving, Supabase offers no "give me a session for this
+user": `generateLink` covers email only, and the admin API has nothing for
+phone. What it does support is signing in with a phone and a password — so the
+server sets a fresh random password and immediately spends it.
+
+The password is rotated on every sign-in, never leaves the server, and is never
+the same twice, which makes it a one-time credential in all but name. No SMS is
+sent by this; a password sign-in does not send one.
+
+Finding the user needs the id behind the number, and `listUsers()` filters on
+nothing. Migration `20260816120000_phone_signin_lookup.sql` adds
+`auth_user_id_for_phone()` for that — **service_role only**, because a freely
+callable phone → user id map would answer "does this number have an account?"
+for every number in Tunisia.
 
 ## Environment variables (Render → Environment)
 
 | Name | Value |
 | --- | --- |
-| `SEND_SMS_HOOK_SECRET` | the secret Supabase shows when the hook is created, `v1,whsec_…` |
-| `SMS_PROVIDER` | `bird`, `infobip` or `vonage` |
-| `BIRD_API_KEY` | Bird access key with **sms:write** |
-| `BIRD_WORKSPACE_ID` | the workspace **UUID** — the docs use UUIDs, not the `ws_…` shown in the dashboard |
-| `BIRD_CHANNEL_ID` | the SMS channel UUID |
+| `BIRD_API_KEY` | a live Bird access key with the **verify** scope |
+| `BIRD_REGION` | only for a key minted before the `bk_{region}_` prefix existed |
+| `VERIFY_CHANNELS` | leave **empty**; `sms` forces SMS only, at the cost of failover |
+| `SUPABASE_SERVICE_ROLE_KEY` | already set — the session is minted with it |
 
-Infobip instead: `INFOBIP_BASE_URL` (yours, e.g. `xyz.api.infobip.com`),
-`INFOBIP_API_KEY`, `INFOBIP_SENDER`.
-Vonage instead: `VONAGE_API_KEY`, `VONAGE_API_SECRET`, `VONAGE_SENDER`.
-
-None of these are `NEXT_PUBLIC_`, so none reach the browser.
+Neither is `NEXT_PUBLIC_`, so neither reaches the browser. Without
+`BIRD_API_KEY` the phone side refuses and says so on screen; email is unaffected.
 
 ## Supabase dashboard
 
-1. **Authentication → Providers → Phone**: enabled, and **OTP length 6**.
-2. **Authentication → Hooks → Send SMS hook**: type HTTPS, URI
-   `https://quran-quiz2-of5c.onrender.com/api/auth/sms`. Copy the secret it
-   shows into `SEND_SMS_HOOK_SECRET`.
-3. Leave the built-in SMS provider fields empty — the hook takes over. If you
-   ever switch to a provider Supabase supports natively, **disable the hook**,
-   or it will keep intercepting.
+1. **Authentication → Providers → Phone**: **enabled**. It is needed for
+   phone+password sign-in, which is how the session is minted. No SMS provider
+   needs to be configured under it — Supabase never sends a text.
+2. **Authentication → Hooks → Send SMS hook**: **delete it** if present.
+3. Email sign-in is unchanged.
 
 ## Bird dashboard
 
-1. **Channels → SMS**: install an SMS channel with an approved number. Without
-   a channel there is nothing to send from, and no key fixes that.
-2. **Developers → API keys**: a key with `sms:write`. Also give it a read scope
-   for channels if you want to list them from the API.
-3. The channel page's URL carries the workspace and channel identifiers.
+1. **Verify → Channels → SMS** already shows *Bird Shared Pool*. That is the
+   channel; there is nothing to install and no id to copy.
+2. **API keys**: a live key with `verify:write`. `sms:write` is not used by this
+   flow — that scope belongs to the Channels API, which is no longer called.
+3. Verify SMS draws on the workspace's SMS balance. An empty wallet surfaces as
+   a `402`, which the screen reports as "codes cannot be sent by SMS right now".
 
 ## Deploying
 
@@ -79,48 +172,59 @@ npm run build     # refreshes Quran data, then compiles
 git push          # Render deploys on push
 ```
 
+The migration is applied separately (MCP or the SQL editor) and should go first:
+without it, `/api/auth/phone/check` cannot resolve the number to an account.
+
 ## Testing with a real +216 number
 
-1. Create the account first — signing in never creates one:
-   `/register`, name, role, `+216 22 345 678`.
-2. The screen shows the number as it will be used: `+21622345678`. A wrong
+1. Create the account first — signing in never creates one: `/register`, name,
+   role, `+216 95 009 838`.
+2. The screen shows the number as it will be used: `+21695009838`. A wrong
    country guess is visible here rather than as an SMS that never comes.
-3. Type the six digits; you land on the host or student page.
+3. Type the six digits Bird texts; you land on the host or student page.
+
+**Tunisian mobiles start with 2, 4, 5 or 9.** The other prefixes are landlines
+or unallocated and are refused before anything is sent — including the
+`+21612345678` that appears in a lot of example text, whose `1` is not a mobile
+prefix.
 
 ### What each failure looks like
 
 | Case | What happens |
 | --- | --- |
-| not a number or address | *Enter an email address, or a phone number with its country code* — nothing is sent |
-| Tunisian landline (3x, 7x) | refused before sending: only mobile prefixes 2, 4, 5, 9 can receive an SMS |
-| wrong or expired code | one message for both — Supabase answers "expired or invalid" either way, so telling them apart would be invented |
-| resent too quickly | the button is disabled for 60 seconds and counts down |
-| provider refuses | the person is told the SMS failed and to try email; the reason goes to the server log |
-| secret missing | the hook refuses everything rather than sending unauthenticated |
+| not a number or address | *Enter an email address, or a phone number with its country code* — nothing sent |
+| Tunisian landline (3x, 7x) or prefix 1 | refused before sending: only 2, 4, 5, 9 can receive an SMS |
+| number with no account | *No account uses this address or number* — refused before Bird is called, so it costs nothing |
+| wrong code | *That code is wrong* — Bird still has attempts left |
+| expired code | *That code has expired. Ask for a new one.* |
+| too many wrong codes | *Too many wrong codes. Ask for a new one.* |
+| resent too quickly | the button is disabled for 60 seconds and counts down; Bird refuses inside its own cooldown too |
+| SMS unsupported for the destination | *We cannot text this number. Use an email address instead.* |
+| Bird wallet empty | *Codes cannot be sent by SMS right now.* — the `402` goes to the server log |
+| `BIRD_API_KEY` missing or rejected | *Signing in by SMS is not set up yet.* |
+| Bird unreachable | *Could not reach the server* |
 
 ### Reading the logs
 
-Supabase → Logs → Auth, or over MCP:
+Render's logs carry this side. Neither the code, nor a whole phone number, nor a
+key is ever written: the log shows `…838`, the named reason, and Bird's request
+id, which is what Bird support asks for.
 
-```sql
-select timestamp, log_attributes['path'], log_attributes['status'],
-       log_attributes['error']
-from logs where source = 'auth_logs' and log_attributes['error'] != ''
-order by timestamp desc limit 10
-```
-
-Render's own logs carry the hook's side. Neither the code, nor a whole phone
-number, nor a key is ever written: the log shows `…678`.
+Supabase → Logs → Auth still covers the email half and the session mint.
 
 ## Security
 
-The hook verifies the Standard Webhooks signature Supabase sends and refuses
-anything older than five minutes. Without that check the URL would be a free SMS
-gateway for whoever found it — sender's choice of number and text, at your
-expense.
+- The Bird key is server-only and never sent to the browser.
+- `/api/auth/phone/check` grants a session on the strength of a verified number,
+  so **Bird is called first, always** — nothing below the check runs before it.
+- `/api/auth/phone/start` refuses numbers with no account, which stops the route
+  being a way to spend the Bird balance on numbers picked at random.
+- Attempt limits, code lifetime and resend cooldown are Bird's, not
+  reimplemented here.
 
 Sources:
-[Send SMS hook](https://supabase.com/docs/guides/auth/auth-hooks/send-sms-hook) ·
-[Phone login](https://supabase.com/docs/guides/auth/phone-login) ·
-[Bird — sending SMS](https://docs.bird.com/api/channels-api/supported-channels/programmable-sms/sending-sms-messages) ·
-[Bird — Verify API](https://docs.bird.com/api/verify-api)
+[Bird Verify API](https://docs.bird.com/api/verify-api) ·
+[Bird TypeScript SDK](https://bird.com/docs/sdks/typescript) ·
+[Supabase phone login](https://supabase.com/docs/guides/auth/phone-login) ·
+[Supabase password auth (phone)](https://supabase.com/docs/guides/auth/passwords) ·
+[`auth.admin.generateLink`](https://supabase.com/docs/reference/javascript/auth-admin-generatelink)

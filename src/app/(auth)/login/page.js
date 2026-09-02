@@ -8,12 +8,20 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
 import { setAuthStatus, setUser } from "@/store/Slices/userSlice";
-import { getProfile, identify, sendSignInCode, verifySignInCode } from "@/lib/auth/client";
+import {
+  advanceSignInChannel,
+  getProfile,
+  identify,
+  sendSignInCode,
+  verifySignInCode,
+} from "@/lib/auth/client";
+import { SIGN_IN_MESSAGE_KEYS } from "@/lib/auth/messages";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
-/** Supabase rate-limits codes; a minute is its own default, and long enough
- * that a slow inbox or a late SMS is not a reason to ask for another. */
+/** Both senders refuse a second code inside a minute — Supabase by its own
+ * default, Bird Verify by its resend cooldown. Counting it down on screen is
+ * kinder than letting someone press the button into a refusal. */
 const RESEND_SECONDS = 60;
 
 /**
@@ -32,6 +40,12 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  /** Which way the code went — Bird picks, and it is not always SMS. */
+  const [channel, setChannel] = useState(null);
+  /** Set once the other channels are used up, so the offer stops being made. */
+  const [noOtherWay, setNoOtherWay] = useState(false);
+  /** How the provider names this verification, when it names one. Opaque. */
+  const [reference, setReference] = useState(null);
   const codeRef = useRef(null);
   const router = useRouter();
   const dispatch = useDispatch();
@@ -65,25 +79,45 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const { error: sendError } = await sendSignInCode(who);
-      if (sendError) {
-        const message = sendError.message ?? "";
-        // Supabase refuses to create an account here, which is how an unknown
-        // address announces itself. Say so plainly instead of repeating the
-        // API's wording.
-        setError(
-          /signups not allowed|not found|no user/i.test(message)
-            ? t("auth.noAccountForEmail")
-            : /rate|limit|seconds/i.test(message)
-              ? t("auth.tooManyCodes")
-              : message || t("auth.couldNotSignIn")
-        );
+      const result = await sendSignInCode(who);
+      if (!result.ok) {
+        setError(t(SIGN_IN_MESSAGE_KEYS[result.issue]));
         return;
       }
+      setChannel(result.channel);
+      setReference(result.reference);
+      setNoOtherWay(false);
       setStep("code");
       setCooldown(RESEND_SECONDS);
     } catch (err) {
       console.error("Sending the sign-in code failed:", err);
+      setError(t("auth.serverUnreachable"));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * "It never came." A carrier that swallowed one text will swallow the next,
+   * so resending is not the answer — another channel is.
+   */
+  const tryAnotherWay = async () => {
+    setError("");
+    setIsLoading(true);
+    try {
+      const result = await advanceSignInChannel(identity);
+      if (!result.ok) {
+        if (result.issue === "no_next_channel") setNoOtherWay(true);
+        setError(t(SIGN_IN_MESSAGE_KEYS[result.issue]));
+        return;
+      }
+      setChannel(result.channel);
+      setReference(result.reference);
+      // The new code skipped the cooldown, but the resend button should not:
+      // it is still a send, and Bird still counts it.
+      setCooldown(RESEND_SECONDS);
+    } catch (err) {
+      console.error("Switching the code's channel failed:", err);
       setError(t("auth.serverUnreachable"));
     } finally {
       setIsLoading(false);
@@ -101,16 +135,13 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const { data, error: verifyError } = await verifySignInCode(identity, token);
-      if (verifyError || !data?.user) {
-        // Supabase answers "Token has expired or is invalid" for both a wrong
-        // code and an old one, so telling them apart was a fiction: it always
-        // said "expired". One message, honest about both.
-        setError(t("auth.codeWrong"));
+      const result = await verifySignInCode(identity, token, reference);
+      if (!result.ok) {
+        setError(t(SIGN_IN_MESSAGE_KEYS[result.issue]));
         return;
       }
 
-      const profile = await getProfile(data.user.id);
+      const profile = await getProfile(result.userId);
       if (profile) dispatch(setUser(profile));
       dispatch(setAuthStatus("authenticated"));
       router.push(profile?.role === "host" ? "/host/quizzes" : "/student/dashboard");
@@ -129,6 +160,9 @@ export default function LoginPage() {
         {step === "email"
           ? t("auth.codeIntro")
           : t("auth.codeSentTo", { email: identity?.value ?? contact })}
+        {/* Which way it went, when that is not obvious — Bird may have used
+            WhatsApp or Telegram because the text could not get through. */}
+        {step === "code" && channel ? ` ${t("auth.sentByChannel", { channel })}` : ""}
       </p>
 
       {step === "email" ? (
@@ -191,6 +225,16 @@ export default function LoginPage() {
               {cooldown > 0 ? t("auth.resendIn", { seconds: cooldown }) : t("auth.resendCode")}
             </button>
           </div>
+          {identity?.channel === "phone" && !noOtherWay && (
+            <button
+              type="button"
+              onClick={tryAnotherWay}
+              disabled={isLoading}
+              className="w-full text-center text-sm text-ink-muted underline-offset-2 hover:underline disabled:no-underline"
+            >
+              {t("auth.tryAnotherWay")}
+            </button>
+          )}
         </form>
       )}
 
