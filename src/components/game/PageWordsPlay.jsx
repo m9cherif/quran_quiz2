@@ -221,7 +221,10 @@ export default function PageWordsPlay({
                   : filled
                     ? "border-2 border-primary bg-primary-soft text-primary"
                     : activeRegion === i
-                      ? "border-2 border-solid border-primary bg-primary/20 text-primary ring-2 ring-primary"
+                      ? // Armed but still empty: stay fully opaque like every
+                        // other unplaced box — a translucent tint here let the
+                        // real word underneath show through on tap.
+                        "border-2 border-solid border-primary bg-primary-soft text-primary ring-2 ring-primary"
                       : "border-2 border-dashed border-rose-400 bg-white text-slate-400 hover:bg-slate-50"
               }`}
               style={{
