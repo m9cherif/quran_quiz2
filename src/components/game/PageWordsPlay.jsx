@@ -174,7 +174,6 @@ export default function PageWordsPlay({
           key={question.page_number}
           page={question.page_number}
           mushafLayout={MUSHAF_LAYOUT}
-          width={640}
           highlightedWords={wordLocations}
           wordHighlightColor={LOCATE_MARKER_COLOR}
           onLoad={() => {

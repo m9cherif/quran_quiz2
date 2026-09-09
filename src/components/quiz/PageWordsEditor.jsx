@@ -127,7 +127,6 @@ export default function PageWordsEditor({ question, onChange }) {
             key={page}
             page={page}
             mushafLayout={MUSHAF_LAYOUT}
-            width={640}
             highlightedWords={wordLocations}
             wordHighlightColor="rgba(37, 99, 235, 0.35)"
             onWordClick={toggleWord}
