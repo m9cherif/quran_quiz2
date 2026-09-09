@@ -6,7 +6,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
-import { AVAILABLE_PAGES, loadAnnotationIndex, loadPageAnnotations, pageImageUrl } from "@/lib/quran/pages";
+import { DEFAULT_PAGE, loadAnnotationIndex, loadAvailablePages, loadPageAnnotations, pageImageUrl } from "@/lib/quran/pages";
 import { loadTimeline, loadTimelineIndex } from "@/lib/quran/recitation";
 import { generateQuestions } from "@/lib/quran/generate";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -24,7 +24,8 @@ const KINDS = [
  */
 export default function GenerateFromPage({ open, onClose, onGenerate }) {
   const { t } = useI18n();
-  const [page, setPage] = useState(AVAILABLE_PAGES[0]);
+  const [page, setPage] = useState(DEFAULT_PAGE);
+  const [availablePages, setAvailablePages] = useState([]);
   const [count, setCount] = useState(3);
   const [wordsPer, setWordsPer] = useState(6);
   const [kinds, setKinds] = useState(["hidden_words"]);
@@ -36,6 +37,10 @@ export default function GenerateFromPage({ open, onClose, onGenerate }) {
   useEffect(() => {
     loadAnnotationIndex().then(setAnnotated).catch(() => {});
     loadTimelineIndex().then(setRecited).catch(() => {});
+    loadAvailablePages().then((pages) => {
+      setAvailablePages(pages);
+      if (pages.length > 0) setPage((prev) => (pages.includes(prev) ? prev : pages[0]));
+    });
   }, []);
 
   const hasWords = Boolean(annotated[String(page)]);
@@ -120,7 +125,7 @@ export default function GenerateFromPage({ open, onClose, onGenerate }) {
             value={String(page)}
             onChange={(e) => setPage(Number(e.target.value))}
           >
-            {AVAILABLE_PAGES.map((n) => (
+            {availablePages.map((n) => (
               <option key={n} value={n}>
                 {t("pw.pageOption", { page: n })}
                 {recited[String(n)] ? " ♪" : ""}

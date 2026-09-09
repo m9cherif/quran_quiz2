@@ -27,7 +27,7 @@ import AudioRangePicker from "@/components/quiz/AudioRangePicker";
 import PageWordsEditor from "@/components/quiz/PageWordsEditor";
 import OrderingEditor from "@/components/quiz/OrderingEditor";
 import PresenterMode from "@/components/host/PresenterMode";
-import { AVAILABLE_PAGES } from "@/lib/quran/pages";
+import { DEFAULT_PAGE } from "@/lib/quran/pages";
 import { getChoiceDistribution } from "@/services/games";
 import CallPanel from "@/components/call/CallPanel";
 import HostPlayerTools from "@/components/host/HostPlayerTools";
@@ -73,7 +73,7 @@ function emptyNewQuestion() {
     hint: "",
     items: ["", ""],
     // page_words only — PageWordsEditor reads these snake_case fields.
-    page_number: AVAILABLE_PAGES[0],
+    page_number: DEFAULT_PAGE,
     regions: [],
     words: [],
     choices: [
@@ -784,7 +784,7 @@ export default function LiveGameControl({ roomKey }) {
           competitionId: game.id,
           questionId: null,
           position: questions.length + 1,
-          pageNumber: q.page_number ?? AVAILABLE_PAGES[0],
+          pageNumber: q.page_number ?? DEFAULT_PAGE,
           durationSeconds: q.durationSeconds,
           points: q.points,
           negativePoints: q.negativePoints,

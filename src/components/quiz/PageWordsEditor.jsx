@@ -8,8 +8,9 @@ import Select from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import {
-  AVAILABLE_PAGES,
+  DEFAULT_PAGE,
   loadAnnotationIndex,
+  loadAvailablePages,
   loadPageAnnotations,
   normaliseWords,
   pageImageUrl,
@@ -33,11 +34,12 @@ export default function PageWordsEditor({ question, onChange }) {
   const [draft, setDraft] = useState(null); // in-progress drag, normalised
   const [selected, setSelected] = useState(0);
   const [annotationIndex, setAnnotationIndex] = useState({});
+  const [availablePages, setAvailablePages] = useState([]);
   const [hideCount, setHideCount] = useState(8);
   const [filling, setFilling] = useState(false);
   const [fillError, setFillError] = useState("");
 
-  const page = question.page_number ?? AVAILABLE_PAGES[0];
+  const page = question.page_number ?? availablePages[0] ?? DEFAULT_PAGE;
   const regions = question.regions ?? [];
   const words = question.words ?? [];
   const imageUrl = pageImageUrl(page);
@@ -48,6 +50,9 @@ export default function PageWordsEditor({ question, onChange }) {
     let active = true;
     loadAnnotationIndex().then((idx) => {
       if (active) setAnnotationIndex(idx ?? {});
+    });
+    loadAvailablePages().then((pages) => {
+      if (active) setAvailablePages(pages);
     });
     return () => {
       active = false;
@@ -171,7 +176,7 @@ export default function PageWordsEditor({ question, onChange }) {
           value={String(page)}
           onChange={(e) => set({ page_number: Number(e.target.value) })}
         >
-          {AVAILABLE_PAGES.map((p) => (
+          {availablePages.map((p) => (
             <option key={p} value={p}>
               {t("pw.pageOption", { page: p })}
             </option>

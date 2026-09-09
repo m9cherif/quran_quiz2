@@ -25,7 +25,7 @@ import {
 import { downloadTextFile, slugify } from "@/lib/export";
 import { printQuizSheet } from "@/lib/printSheet";
 import GenerateFromPage from "./GenerateFromPage";
-import { AVAILABLE_PAGES } from "@/lib/quran/pages";
+import { DEFAULT_PAGE } from "@/lib/quran/pages";
 import { Dialog } from "@/components/ui/Dialog";
 import { listMyClasses } from "@/services/classes";
 import {
@@ -381,7 +381,7 @@ export function QuizEditor({ quizId }) {
               competitionId: quiz.id,
               questionId: q.id,
               position,
-              pageNumber: q.page_number ?? AVAILABLE_PAGES[0],
+              pageNumber: q.page_number ?? DEFAULT_PAGE,
               durationSeconds: q.duration_seconds ?? 120,
               points: q.points,
               negativePoints: q.negative_points,

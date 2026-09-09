@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { AVAILABLE_PAGES, loadPageAnnotations, pageImageUrl, regionStyle } from "@/lib/quran/pages";
+import { DEFAULT_PAGE, loadAvailablePages, loadPageAnnotations, pageImageUrl, regionStyle } from "@/lib/quran/pages";
 import { audioUrl, loadTimeline } from "@/lib/quran/recitation";
 
 const SPEEDS = [0.5, 0.75, 1];
@@ -26,7 +26,8 @@ export default function TimelineBuilder() {
   const audioRef = useRef(null);
   const frameRef = useRef(0);
 
-  const [page, setPage] = useState(AVAILABLE_PAGES[0]);
+  const [page, setPage] = useState(DEFAULT_PAGE);
+  const [availablePages, setAvailablePages] = useState([]);
   const [file, setFile] = useState("");
   const [words, setWords] = useState([]);
   const [events, setEvents] = useState([]);
@@ -36,6 +37,13 @@ export default function TimelineBuilder() {
   const [playing, setPlaying] = useState(false);
   const [now, setNow] = useState(0);
   const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    loadAvailablePages().then((pages) => {
+      setAvailablePages(pages);
+      if (pages.length > 0) setPage((prev) => (pages.includes(prev) ? prev : pages[0]));
+    });
+  }, []);
 
   // Words worth marking: those with an id and actual text (ayah marks have
   // neither and are never recited).
@@ -179,7 +187,7 @@ export default function TimelineBuilder() {
               onChange={(e) => setPage(Number(e.target.value))}
               className="rounded-md border border-border bg-surface px-2 py-1.5 text-ink"
             >
-              {AVAILABLE_PAGES.map((n) => (
+              {availablePages.map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>

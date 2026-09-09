@@ -24,6 +24,7 @@ import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STEPS = [
+  ["page images", "fetch-pages.mjs"],
   ["annotations", "fetch-annotations.mjs"],
   ["timelines", "fetch-timelines.mjs"],
   ["surah & hizb tables", "fetch-quran-meta.mjs"],

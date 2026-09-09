@@ -2,29 +2,44 @@
  * Quran page images.
  *
  * Source: github.com/m9cherif/flutter_quran_data (png/pageNNN.png). Only part
- * of the mushaf is published there today — pages 553…604 — so the picker is
- * limited to what actually exists instead of offering 1…604 and 404-ing.
+ * of the mushaf is published there, and which part changes as the upstream
+ * folder is renumbered — hardcoding a range is what broke every picker the
+ * last time that happened, every option it offered pointing at an image that
+ * no longer existed. So the real list is imported at build time instead (the
+ * same way the annotations already are, in scripts/fetch-pages.mjs) and
+ * loaded here rather than assumed.
  */
 
 const RAW_BASE =
   "https://raw.githubusercontent.com/m9cherif/flutter_quran_data/main/png";
 
-export const PAGE_FIRST = 553;
-export const PAGE_LAST = 604;
+/** A page to default to before the real list has loaded. Not a guarantee it exists. */
+export const DEFAULT_PAGE = 1;
 
-/** Every page number that has an image, ascending. */
-export const AVAILABLE_PAGES: number[] = Array.from(
-  { length: PAGE_LAST - PAGE_FIRST + 1 },
-  (_, i) => PAGE_FIRST + i
-);
+let pagesPromise: Promise<number[]> | null = null;
 
-export function isPageAvailable(page: number | null | undefined): boolean {
-  return typeof page === "number" && page >= PAGE_FIRST && page <= PAGE_LAST;
+/** Every page number that currently has a published image, ascending. */
+export function loadAvailablePages(): Promise<number[]> {
+  if (!pagesPromise) {
+    pagesPromise = fetch("/quran/pages.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => (Array.isArray(d?.pages) ? d.pages : []))
+      .catch(() => []);
+  }
+  return pagesPromise;
 }
 
-/** Absolute URL of a page image (empty string when the page has no image). */
+/** Sanity check, not an existence check — real availability is the loaded list. */
+export function isPageAvailable(page: number | null | undefined): boolean {
+  return typeof page === "number" && Number.isInteger(page) && page > 0;
+}
+
+/** Absolute URL of a page image (empty string when the page number is invalid). */
 export function pageImageUrl(page: number | null | undefined): string {
-  return isPageAvailable(page) ? `${RAW_BASE}/page${page}.png` : "";
+  // Filenames are zero-padded to 3 digits (page001.png … page604.png). That
+  // never showed up as a bug while every page in use was already 3 digits —
+  // it only became visible once the upstream range dropped below 100.
+  return isPageAvailable(page) ? `${RAW_BASE}/page${String(page).padStart(3, "0")}.png` : "";
 }
 
 /** Box on a page, normalised 0..1 so it scales with the rendered width. */

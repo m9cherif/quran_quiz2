@@ -12,7 +12,7 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
 import AudioRangePicker from "./AudioRangePicker";
 import PageWordsEditor from "./PageWordsEditor";
 import OrderingEditor from "./OrderingEditor";
-import { AVAILABLE_PAGES } from "@/lib/quran/pages";
+import { DEFAULT_PAGE } from "@/lib/quran/pages";
 
 const QUESTION_TYPES = [
   { value: "mcq", key: "typeMcq" },
@@ -218,7 +218,7 @@ export function QuestionForm({
           <PageWordsEditor
             question={{
               ...question,
-              page_number: question.page_number ?? AVAILABLE_PAGES[0],
+              page_number: question.page_number ?? DEFAULT_PAGE,
               duration_seconds: question.duration_seconds ?? 120,
             }}
             onChange={onChange}
