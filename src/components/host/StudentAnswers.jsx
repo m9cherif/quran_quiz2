@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OpenQuranView } from "open-quran-view/view";
 import { Badge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -20,11 +20,30 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
  */
 function AnswerSheet({ question, chips, solution, answerText }) {
   const { t } = useI18n();
-  const wordLocations = Array.isArray(question.word_locations) ? question.word_locations : [];
+  const wordLocations = useMemo(
+    () => (Array.isArray(question.word_locations) ? question.word_locations : []),
+    [question.word_locations]
+  );
   const truth = String(solution ?? "").split("|").map(Number);
   const given = String(answerText ?? "").split("|").map(Number);
   const containerRef = useRef(null);
   const [boxes, setBoxes] = useState([]);
+
+  // Stable identity: open-quran-view re-runs its own page-load effect
+  // whenever this callback changes, so an inline arrow function here would
+  // reload the whole page on every re-render of this dialog.
+  const handleOpenQuranViewLoad = useCallback(() => {
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const found = locateWords(container);
+        if (found.length === wordLocations.length) {
+          setBoxes(found.map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height })));
+        }
+      })
+    );
+  }, [wordLocations]);
 
   return (
     <div ref={containerRef} className="relative overflow-hidden rounded-lg border border-border bg-white p-2">
@@ -34,18 +53,7 @@ function AnswerSheet({ question, chips, solution, answerText }) {
         mushafLayout={MUSHAF_LAYOUT}
         highlightedWords={wordLocations}
         wordHighlightColor={LOCATE_MARKER_COLOR}
-        onLoad={() => {
-          requestAnimationFrame(() =>
-            requestAnimationFrame(() => {
-              const container = containerRef.current;
-              if (!container) return;
-              const found = locateWords(container);
-              if (found.length === wordLocations.length) {
-                setBoxes(found.map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height })));
-              }
-            })
-          );
-        }}
+        onLoad={handleOpenQuranViewLoad}
       />
       {boxes.map((box, i) => {
         const placed = Number.isFinite(given[i]) && given[i] >= 0 ? given[i] : null;

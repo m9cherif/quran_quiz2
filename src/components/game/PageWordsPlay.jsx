@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OpenQuranView } from "open-quran-view/view";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -62,14 +62,24 @@ export default function PageWordsPlay({
    * read back — locateWords finds them by that colour, not by the click that
    * produced them, since the student never clicks the real word underneath.
    */
-  const measureBoxes = () => {
+  const measureBoxes = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     const found = locateWords(container);
     if (found.length === wordLocations.length) {
       setBoxes(found.map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height })));
     }
-  };
+  }, [wordLocations]);
+
+  /**
+   * Stable across the ~4x/second re-renders the question timer causes
+   * elsewhere on this screen: open-quran-view re-runs its own page-load
+   * effect whenever this callback's identity changes, so an inline arrow
+   * function here reloaded (and briefly blanked) the whole page every tick.
+   */
+  const handleOpenQuranViewLoad = useCallback(() => {
+    requestAnimationFrame(() => requestAnimationFrame(measureBoxes));
+  }, [measureBoxes]);
 
   useEffect(() => {
     setPlacements(wordLocations.map(() => null));
@@ -176,11 +186,7 @@ export default function PageWordsPlay({
           mushafLayout={MUSHAF_LAYOUT}
           highlightedWords={wordLocations}
           wordHighlightColor={LOCATE_MARKER_COLOR}
-          onLoad={() => {
-            // Two frames: the highlight is applied in the same render as the
-            // layout, but painting it is not guaranteed done until after.
-            requestAnimationFrame(() => requestAnimationFrame(measureBoxes));
-          }}
+          onLoad={handleOpenQuranViewLoad}
         />
 
         {boxes.map((box, i) => {
