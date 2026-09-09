@@ -628,6 +628,10 @@ const ar: Messages = {
     pw: {
       submitPartial: "إرسال {placed} من {total}",
       autosaveHint: "يُحفظ عملك أولًا بأول — ويُحتسب حتى لو انتهى الوقت.",
+      autoFill: "تعبئة من بيانات الصفحة",
+      hideCount: "عدد الكلمات المخفية",
+      annotatedWords: "{count} كلمة محددة في هذه الصفحة",
+      autoFillFailed: "تعذر قراءة بيانات الكلمات لهذه الصفحة.",
       typeForBox: "اكتب الكلمة للمربع {n}",
       typeNext: "اكتب كلمة لوضعها",
       typePlaceholder: "اكتب الكلمة…",

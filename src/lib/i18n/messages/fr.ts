@@ -637,6 +637,10 @@ const fr: Messages = {
     pw: {
       submitPartial: "Envoyer {placed} sur {total}",
       autosaveHint: "Votre travail est enregistré au fur et à mesure — il compte même si le temps s'écoule.",
+      autoFill: "Remplir depuis la page",
+      hideCount: "Mots à cacher",
+      annotatedWords: "{count} mots sont sur cette page",
+      autoFillFailed: "Impossible de lire les données de mots de cette page.",
       typeForBox: "Tapez le mot de la case {n}",
       typeNext: "Tapez un mot pour le placer",
       typePlaceholder: "écrivez le mot…",

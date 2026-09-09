@@ -623,6 +623,10 @@ moveDown: string;
   pw: {
     submitPartial: string;
     autosaveHint: string;
+    autoFill: string;
+    hideCount: string;
+    annotatedWords: string;
+    autoFillFailed: string;
     typeForBox: string;
     typeNext: string;
     typePlaceholder: string;

@@ -635,6 +635,10 @@ const en: Messages = {
     pw: {
       submitPartial: "Send {placed} of {total}",
       autosaveHint: "Your work is saved as you go — it counts even if the time runs out.",
+      autoFill: "Fill from page data",
+      hideCount: "Words to hide",
+      annotatedWords: "{count} words are on this page",
+      autoFillFailed: "Could not read the word data for this page.",
       typeForBox: "Type the word for box {n}",
       typeNext: "Type a word to place it",
       typePlaceholder: "write the word…",

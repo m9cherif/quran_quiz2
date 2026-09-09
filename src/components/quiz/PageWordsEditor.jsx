@@ -8,7 +8,13 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import { MUSHAF_LAYOUT, MUSHAF_PAGE_COUNT, loadWordIndex, wordKey } from "@/lib/quran/openView";
+import {
+  MUSHAF_LAYOUT,
+  MUSHAF_PAGE_COUNT,
+  loadPageWords,
+  loadWordIndex,
+  wordKey,
+} from "@/lib/quran/openView";
 
 const PAGE_NUMBERS = Array.from({ length: MUSHAF_PAGE_COUNT }, (_, i) => i + 1);
 
@@ -33,6 +39,9 @@ export default function PageWordsEditor({ question, onChange }) {
   const words = question.words ?? [];
 
   const [wordTextIndex, setWordTextIndex] = useState(new Map());
+  const [hideCount, setHideCount] = useState(8);
+  const [filling, setFilling] = useState(false);
+  const [fillError, setFillError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -45,6 +54,42 @@ export default function PageWordsEditor({ question, onChange }) {
   }, [page]);
 
   const set = (patch) => onChange({ ...question, ...patch });
+
+  /**
+   * Pick `hideCount` random words from this page's own text — a random
+   * sample of the full deck, same as the old "Aléatoire (N mots)" mode,
+   * just sourced from the real page data instead of a separately maintained
+   * annotation workbook (which is also why every page always has some to
+   * pick from, unlike that workbook, which often had none for a given page).
+   */
+  const autoFill = async () => {
+    setFilling(true);
+    setFillError("");
+    try {
+      const all = await loadPageWords(page);
+      if (!all.length) {
+        setFillError(t("pw.autoFillFailed"));
+        return;
+      }
+      const pool = [...all];
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      const chosen = pool
+        .slice(0, Math.max(1, Math.min(hideCount, pool.length, 40)))
+        .sort(byReadingOrder);
+      set({
+        word_locations: chosen.map((w) => ({ surah: w.surah, verse: w.verse, position: w.position })),
+        words: chosen.map((w) => w.text),
+      });
+    } catch (err) {
+      console.error("Auto-fill failed:", err);
+      setFillError(t("pw.autoFillFailed"));
+    } finally {
+      setFilling(false);
+    }
+  };
 
   const toggleWord = (word) => {
     // Ayah-end roundels and other decoration are not selectable words.
@@ -112,6 +157,32 @@ export default function PageWordsEditor({ question, onChange }) {
             set({ points: e.target.value === "" ? null : Number(e.target.value) })
           }
         />
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-surface-2 p-3">
+        <div className="w-28">
+          <Input
+            label={t("pw.hideCount")}
+            type="number"
+            min={1}
+            max={40}
+            value={hideCount}
+            onChange={(e) => setHideCount(Math.max(1, Number(e.target.value) || 1))}
+          />
+        </div>
+        <Button loading={filling} onClick={autoFill} disabled={wordTextIndex.size === 0}>
+          {t("pw.autoFill")}
+        </Button>
+        {wordTextIndex.size > 0 && (
+          <p className="flex-1 text-xs text-ink-muted">
+            {t("pw.annotatedWords", { count: wordTextIndex.size })}
+          </p>
+        )}
+        {fillError && (
+          <p className="w-full text-sm text-danger" role="alert">
+            {fillError}
+          </p>
+        )}
       </div>
 
       <div>
