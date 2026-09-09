@@ -39,7 +39,7 @@ export function emptyQuestion(position = 1) {
     position,
     text: "",
     type: "mcq",
-    regions: [],
+    word_locations: [],
     words: [],
     items: ["", ""],
     audio_url: null,
@@ -69,17 +69,18 @@ export function questionPoints(question, defaults) {
 export function validateQuestion(question, t = (key) => key) {
   const errors = {};
   if (question.type === "page_words") {
-    // Geometry + one word per box is the whole contract for this type; the
-    // question "text" is generated, so it is not authored here.
-    const regions = question.regions ?? [];
+    // Which words are hidden, plus their text, is the whole contract for
+    // this type; the question "text" is generated, so it is not authored
+    // here.
+    const wordLocations = question.word_locations ?? [];
     const words = question.words ?? [];
-    if (regions.length === 0) {
-      errors.regions = t("pw.needBox");
+    if (wordLocations.length === 0) {
+      errors.word_locations = t("pw.needBox");
     } else if (
-      words.length !== regions.length ||
+      words.length !== wordLocations.length ||
       words.some((w) => !String(w ?? "").trim())
     ) {
-      errors.regions = t("pw.incomplete");
+      errors.word_locations = t("pw.incomplete");
     }
     return errors;
   }
@@ -223,9 +224,9 @@ export function QuestionForm({
             }}
             onChange={onChange}
           />
-          {errors.regions && (
+          {errors.word_locations && (
             <p className="text-sm text-danger" role="alert">
-              {errors.regions}
+              {errors.word_locations}
             </p>
           )}
         </>

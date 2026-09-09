@@ -28,6 +28,7 @@ const STEPS = [
   ["annotations", "fetch-annotations.mjs"],
   ["timelines", "fetch-timelines.mjs"],
   ["surah & hizb tables", "fetch-quran-meta.mjs"],
+  ["quran-view word text", "fetch-quran-view-words.mjs"],
 ];
 
 if (process.env.SKIP_DATA_REFRESH === "1") {

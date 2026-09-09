@@ -154,13 +154,13 @@ export function QuizEditor({ quizId }) {
         // (solution[i] = index of the chip that belongs in box i).
         ...(f.type === "page_words"
           ? {
-              regions: Array.isArray(f.regions) ? f.regions : [],
+              word_locations: Array.isArray(f.word_locations) ? f.word_locations : [],
               words: String(f.correct_answer_text ?? "")
                 .split("|")
                 .filter((v) => v !== "")
                 .map((chipIndex) => (f.choices ?? [])[Number(chipIndex)]?.text ?? ""),
             }
-          : { regions: [], words: [] }),
+          : { word_locations: [], words: [] }),
         // ordering: the same trick — solution[i] is the display index of the
         // fragment that belongs at slot i, so it rebuilds the authored order.
         items:
@@ -279,7 +279,7 @@ export function QuizEditor({ quizId }) {
       started: false,
       choices: (source.choices ?? []).map((c) => ({ ...c, id: null })),
       items: [...(source.items ?? [])],
-      regions: [...(source.regions ?? [])],
+      word_locations: [...(source.word_locations ?? [])],
       words: [...(source.words ?? [])],
     };
     setQuestions((prev) => {
@@ -390,7 +390,7 @@ export function QuizEditor({ quizId }) {
               ayahNumber: q.ayah_number,
               juzNumber: q.juz_number,
               hizbNumber: q.hizb_number,
-              regions: q.regions ?? [],
+              wordLocations: q.word_locations ?? [],
               words: (q.words ?? []).map((text, i) => ({ text, region: i })),
             })
           : saveQuestion({
@@ -812,7 +812,6 @@ export function QuizEditor({ quizId }) {
               audio_url: g.audio_url,
               page_number: g.page_number,
               ayah_number: g.ayah_number,
-              regions: g.regions,
               words: g.words,
               choices: [],
             }));

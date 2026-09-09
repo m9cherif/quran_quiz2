@@ -11,8 +11,10 @@ import { loadTimeline, loadTimelineIndex } from "@/lib/quran/recitation";
 import { generateQuestions } from "@/lib/quran/generate";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
+// "hidden_words" is authored by hand in PageWordsEditor now (click real
+// words on the rendered page) rather than generated in bulk here — see
+// src/lib/quran/generate.ts.
 const KINDS = [
-  { id: "hidden_words", labelKey: "gen.kindHidden" },
   { id: "continue", labelKey: "gen.kindContinue" },
   { id: "listen", labelKey: "gen.kindListen" },
 ];
@@ -27,8 +29,7 @@ export default function GenerateFromPage({ open, onClose, onGenerate }) {
   const [page, setPage] = useState(DEFAULT_PAGE);
   const [availablePages, setAvailablePages] = useState([]);
   const [count, setCount] = useState(3);
-  const [wordsPer, setWordsPer] = useState(6);
-  const [kinds, setKinds] = useState(["hidden_words"]);
+  const [kinds, setKinds] = useState(["continue"]);
   const [annotated, setAnnotated] = useState({});
   const [recited, setRecited] = useState({});
   const [busy, setBusy] = useState(false);
@@ -83,7 +84,6 @@ export default function GenerateFromPage({ open, onClose, onGenerate }) {
         timeline,
         kinds,
         count: Math.max(1, Math.min(10, Number(count) || 1)),
-        wordsPerExercise: Math.max(2, Math.min(20, Number(wordsPer) || 6)),
       });
 
       if (generated.length === 0) {
@@ -119,7 +119,7 @@ export default function GenerateFromPage({ open, onClose, onGenerate }) {
       }
     >
       <div className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Select
             label={t("pw.pageLabel")}
             value={String(page)}
@@ -139,14 +139,6 @@ export default function GenerateFromPage({ open, onClose, onGenerate }) {
             max={10}
             value={count}
             onChange={(e) => setCount(e.target.value)}
-          />
-          <Input
-            label={t("gen.wordsPer")}
-            type="number"
-            min={2}
-            max={20}
-            value={wordsPer}
-            onChange={(e) => setWordsPer(e.target.value)}
           />
         </div>
 

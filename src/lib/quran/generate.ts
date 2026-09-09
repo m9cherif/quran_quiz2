@@ -11,10 +11,16 @@ import type { AnnotatedWord } from "./pages";
 import type { PageTimeline } from "./recitation";
 import { audioUrl, locateWord } from "./recitation";
 
-export type GeneratedKind = "hidden_words" | "continue" | "listen";
+// "hidden_words" (page_words) generation is not offered here for now: it was
+// built entirely on the pixel-annotation pipeline (word boxes normalised
+// against an <img>'s pixel size) that PageWordsEditor no longer uses since
+// it moved to open-quran-view's text rendering, addressed by
+// surah/verse/position rather than pixels. Someone can still build a
+// page_words question — by hand, in the editor — just not in bulk from here.
+export type GeneratedKind = "continue" | "listen";
 
 export interface GeneratedQuestion {
-  type: "page_words" | "text" | "audio";
+  type: "text" | "audio";
   text: string;
   duration_seconds: number;
   correct_answer_text: string | null;
@@ -23,7 +29,6 @@ export interface GeneratedQuestion {
   page_number: number;
   surah_number: number | null;
   ayah_number: number | null;
-  regions: Array<{ x1: number; y1: number; x2: number; y2: number }>;
   words: string[];
 }
 
@@ -36,16 +41,6 @@ function shuffled<T>(list: T[]): T[] {
   return copy;
 }
 
-/** Boxes are stored in workbook pixels; questions store 0..1. */
-function normalise(word: AnnotatedWord, width: number, height: number) {
-  return {
-    x1: Math.min(1, Math.max(0, word.x1 / width)),
-    y1: Math.min(1, Math.max(0, word.y1 / height)),
-    x2: Math.min(1, Math.max(0, word.x2 / width)),
-    y2: Math.min(1, Math.max(0, word.y2 / height)),
-  };
-}
-
 export interface GenerateOptions {
   page: number;
   words: AnnotatedWord[];
@@ -55,13 +50,10 @@ export interface GenerateOptions {
   kinds: GeneratedKind[];
   /** How many of each kind to produce. */
   count: number;
-  /** Words hidden per "hidden words" exercise. */
-  wordsPerExercise?: number;
 }
 
 export function generateQuestions(options: GenerateOptions): GeneratedQuestion[] {
   const { page, words, imageWidth, imageHeight, timeline, kinds, count } = options;
-  const perExercise = Math.max(2, options.wordsPerExercise ?? 6);
   const out: GeneratedQuestion[] = [];
   if (words.length === 0 || !imageWidth || !imageHeight) return out;
 
@@ -69,32 +61,6 @@ export function generateQuestions(options: GenerateOptions): GeneratedQuestion[]
   for (const word of words) {
     if (!word.aya) continue;
     byAyah.set(word.aya, [...(byAyah.get(word.aya) ?? []), word]);
-  }
-
-  if (kinds.includes("hidden_words")) {
-    // Draw disjoint samples so two exercises don't hide the same words.
-    const pool = shuffled(words.filter((w) => w.text.trim()));
-    for (let i = 0; i < count; i++) {
-      const slice = pool.slice(i * perExercise, (i + 1) * perExercise);
-      if (slice.length < 2) break;
-      // Reading order inside the exercise, not the shuffled order.
-      const ordered = slice
-        .slice()
-        .sort((a, b) => words.indexOf(a) - words.indexOf(b));
-      out.push({
-        type: "page_words",
-        text: "page_words",
-        duration_seconds: 120,
-        correct_answer_text: null,
-        audio_url: null,
-        hint: null,
-        page_number: page,
-        surah_number: null,
-        ayah_number: null,
-        regions: ordered.map((w) => normalise(w, imageWidth, imageHeight)),
-        words: ordered.map((w) => w.text),
-      });
-    }
   }
 
   if (kinds.includes("continue")) {
@@ -115,7 +81,6 @@ export function generateQuestions(options: GenerateOptions): GeneratedQuestion[]
         page_number: page,
         surah_number: null,
         ayah_number: list[0]?.aya ?? null,
-        regions: [],
         words: [],
       });
     }
@@ -148,7 +113,6 @@ export function generateQuestions(options: GenerateOptions): GeneratedQuestion[]
         page_number: page,
         surah_number: null,
         ayah_number: aya,
-        regions: [],
         words: [],
       });
     }

@@ -1,172 +1,83 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { OpenQuranView } from "open-quran-view/view";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import {
-  DEFAULT_PAGE,
-  loadAnnotationIndex,
-  loadAvailablePages,
-  loadPageAnnotations,
-  normaliseWords,
-  pageImageUrl,
-  regionFromPoints,
-  regionStyle,
-  sortRegions,
-} from "@/lib/quran/pages";
+import { MUSHAF_LAYOUT, MUSHAF_PAGE_COUNT, loadWordIndex, wordKey } from "@/lib/quran/openView";
+
+const PAGE_NUMBERS = Array.from({ length: MUSHAF_PAGE_COUNT }, (_, i) => i + 1);
+
+/** Ascending surah, then verse, then word position — the page's own reading order. */
+function byReadingOrder(a, b) {
+  return a.surah - b.surah || a.verse - b.verse || a.position - b.position;
+}
 
 /**
- * PageWordsEditor — the authoring half of the "mots cachés" exercise
- * (exercices.py). The host picks a page, drags boxes over the words that
- * should be masked, and types the word inside each box. Boxes are stored
- * normalised, so the same annotation works at any screen width.
+ * PageWordsEditor — the authoring half of the "mots cachés" exercise.
  *
- * The PyQt version read boxes from an annotation .xlsx per page; here the host
- * marks them directly on the image, which removes the external data dependency.
+ * The host clicks words directly on the real page — rendered by
+ * open-quran-view, not a scanned image — to mark them hidden; clicking again
+ * un-marks them. Each hidden word is stored as where it actually is in the
+ * text (surah, verse, position) rather than a pixel box, so the exercise
+ * survives however the page happens to be rendered.
  */
 export default function PageWordsEditor({ question, onChange }) {
   const { t } = useI18n();
-  const imgRef = useRef(null);
-  const [draft, setDraft] = useState(null); // in-progress drag, normalised
-  const [selected, setSelected] = useState(0);
-  const [annotationIndex, setAnnotationIndex] = useState({});
-  const [availablePages, setAvailablePages] = useState([]);
-  const [hideCount, setHideCount] = useState(8);
-  const [filling, setFilling] = useState(false);
-  const [fillError, setFillError] = useState("");
-
-  const page = question.page_number ?? availablePages[0] ?? DEFAULT_PAGE;
-  const regions = question.regions ?? [];
+  const page = question.page_number ?? PAGE_NUMBERS[0];
+  const wordLocations = question.word_locations ?? [];
   const words = question.words ?? [];
-  const imageUrl = pageImageUrl(page);
 
-  const set = (patch) => onChange({ ...question, ...patch });
+  const [wordTextIndex, setWordTextIndex] = useState(new Map());
 
   useEffect(() => {
     let active = true;
-    loadAnnotationIndex().then((idx) => {
-      if (active) setAnnotationIndex(idx ?? {});
-    });
-    loadAvailablePages().then((pages) => {
-      if (active) setAvailablePages(pages);
+    loadWordIndex(page).then((idx) => {
+      if (active) setWordTextIndex(idx);
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [page]);
 
-  const annotatedCount = annotationIndex[String(page)] ?? 0;
+  const set = (patch) => onChange({ ...question, ...patch });
 
-  /**
-   * Pull the word boxes for this page straight from the published annotation
-   * data, so the host does not have to trace them by hand. Words flagged
-   * `hidden` in the workbook win; otherwise a random sample is taken, which is
-   * what the desktop version's "Aléatoire (N mots)" mode did.
-   */
-  const autoFill = async () => {
-    setFilling(true);
-    setFillError("");
-    try {
-      const all = await loadPageAnnotations(page);
-      const img = imgRef.current;
-      if (!all.length) {
-        setFillError(t("pw.noAnnotations"));
-        return;
-      }
-      if (!img?.naturalWidth) {
-        setFillError(t("pw.imageNotReady"));
-        return;
-      }
+  const toggleWord = (word) => {
+    // Ayah-end roundels and other decoration are not selectable words.
+    if (word.charType && word.charType !== "word") return;
+    const loc = { surah: word.surahNumber, verse: word.ayahNumber, position: word.position };
+    if (!loc.surah || !loc.verse || !loc.position) return;
+    const key = wordKey(loc);
 
-      const marked = all.filter((w) => w.hidden);
-      let chosen;
-      if (marked.length > 0) {
-        chosen = marked;
-      } else {
-        const pool = [...all];
-        for (let i = pool.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [pool[i], pool[j]] = [pool[j], pool[i]];
-        }
-        chosen = pool.slice(0, Math.max(1, Math.min(hideCount, pool.length)));
-      }
-
-      // Keep the page's own reading order, not the shuffled sample order.
-      const order = new Map(all.map((w, i) => [w, i]));
-      chosen.sort((a, b) => order.get(a) - order.get(b));
-
-      const { regions: nextRegions, texts } = normaliseWords(
-        chosen,
-        img.naturalWidth,
-        img.naturalHeight
-      );
-      set({ regions: nextRegions, words: texts });
-      setSelected(0);
-    } catch (err) {
-      console.error("Auto-fill failed:", err);
-      setFillError(t("pw.autoFillFailed"));
-    } finally {
-      setFilling(false);
+    const pairs = wordLocations.map((l, i) => ({ loc: l, text: words[i] }));
+    const existingIndex = pairs.findIndex((p) => wordKey(p.loc) === key);
+    let nextPairs;
+    if (existingIndex >= 0) {
+      nextPairs = pairs.filter((_, i) => i !== existingIndex);
+    } else {
+      if (pairs.length >= 40) return; // matches the server-side limit
+      nextPairs = [...pairs, { loc, text: wordTextIndex.get(key) ?? "" }];
     }
-  };
-
-  const pointOf = (event) => {
-    const rect = imgRef.current?.getBoundingClientRect();
-    if (!rect || rect.width === 0) return null;
-    return {
-      x: (event.clientX - rect.left) / rect.width,
-      y: (event.clientY - rect.top) / rect.height,
-    };
-  };
-
-  const onPointerDown = (event) => {
-    if (event.button !== 0) return;
-    const p = pointOf(event);
-    if (!p) return;
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    setDraft({ ax: p.x, ay: p.y, bx: p.x, by: p.y });
-  };
-
-  const onPointerMove = (event) => {
-    if (!draft) return;
-    const p = pointOf(event);
-    if (!p) return;
-    setDraft((prev) => (prev ? { ...prev, bx: p.x, by: p.y } : prev));
-  };
-
-  const onPointerUp = () => {
-    if (!draft) return;
-    const region = regionFromPoints(draft.ax, draft.ay, draft.bx, draft.by);
-    setDraft(null);
-    if (!region) return;
-    const nextRegions = sortRegions([...regions, region]);
-    // Keep each word attached to its box across the re-sort.
-    const keyed = regions.map((r, i) => [r, words[i] ?? ""]);
-    keyed.push([region, ""]);
-    const nextWords = nextRegions.map((r) => {
-      const hit = keyed.find(([k]) => k.x1 === r.x1 && k.y1 === r.y1 && k.x2 === r.x2);
-      return hit ? hit[1] : "";
-    });
-    set({ regions: nextRegions, words: nextWords });
-    setSelected(nextRegions.indexOf(region));
-  };
-
-  const removeRegion = (index) => {
+    nextPairs.sort((a, b) => byReadingOrder(a.loc, b.loc));
     set({
-      regions: regions.filter((_, i) => i !== index),
+      word_locations: nextPairs.map((p) => p.loc),
+      words: nextPairs.map((p) => p.text),
+    });
+  };
+
+  const removeWord = (index) => {
+    set({
+      word_locations: wordLocations.filter((_, i) => i !== index),
       words: words.filter((_, i) => i !== index),
     });
-    setSelected((prev) => Math.max(0, prev > index ? prev - 1 : prev));
   };
 
-  const setWord = (index, text) =>
-    set({ words: words.map((w, i) => (i === index ? text : w)) });
-
-  const missing = regions.length === 0 || words.some((w) => !String(w ?? "").trim());
+  const missing =
+    wordLocations.length === 0 || words.some((w) => !String(w ?? "").trim());
 
   return (
     <Card className="space-y-4">
@@ -176,7 +87,7 @@ export default function PageWordsEditor({ question, onChange }) {
           value={String(page)}
           onChange={(e) => set({ page_number: Number(e.target.value) })}
         >
-          {availablePages.map((p) => (
+          {PAGE_NUMBERS.map((p) => (
             <option key={p} value={p}>
               {t("pw.pageOption", { page: p })}
             </option>
@@ -203,108 +114,42 @@ export default function PageWordsEditor({ question, onChange }) {
         />
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-surface-2 p-3">
-        <div className="w-28">
-          <Input
-            label={t("pw.hideCount")}
-            type="number"
-            min={1}
-            max={40}
-            value={hideCount}
-            onChange={(e) => setHideCount(Math.max(1, Number(e.target.value) || 1))}
-          />
-        </div>
-        <Button loading={filling} onClick={autoFill} disabled={annotatedCount === 0}>
-          {t("pw.autoFill")}
-        </Button>
-        <p className="flex-1 text-xs text-ink-muted">
-          {annotatedCount > 0
-            ? t("pw.annotatedWords", { count: annotatedCount })
-            : t("pw.noAnnotations")}
-        </p>
-        {fillError && (
-          <p className="w-full text-sm text-danger" role="alert">
-            {fillError}
-          </p>
-        )}
-      </div>
-
       <div>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium text-ink">{t("pw.drawHint")}</p>
+          <p className="text-sm font-medium text-ink">{t("pw.clickHint")}</p>
           <Badge variant={missing ? "warning" : "success"}>
-            {t("pw.boxCount", { count: regions.length })}
+            {t("pw.boxCount", { count: wordLocations.length })}
           </Badge>
         </div>
 
-        <div
-          className="relative select-none overflow-hidden rounded-lg border border-border bg-white"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={() => setDraft(null)}
-          style={{ touchAction: "none", cursor: "crosshair" }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            ref={imgRef}
-            src={imageUrl}
-            alt={t("pw.pageOption", { page })}
-            className="block w-full"
-            draggable={false}
+        <div className="overflow-hidden rounded-lg border border-border bg-white p-2">
+          <OpenQuranView
+            key={page}
+            page={page}
+            mushafLayout={MUSHAF_LAYOUT}
+            width={640}
+            highlightedWords={wordLocations}
+            wordHighlightColor="rgba(37, 99, 235, 0.35)"
+            onWordClick={toggleWord}
           />
-
-          {regions.map((region, i) => (
-            <span
-              key={`${region.x1}-${region.y1}-${i}`}
-              className={`absolute border-2 ${
-                i === selected ? "border-primary bg-primary/25" : "border-emerald-500 bg-emerald-400/15"
-              }`}
-              style={regionStyle(region)}
-            >
-              <span className="absolute -top-2 -end-2 rounded-full bg-slate-900 px-1.5 text-[10px] font-bold text-white">
-                {i + 1}
-              </span>
-            </span>
-          ))}
-
-          {draft && (
-            <span
-              className="absolute border-2 border-dashed border-primary bg-primary/20"
-              style={regionStyle(
-                regionFromPoints(draft.ax, draft.ay, draft.bx, draft.by) ?? {
-                  x1: draft.ax,
-                  y1: draft.ay,
-                  x2: draft.bx,
-                  y2: draft.by,
-                }
-              )}
-            />
-          )}
         </div>
       </div>
 
-      {regions.length > 0 && (
+      {wordLocations.length > 0 && (
         <ol className="space-y-2">
-          {regions.map((region, i) => (
-            <li key={`w-${i}`} className="flex items-end gap-2">
-              <span className="mb-2.5 w-6 shrink-0 text-center text-xs font-bold text-ink-faint">
+          {wordLocations.map((loc, i) => (
+            <li key={wordKey(loc)} className="flex items-center gap-2">
+              <span className="w-6 shrink-0 text-center text-xs font-bold text-ink-faint">
                 {i + 1}
               </span>
-              <div className="min-w-0 flex-1" onFocus={() => setSelected(i)}>
-                <Input
-                  label={i === 0 ? t("pw.wordLabel") : undefined}
-                  dir="rtl"
-                  value={words[i] ?? ""}
-                  placeholder={t("pw.wordPlaceholder")}
-                  onChange={(e) => setWord(i, e.target.value)}
-                />
-              </div>
+              <span dir="rtl" className="min-w-0 flex-1 text-base text-ink">
+                {words[i] || t("pw.wordPlaceholder")}
+              </span>
               <Button
                 variant="ghost"
                 size="sm"
-                className="mb-0.5 text-danger"
-                onClick={() => removeRegion(i)}
+                className="text-danger"
+                onClick={() => removeWord(i)}
                 aria-label={t("pw.removeBox", { n: i + 1 })}
               >
                 ×

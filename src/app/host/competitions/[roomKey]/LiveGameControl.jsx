@@ -74,7 +74,7 @@ function emptyNewQuestion() {
     items: ["", ""],
     // page_words only — PageWordsEditor reads these snake_case fields.
     page_number: DEFAULT_PAGE,
-    regions: [],
+    word_locations: [],
     words: [],
     choices: [
       { text: "", position: 1, isCorrect: false },
@@ -767,13 +767,13 @@ export default function LiveGameControl({ roomKey }) {
     // Page exercises carry no question text: the page and its boxes are the
     // question, so they validate (and save) through their own path.
     if (q.type === "page_words") {
-      const regions = q.regions ?? [];
+      const wordLocations = q.word_locations ?? [];
       const words = q.words ?? [];
-      if (regions.length === 0) {
+      if (wordLocations.length === 0) {
         setAddError(t("pw.needBox"));
         return;
       }
-      if (words.length !== regions.length || words.some((w) => !String(w ?? "").trim())) {
+      if (words.length !== wordLocations.length || words.some((w) => !String(w ?? "").trim())) {
         setAddError(t("pw.incomplete"));
         return;
       }
@@ -793,7 +793,7 @@ export default function LiveGameControl({ roomKey }) {
           ayahNumber: null,
           juzNumber: null,
           hizbNumber: null,
-          regions,
+          wordLocations,
           words: words.map((w, i) => ({ text: w, region: i })),
         });
         toast({ title: t("host.questionAdded"), variant: "success" });

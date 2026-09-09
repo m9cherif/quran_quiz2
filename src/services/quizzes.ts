@@ -215,9 +215,9 @@ export interface PageWordsInput {
   ayahNumber?: number | null;
   juzNumber?: number | null;
   hizbNumber?: number | null;
-  /** Box geometry, normalised 0..1, in reading order. */
-  regions: Array<{ x1: number; y1: number; x2: number; y2: number }>;
-  /** One word per region: { text, region: <index into regions> }. */
+  /** Which words are hidden, in page reading order (open-quran-view addressing). */
+  wordLocations: Array<{ surah: number; verse: number; position: number }>;
+  /** One entry per hidden word: { text, region: <index into wordLocations> }. */
   words: Array<{ text: string; region: number }>;
 }
 
@@ -232,7 +232,7 @@ export async function savePageWordsQuestion(input: PageWordsInput): Promise<stri
     p_question_id: input.questionId ?? null,
     p_position: input.position,
     p_page_number: input.pageNumber,
-    p_regions: input.regions as never,
+    p_word_locations: input.wordLocations as never,
     p_words: input.words as never,
     p_duration_seconds: input.durationSeconds,
     p_points: input.points,

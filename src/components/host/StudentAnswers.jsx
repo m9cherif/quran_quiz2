@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { OpenQuranView } from "open-quran-view/view";
 import { Badge } from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { pageImageUrl, regionStyle } from "@/lib/quran/pages";
+import { LOCATE_MARKER_COLOR, MUSHAF_LAYOUT, locateWords } from "@/lib/quran/openView";
 import { getHostQuestionFull, listParticipants, listQuestionAnswers } from "@/services/games";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
@@ -19,15 +20,35 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
  */
 function AnswerSheet({ question, chips, solution, answerText }) {
   const { t } = useI18n();
-  const regions = Array.isArray(question.regions) ? question.regions : [];
+  const wordLocations = Array.isArray(question.word_locations) ? question.word_locations : [];
   const truth = String(solution ?? "").split("|").map(Number);
   const given = String(answerText ?? "").split("|").map(Number);
+  const containerRef = useRef(null);
+  const [boxes, setBoxes] = useState([]);
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-border bg-white">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={pageImageUrl(question.page_number)} alt="" className="block w-full" />
-      {regions.map((region, i) => {
+    <div ref={containerRef} className="relative overflow-hidden rounded-lg border border-border bg-white p-2">
+      <OpenQuranView
+        key={question.page_number}
+        page={question.page_number}
+        mushafLayout={MUSHAF_LAYOUT}
+        width={640}
+        highlightedWords={wordLocations}
+        wordHighlightColor={LOCATE_MARKER_COLOR}
+        onLoad={() => {
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              const container = containerRef.current;
+              if (!container) return;
+              const found = locateWords(container);
+              if (found.length === wordLocations.length) {
+                setBoxes(found.map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height })));
+              }
+            })
+          );
+        }}
+      />
+      {boxes.map((box, i) => {
         const placed = Number.isFinite(given[i]) && given[i] >= 0 ? given[i] : null;
         const wanted = Number.isFinite(truth[i]) ? truth[i] : null;
         const right = placed !== null && placed === wanted;
@@ -49,7 +70,7 @@ function AnswerSheet({ question, chips, solution, answerText }) {
                   ? "border-2 border-dashed border-slate-400 bg-white/70"
                   : "border-2 border-rose-500 bg-rose-100 text-rose-900"
             }`}
-            style={regionStyle(region)}
+            style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
           >
             <span dir="rtl" className="px-0.5">
               {right ? "" : placed !== null ? chips[placed]?.text : ""}

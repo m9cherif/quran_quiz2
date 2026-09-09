@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { OpenQuranView } from "open-quran-view/view";
 import Button from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-import { normaliseArabic, pageImageUrl, regionStyle, stripTashkeel } from "@/lib/quran/pages";
+import { normaliseArabic, stripTashkeel } from "@/lib/quran/pages";
+import { LOCATE_MARKER_COLOR, MUSHAF_LAYOUT, locateWords } from "@/lib/quran/openView";
 import RecitationReplay from "@/components/quran/RecitationReplay";
 
 /**
  * PageWordsPlay — the student half of the "mots cachés" exercise.
- * The masked boxes sit on top of the page image; tap a word chip then tap a
- * box (the PyQt flow: pick the word number, click the empty cell), or drag the
- * chip onto the box. The answer is the chip index per box, joined with "|",
- * which is exactly what the server stored as the solution — so grading stays
- * server-side and the key is never in the page.
+ *
+ * The page is real text now (open-quran-view), not a scanned image with
+ * pixel boxes drawn over it — so the masked boxes are positioned by reading
+ * the rendered word elements back off the DOM (see locateWords) rather than
+ * from stored coordinates. Everything past that — tap a chip then tap a box,
+ * drag the chip onto the box, type the word — is unchanged: the answer is
+ * still the chip index per box, joined with "|", which is what the server
+ * already grades by string equality.
  */
 export default function PageWordsPlay({
   question,
@@ -25,16 +30,17 @@ export default function PageWordsPlay({
   solution = null,
 }) {
   const { t } = useI18n();
-  const regions = useMemo(
-    () => (Array.isArray(question.regions) ? question.regions : []),
-    [question.regions]
+  const wordLocations = useMemo(
+    () => (Array.isArray(question.word_locations) ? question.word_locations : []),
+    [question.word_locations]
   );
-  const [placements, setPlacements] = useState(() => regions.map(() => null));
+  const [placements, setPlacements] = useState(() => wordLocations.map(() => null));
   const [activeChip, setActiveChip] = useState(null);
   const [activeRegion, setActiveRegion] = useState(null);
   const [typed, setTyped] = useState("");
   const [typeError, setTypeError] = useState("");
-  const imageUrl = pageImageUrl(question.page_number);
+  const [boxes, setBoxes] = useState([]);
+  const containerRef = useRef(null);
 
   const solutionByRegion = useMemo(() => {
     if (!solution) return null;
@@ -45,10 +51,30 @@ export default function PageWordsPlay({
 
   const usedChips = new Set(placements.filter((p) => p !== null));
   const placedCount = placements.filter((p) => p !== null).length;
-  const allPlaced = placedCount === regions.length && regions.length > 0;
+  const allPlaced = placedCount === wordLocations.length && wordLocations.length > 0;
 
   const firstEmpty = placements.findIndex((p) => p === null);
   const canonical = placements.map((p) => (p === null ? -1 : p)).join("|");
+
+  /**
+   * The masked words are marked with a reserved highlight colour on every
+   * render (see LOCATE_MARKER_COLOR) purely so their rendered position can be
+   * read back — locateWords finds them by that colour, not by the click that
+   * produced them, since the student never clicks the real word underneath.
+   */
+  const measureBoxes = () => {
+    const container = containerRef.current;
+    if (!container) return;
+    const found = locateWords(container);
+    if (found.length === wordLocations.length) {
+      setBoxes(found.map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height })));
+    }
+  };
+
+  useEffect(() => {
+    setPlacements(wordLocations.map(() => null));
+    setBoxes([]);
+  }, [wordLocations]);
 
   /**
    * Push every change to the server shortly after it happens, so the grade
@@ -136,20 +162,29 @@ export default function PageWordsPlay({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Badge variant="info">{t("pw.pageOption", { page: question.page_number })}</Badge>
         <Badge variant={allPlaced ? "success" : "neutral"}>
-          {t("pw.progress", { placed: placedCount, total: regions.length })}
+          {t("pw.progress", { placed: placedCount, total: wordLocations.length })}
         </Badge>
       </div>
 
-      <div className="relative overflow-hidden rounded-lg border border-border bg-white">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imageUrl}
-          alt={t("pw.pageOption", { page: question.page_number })}
-          className="block w-full"
-          draggable={false}
+      <div
+        ref={containerRef}
+        className="relative overflow-hidden rounded-lg border border-border bg-white p-2"
+      >
+        <OpenQuranView
+          key={question.page_number}
+          page={question.page_number}
+          mushafLayout={MUSHAF_LAYOUT}
+          width={640}
+          highlightedWords={wordLocations}
+          wordHighlightColor={LOCATE_MARKER_COLOR}
+          onLoad={() => {
+            // Two frames: the highlight is applied in the same render as the
+            // layout, but painting it is not guaranteed done until after.
+            requestAnimationFrame(() => requestAnimationFrame(measureBoxes));
+          }}
         />
 
-        {regions.map((region, i) => {
+        {boxes.map((box, i) => {
           const chipIndex = placements[i];
           const filled = chipIndex !== null;
           const truth = solutionByRegion ? solutionByRegion[i] : null;
@@ -158,7 +193,7 @@ export default function PageWordsPlay({
 
           return (
             <button
-              key={`r-${i}`}
+              key={`w-${i}`}
               type="button"
               disabled={disabled && !graded}
               onClick={() => (filled && !graded ? clearRegion(i) : handleRegionTap(i))}
@@ -176,7 +211,7 @@ export default function PageWordsPlay({
                   ? right
                     ? // Right answer: get out of the way entirely so the word
                       // itself is read off the page, as it is printed.
-                      "border-0 bg-transparent"
+                      "border-0 bg-white"
                     : "border-2 border-rose-500 bg-rose-100 text-rose-900"
                   : filled
                     ? "border-2 border-primary bg-primary-soft text-primary"
@@ -184,7 +219,12 @@ export default function PageWordsPlay({
                       ? "border-2 border-solid border-primary bg-primary/20 text-primary ring-2 ring-primary"
                       : "border-2 border-dashed border-rose-400 bg-white text-slate-400 hover:bg-slate-50"
               }`}
-              style={regionStyle(region)}
+              style={{
+                left: box.x,
+                top: box.y,
+                width: box.width,
+                height: box.height,
+              }}
             >
               <span dir="rtl" className="px-0.5">
                 {graded
@@ -276,7 +316,7 @@ export default function PageWordsPlay({
           >
             {allPlaced
               ? t("game.submitAnswer")
-              : t("pw.submitPartial", { placed: placedCount, total: regions.length })}
+              : t("pw.submitPartial", { placed: placedCount, total: wordLocations.length })}
           </Button>
           <p className="text-center text-xs text-ink-muted">{t("pw.autosaveHint")}</p>
         </>

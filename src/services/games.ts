@@ -14,9 +14,9 @@ export interface GameQuestionRow {
   negative_points: number | null;
   started_at: string | null;
   ends_at: string | null;
-  /** page_words exercises only: page image + normalised box geometry. */
+  /** page_words exercises only: which page, and which words are hidden. */
   page_number?: number | null;
-  regions?: Array<{ x1: number; y1: number; x2: number; y2: number }> | null;
+  word_locations?: Array<{ surah: number; verse: number; position: number }> | null;
   audio_url?: string | null;
   hint?: string | null;
 }
@@ -40,7 +40,7 @@ export async function listGameQuestions(competitionId: string): Promise<GameQues
       // audio_url and hint have to be here: an audio question with no url
       // renders nothing at all, and a hint that is never selected can never
       // be offered.
-      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at, page_number, regions, audio_url, hint"
+      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at, page_number, word_locations, audio_url, hint"
     )
     .eq("competition_id", competitionId)
     .order("position", { ascending: true });
@@ -221,7 +221,7 @@ export async function listStudentQuestions(
       // audio_url and hint have to be here: an audio question with no url
       // renders nothing at all, and a hint that is never selected can never
       // be offered.
-      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at, page_number, regions, audio_url, hint"
+      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at, page_number, word_locations, audio_url, hint"
     )
     .eq("competition_id", competitionId)
     .order("position", { ascending: true });
