@@ -25,8 +25,8 @@ const OUT_DIR = join(process.cwd(), "public", "annotations");
 /** Remove harakat, quranic annotation marks and tatweel; keep the letters. */
 function stripTashkeel(value) {
   return value
-    .replace(/[ؐ-ًؚ-ٰٟۖ-ۭ]/g, "")
-    .replace(/ـ/g, "")
+    .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g, "")
+    .replace(/\u0640/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }

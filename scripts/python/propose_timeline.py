@@ -54,7 +54,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 HOP_MS = 10
-TASHKEEL = re.compile("[ؐ-ًؚ-ٰٟۖ-ۭـ]")
+TASHKEEL = re.compile("[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]")
 
 
 def strip_tashkeel(text: str) -> str:
