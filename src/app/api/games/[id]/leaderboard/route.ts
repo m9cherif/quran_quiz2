@@ -41,7 +41,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
     if (!authorized) throw new GameError("42501", "Not authorized");
 
-    const rows = (await db.execute(sql`
+    const [rows] = (await db.execute(sql`
       SELECT
         ROW_NUMBER() OVER (ORDER BY total_points DESC, correct_count DESC, display_name ASC) AS \`rank\`,
         id, display_name, correct_count, answered_count, total_points, team, avatar
@@ -60,7 +60,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         GROUP BY pri.id, pri.display_name
       ) t
       ORDER BY total_points DESC, correct_count DESC, display_name ASC
-    `)) as unknown as LeaderboardRow[];
+    `)) as unknown as [LeaderboardRow[], unknown];
 
     return NextResponse.json(
       rows.map((r) => ({

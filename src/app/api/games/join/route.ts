@@ -89,7 +89,10 @@ export async function POST(request: Request) {
         profileId,
       });
     } catch (err: unknown) {
-      const code = (err as { code?: string })?.code;
+      // drizzle-orm wraps the mysql2 driver error in a DrizzleQueryError —
+      // the real ER_DUP_ENTRY/errno lives on `.cause`, not the top-level error.
+      const cause = (err as { cause?: { code?: string } })?.cause;
+      const code = cause?.code ?? (err as { code?: string })?.code;
       if (code === "ER_DUP_ENTRY") {
         throw new GameError("23505", "That display name is already taken in this game");
       }

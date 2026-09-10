@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { and, eq, sql } from "drizzle-orm";
 
-import { getServiceClient } from "@/lib/auth/server";
+import { getDb } from "@/lib/db/client";
+import { seriesAnswers, seriesAttempts } from "@/lib/db/schema";
 import { checkAnswer, noteOutOf100, pickWords } from "@/lib/series/format";
 import { getSeries, pageWords } from "@/lib/series/source";
 import { seedFor, userFromRequest } from "@/lib/series/session";
@@ -29,23 +31,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const answers = Array.isArray(body?.answers) ? body.answers : [];
   const seconds = Math.max(0, Math.round(Number(body?.seconds) || 0));
 
-  const db = getServiceClient();
+  const db = getDb();
   // An attempt id is only trusted once it is shown to belong to this person and
   // this series.
-  const { data: attempt } = await db
-    .from("series_attempts")
-    .select("id, exercise_num, finished_at")
-    .eq("id", attemptId)
-    .eq("profile_id", profileId)
-    .eq("series_id", id)
-    .maybeSingle();
+  const attemptRows = await db
+    .select({ id: seriesAttempts.id, exerciseNum: seriesAttempts.exerciseNum, finishedAt: seriesAttempts.finishedAt })
+    .from(seriesAttempts)
+    .where(and(eq(seriesAttempts.id, attemptId), eq(seriesAttempts.profileId, profileId), eq(seriesAttempts.seriesId, id)))
+    .limit(1);
+  const attempt = attemptRows[0];
   if (!attempt) return NextResponse.json({ error: "Unknown attempt" }, { status: 403 });
-  if (attempt.finished_at) {
+  if (attempt.finishedAt) {
     return NextResponse.json({ error: "Already marked" }, { status: 409 });
   }
 
   const plan = (await getSeries())[id];
-  const index = Number(attempt.exercise_num) - 1;
+  const index = Number(attempt.exerciseNum) - 1;
   const exercise = plan?.exercices[index];
   if (!exercise) return NextResponse.json({ error: "No such exercise" }, { status: 404 });
 
@@ -71,27 +72,37 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const note = noteOutOf100(right, chosen.length);
 
   await db
-    .from("series_attempts")
-    .update({
-      finished_at: new Date().toISOString(),
+    .update(seriesAttempts)
+    .set({
+      finishedAt: new Date(),
       score: note,
       answered,
       total: chosen.length,
       errors: answered - right,
       seconds,
     })
-    .eq("id", attemptId);
+    .where(eq(seriesAttempts.id, attemptId));
 
-  await db.from("series_answers").upsert(
-    corrections.map((c) => ({
-      attempt_id: attemptId,
-      exercise_id: String(c.i),
-      answer: (c.given ?? null) as never,
-      is_correct: c.right,
-      points: c.right ? 1 : 0,
-    })),
-    { onConflict: "attempt_id,exercise_id" }
-  );
+  if (corrections.length > 0) {
+    await db
+      .insert(seriesAnswers)
+      .values(
+        corrections.map((c) => ({
+          attemptId,
+          exerciseId: String(c.i),
+          answer: (c.given ?? null) as unknown,
+          isCorrect: c.right,
+          points: c.right ? 1 : 0,
+        }))
+      )
+      .onDuplicateKeyUpdate({
+        set: {
+          answer: sql`values(${seriesAnswers.answer})`,
+          isCorrect: sql`values(${seriesAnswers.isCorrect})`,
+          points: sql`values(${seriesAnswers.points})`,
+        },
+      });
+  }
 
   return NextResponse.json({ note, right, answered, total: chosen.length, seconds, corrections });
 }

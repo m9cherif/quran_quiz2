@@ -1,7 +1,56 @@
-import { getSupabase } from "@/lib/supabase/client";
-import { getParticipantClient } from "@/lib/supabase/participantClient";
 import { getQuestionFull } from "./quizzes";
 import type { Competition, Participant, Answer } from "@/types/database";
+
+/**
+ * Client-side wrappers over src/app/api/games/* — the post-Supabase
+ * replacement for the old supabase-js + RPC calls. Function names/params are
+ * kept identical to the previous version so consuming components
+ * (LiveGameControl.jsx, GameQuestion.jsx, GameLobby.jsx, GameResult.jsx,
+ * JoinGameForm.jsx, ...) need no changes here.
+ *
+ * Errors thrown carry the same `.code`/`.message` shape callers already
+ * switch on (e.g. `err.code === "28000"`), rehydrated from the route's JSON
+ * error body `{ error, code }`.
+ */
+class ApiError extends Error {
+  code?: string;
+  status?: number;
+  constructor(message: string, code?: string, status?: number) {
+    super(message);
+    this.code = code;
+    this.status = status;
+  }
+}
+
+async function apiFetch<T = unknown>(
+  path: string,
+  options: (RequestInit & { token?: string | null }) = {}
+): Promise<T> {
+  const { token, headers, body, ...rest } = options;
+  const res = await fetch(path, {
+    credentials: "same-origin",
+    headers: {
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { "x-participant-token": token } : {}),
+      ...(headers as Record<string, string> | undefined),
+    },
+    body,
+    ...rest,
+  });
+
+  let payload: unknown = null;
+  try {
+    payload = await res.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!res.ok) {
+    const obj = (payload && typeof payload === "object" ? payload : {}) as { error?: string; code?: string };
+    throw new ApiError(obj.error || res.statusText, obj.code, res.status);
+  }
+  return payload as T;
+}
 
 export interface GameQuestionRow {
   id: string;
@@ -23,40 +72,17 @@ export interface GameQuestionRow {
 
 /** Load the competition behind a room code (owner or visible to player). */
 export async function getGameByCode(code: string): Promise<Competition | null> {
-  const { data, error } = await getSupabase()
-    .from("competitions")
-    .select("*")
-    .eq("code", code)
-    .maybeSingle();
-  if (error) throw error;
-  return data as Competition | null;
+  return apiFetch<Competition | null>(`/api/games/code/${encodeURIComponent(code)}`);
 }
 
 /** Question deck for the host (safe columns + timing). */
 export async function listGameQuestions(competitionId: string): Promise<GameQuestionRow[]> {
-  const { data, error } = await getSupabase()
-    .from("questions")
-    .select(
-      // audio_url and hint have to be here: an audio question with no url
-      // renders nothing at all, and a hint that is never selected can never
-      // be offered.
-      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at, page_number, word_locations, audio_url, hint"
-    )
-    .eq("competition_id", competitionId)
-    .order("position", { ascending: true });
-  if (error) throw error;
-  return (data as GameQuestionRow[]) ?? [];
+  return apiFetch<GameQuestionRow[]>(`/api/games/${competitionId}/questions`);
 }
 
 /** Players of a competition (owner view; anonymous players self-view). */
 export async function listParticipants(competitionId: string): Promise<Participant[]> {
-  const { data, error } = await getSupabase()
-    .from("participants")
-    .select("*")
-    .eq("competition_id", competitionId)
-    .order("joined_at", { ascending: true });
-  if (error) throw error;
-  return (data as Participant[]) ?? [];
+  return apiFetch<Participant[]>(`/api/games/${competitionId}/participants`);
 }
 
 /** Host-side question reveal view (full row, owner only). */
@@ -66,8 +92,7 @@ export function getHostQuestionFull(questionId: string) {
 
 /** Server-timestamped question start (host only). */
 export async function beginQuestion(questionId: string): Promise<void> {
-  const { error } = await getSupabase().rpc("begin_question", { p_question_id: questionId });
-  if (error) throw error;
+  await apiFetch(`/api/games/questions/${questionId}/begin`, { method: "POST" });
 }
 
 export interface AdvanceResult {
@@ -79,22 +104,17 @@ export interface AdvanceResult {
 }
 
 /**
- * Close the open question and open the next one in a single statement
- * (host only). Replaces the end→begin pair, so the round cannot be left
+ * Close the open question and open the next one in a single call (host
+ * only). Replaces the end→begin pair, so the round cannot be left
  * half-advanced if the second call fails, and costs one round trip.
  */
 export async function advanceGame(competitionId: string): Promise<AdvanceResult> {
-  const { data, error } = await getSupabase().rpc("advance_game", {
-    p_competition_id: competitionId,
-  });
-  if (error) throw error;
-  return data as AdvanceResult;
+  return apiFetch<AdvanceResult>(`/api/games/${competitionId}/advance`, { method: "POST" });
 }
 
 /** Force-close the current question early (host only). */
 export async function endQuestion(questionId: string): Promise<void> {
-  const { error } = await getSupabase().rpc("end_question", { p_question_id: questionId });
-  if (error) throw error;
+  await apiFetch(`/api/games/questions/${questionId}/end`, { method: "POST" });
 }
 
 /** Remaining ms from a server timestamp; clamped at 0 when expired. */
@@ -126,25 +146,9 @@ export interface OpenGameRow {
   created_at: string;
 }
 
-/**
- * Games currently open for joining.
- * RLS already exposes waiting competitions to anonymous readers, so this is a
- * plain select — private ones and locked lobbies are filtered out so a game
- * only appears in the list when its host actually wants walk-ins.
- */
+/** Games currently open for joining. */
 export async function listOpenGames(): Promise<OpenGameRow[]> {
-  const { data, error } = await getSupabase()
-    .from("competitions")
-    .select("id, code, title, name, language, category, status, created_at")
-    // Waiting lobbies, plus games already under way whose host is taking
-    // latecomers — the same rule join_competition enforces.
-    .or("status.eq.waiting,and(allow_late_join.eq.true,status.in.(running,paused))")
-    .eq("join_locked", false)
-    .neq("visibility", "private")
-    .order("created_at", { ascending: false })
-    .limit(30);
-  if (error) throw error;
-  return (data as OpenGameRow[]) ?? [];
+  return apiFetch<OpenGameRow[]>(`/api/games/open`);
 }
 
 /** Join a waiting game by its public code. Returns the participant row. */
@@ -153,13 +157,14 @@ export async function joinGame(
   displayName: string,
   profileId?: string | null
 ): Promise<Participant> {
-  const { data, error } = await getSupabase().rpc("join_competition", {
-    p_code: code.trim().toUpperCase(),
-    p_display_name: displayName.trim(),
-    p_profile_id: profileId ?? null,
+  return apiFetch<Participant>(`/api/games/join`, {
+    method: "POST",
+    body: JSON.stringify({
+      code: code.trim().toUpperCase(),
+      displayName: displayName.trim(),
+      profileId: profileId ?? null,
+    }),
   });
-  if (error) throw error;
-  return data as Participant;
 }
 
 /** Restore/validate my participant row for a competition (token client). */
@@ -167,11 +172,7 @@ export async function getMyParticipant(
   competitionId: string,
   accessToken: string
 ): Promise<Participant | null> {
-  const { data, error } = await getParticipantClient(accessToken).rpc("my_participant", {
-    p_competition_id: competitionId,
-  });
-  if (error) throw error;
-  return (data as Participant | null) ?? null;
+  return apiFetch<Participant | null>(`/api/games/${competitionId}/participant`, { token: accessToken });
 }
 
 /** Student: choose my own emoji avatar (token-scoped to me). */
@@ -180,19 +181,16 @@ export async function setMyAvatar(
   accessToken: string,
   avatar: string
 ): Promise<void> {
-  const { error } = await getParticipantClient(accessToken).rpc("set_my_avatar", {
-    p_competition_id: competitionId,
-    p_avatar: avatar,
+  await apiFetch(`/api/games/${competitionId}/avatar`, {
+    method: "POST",
+    token: accessToken,
+    body: JSON.stringify({ avatar }),
   });
-  if (error) throw error;
 }
 
 /** Presence heartbeat: mark myself online with a server timestamp. */
 export async function updatePresence(competitionId: string, accessToken: string): Promise<void> {
-  const { error } = await getParticipantClient(accessToken).rpc("update_presence", {
-    p_competition_id: competitionId,
-  });
-  if (error) throw error;
+  await apiFetch(`/api/games/${competitionId}/presence`, { method: "POST", token: accessToken });
 }
 
 /** Lobby player count (aggregate only — participants can't see names). */
@@ -200,14 +198,7 @@ export async function gameParticipantCount(
   competitionId: string,
   accessToken?: string
 ): Promise<number> {
-  const supabase = accessToken
-    ? getParticipantClient(accessToken)
-    : getSupabase();
-  const { data, error } = await supabase.rpc("game_participant_count", {
-    p_competition_id: competitionId,
-  });
-  if (error) throw error;
-  return Number(data ?? 0);
+  return apiFetch<number>(`/api/games/${competitionId}/participant-count`, { token: accessToken });
 }
 
 /** Question deck for students (safe columns; requires the token header). */
@@ -215,18 +206,7 @@ export async function listStudentQuestions(
   competitionId: string,
   accessToken: string
 ): Promise<GameQuestionRow[]> {
-  const { data, error } = await getParticipantClient(accessToken)
-    .from("questions")
-    .select(
-      // audio_url and hint have to be here: an audio question with no url
-      // renders nothing at all, and a hint that is never selected can never
-      // be offered.
-      "id, competition_id, position, text, type, duration_seconds, points, negative_points, started_at, ends_at, page_number, word_locations, audio_url, hint"
-    )
-    .eq("competition_id", competitionId)
-    .order("position", { ascending: true });
-  if (error) throw error;
-  return (data as GameQuestionRow[]) ?? [];
+  return apiFetch<GameQuestionRow[]>(`/api/games/${competitionId}/questions`, { token: accessToken });
 }
 
 /** Choices for a set of questions (student token client; is_correct hidden). */
@@ -234,13 +214,11 @@ export async function listChoices(
   questionIds: string[],
   accessToken: string
 ): Promise<{ id: string; question_id: string; text: string; position: number }[]> {
-  const { data, error } = await getParticipantClient(accessToken)
-    .from("choices")
-    .select("id, question_id, text, position")
-    .in("question_id", questionIds)
-    .order("position", { ascending: true });
-  if (error) throw error;
-  return (data as { id: string; question_id: string; text: string; position: number }[]) ?? [];
+  if (questionIds.length === 0) return [];
+  return apiFetch<{ id: string; question_id: string; text: string; position: number }[]>(
+    `/api/games/choices?questionIds=${questionIds.map(encodeURIComponent).join(",")}`,
+    { token: accessToken }
+  );
 }
 
 /** Submit my (locked, single) answer. Returns the graded answer row. */
@@ -250,21 +228,23 @@ export async function submitAnswer(
   accessToken: string,
   options: { choiceId?: string; answerText?: string; responseTimeMs: number }
 ): Promise<Answer> {
-  const { data, error } = await getParticipantClient(accessToken).rpc("submit_answer", {
-    p_competition_id: competitionId,
-    p_question_id: questionId,
-    p_choice_id: options.choiceId ?? null,
-    p_answer_text: options.answerText ?? null,
-    p_response_time_ms: Math.max(0, Math.round(options.responseTimeMs)),
+  return apiFetch<Answer>(`/api/games/answers`, {
+    method: "POST",
+    token: accessToken,
+    body: JSON.stringify({
+      competitionId,
+      questionId,
+      choiceId: options.choiceId ?? null,
+      answerText: options.answerText ?? null,
+      responseTimeMs: Math.max(0, Math.round(options.responseTimeMs)),
+    }),
   });
-  if (error) throw error;
-  return data as Answer;
 }
 
 /**
  * Store work-in-progress for a question while its window is open, so the
- * server holds the student's placements even if they never press submit or the
- * timer runs out first. The first call fixes the response time.
+ * server holds the student's placements even if they never press submit or
+ * the timer runs out first. The first call fixes the response time.
  */
 export async function saveProgressAnswer(
   competitionId: string,
@@ -272,15 +252,17 @@ export async function saveProgressAnswer(
   accessToken: string,
   options: { choiceId?: string | null; answerText?: string | null; responseTimeMs: number }
 ): Promise<Answer> {
-  const { data, error } = await getParticipantClient(accessToken).rpc("save_progress_answer", {
-    p_competition_id: competitionId,
-    p_question_id: questionId,
-    p_answer_text: options.answerText ?? null,
-    p_response_time_ms: Math.max(0, Math.round(options.responseTimeMs)),
-    p_choice_id: options.choiceId ?? null,
+  return apiFetch<Answer>(`/api/games/progress`, {
+    method: "POST",
+    token: accessToken,
+    body: JSON.stringify({
+      competitionId,
+      questionId,
+      answerText: options.answerText ?? null,
+      responseTimeMs: Math.max(0, Math.round(options.responseTimeMs)),
+      choiceId: options.choiceId ?? null,
+    }),
   });
-  if (error) throw error;
-  return data as Answer;
 }
 
 /** My answers in a game (own rows only). */
@@ -288,13 +270,7 @@ export async function getMyAnswers(
   competitionId: string,
   accessToken: string
 ): Promise<Answer[]> {
-  const { data, error } = await getParticipantClient(accessToken)
-    .from("answers")
-    .select("*")
-    .eq("competition_id", competitionId)
-    .order("submitted_at", { ascending: true });
-  if (error) throw error;
-  return (data as Answer[]) ?? [];
+  return apiFetch<Answer[]>(`/api/games/${competitionId}/answers/mine`, { token: accessToken });
 }
 
 /** Correct answer + explanation for a closed question (own result). */
@@ -302,11 +278,7 @@ export async function getReveal(
   questionId: string,
   accessToken: string
 ): Promise<RevealPayload> {
-  const { data, error } = await getParticipantClient(accessToken).rpc("get_question_reveal", {
-    p_question_id: questionId,
-  });
-  if (error) throw error;
-  return data as RevealPayload;
+  return apiFetch<RevealPayload>(`/api/games/questions/${questionId}/reveal`, { token: accessToken });
 }
 
 /**
@@ -318,12 +290,7 @@ export async function getLeaderboard(
   competitionId: string,
   accessToken?: string | null
 ): Promise<LeaderboardRow[]> {
-  const client = accessToken ? getParticipantClient(accessToken) : getSupabase();
-  const { data, error } = await client.rpc("game_leaderboard", {
-    p_competition_id: competitionId,
-  });
-  if (error) throw error;
-  return (data as LeaderboardRow[]) ?? [];
+  return apiFetch<LeaderboardRow[]>(`/api/games/${competitionId}/leaderboard`, { token: accessToken });
 }
 
 export interface LeaderboardRow {
@@ -346,59 +313,48 @@ export interface QuestionStatRow {
   accuracy: number;
 }
 
-/** Per-question answered/correct/accuracy — host only (owner-scoped RPC). */
+/** Per-question answered/correct/accuracy — host only (owner-scoped route). */
 export async function getQuestionStats(competitionId: string): Promise<QuestionStatRow[]> {
-  const { data, error } = await getSupabase().rpc("game_question_stats", {
-    p_competition_id: competitionId,
-  });
-  if (error) throw error;
-  return (data as QuestionStatRow[]) ?? [];
+  return apiFetch<QuestionStatRow[]>(`/api/games/${competitionId}/stats`);
 }
 
 /** Host: add seconds to the open question (negative shortens it). */
 export async function extendQuestion(questionId: string, seconds: number): Promise<string> {
-  const { data, error } = await getSupabase().rpc("extend_question", {
-    p_question_id: questionId,
-    p_seconds: seconds,
+  const result = await apiFetch<{ ends_at: string }>(`/api/games/questions/${questionId}/extend`, {
+    method: "POST",
+    body: JSON.stringify({ seconds }),
   });
-  if (error) throw error;
-  return data as string;
+  return result.ends_at;
 }
 
 /** Host: award (or deduct) points by hand, outside the graded answers. */
 export async function awardBonus(participantId: string, points: number): Promise<number> {
-  const { data, error } = await getSupabase().rpc("award_bonus", {
-    p_participant_id: participantId,
-    p_points: points,
+  const total = await apiFetch<number>(`/api/games/participants/${participantId}/bonus`, {
+    method: "POST",
+    body: JSON.stringify({ points }),
   });
-  if (error) throw error;
-  return Number(data ?? 0);
+  return Number(total ?? 0);
 }
 
 /** Host: remove a player from the game. */
 export async function removePlayer(participantId: string): Promise<void> {
-  const { error } = await getSupabase().rpc("remove_participant", {
-    p_participant_id: participantId,
-  });
-  if (error) throw error;
+  await apiFetch(`/api/games/participants/${participantId}`, { method: "DELETE" });
 }
 
 /** Host: put one player on a team (empty string clears it). */
 export async function setPlayerTeam(participantId: string, team: string): Promise<void> {
-  const { error } = await getSupabase().rpc("set_participant_team", {
-    p_participant_id: participantId,
-    p_team: team,
+  await apiFetch(`/api/games/participants/${participantId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ team }),
   });
-  if (error) throw error;
 }
 
 /** Host: deal everyone into N even teams at random (0 disbands them). */
 export async function shuffleTeams(competitionId: string, teamCount: number): Promise<void> {
-  const { error } = await getSupabase().rpc("shuffle_teams", {
-    p_competition_id: competitionId,
-    p_team_count: teamCount,
+  await apiFetch(`/api/games/${competitionId}/teams/shuffle`, {
+    method: "POST",
+    body: JSON.stringify({ teamCount }),
   });
-  if (error) throw error;
 }
 
 export interface TeamStandingRow {
@@ -413,31 +369,20 @@ export async function getTeamStandings(
   competitionId: string,
   accessToken?: string | null
 ): Promise<TeamStandingRow[]> {
-  const client = accessToken ? getParticipantClient(accessToken) : getSupabase();
-  const { data, error } = await client.rpc("team_standings", {
-    p_competition_id: competitionId,
-  });
-  if (error) throw error;
-  return (data as TeamStandingRow[]) ?? [];
+  return apiFetch<TeamStandingRow[]>(`/api/games/${competitionId}/teams`, { token: accessToken });
 }
 
 /**
  * Every answer to one question, for the host.
- * RLS already lets the competition owner read its answers, so this needs no
- * RPC — and it carries answer_text, which is what page and ordering questions
- * store their whole solution in.
+ * Carries answer_text, which is what page and ordering questions store
+ * their whole solution in.
  */
 export async function listQuestionAnswers(
   competitionId: string,
   questionId: string
 ): Promise<Answer[]> {
-  const { data, error } = await getSupabase()
-    .from("answers")
-    .select("*")
-    .eq("competition_id", competitionId)
-    .eq("question_id", questionId);
-  if (error) throw error;
-  return (data as Answer[]) ?? [];
+  void competitionId; // kept for signature parity — the route derives it from the question itself
+  return apiFetch<Answer[]>(`/api/games/questions/${questionId}/answers`);
 }
 
 export interface ChoiceDistributionRow {
@@ -452,11 +397,7 @@ export interface ChoiceDistributionRow {
 export async function getChoiceDistribution(
   questionId: string
 ): Promise<ChoiceDistributionRow[]> {
-  const { data, error } = await getSupabase().rpc("game_choice_distribution", {
-    p_question_id: questionId,
-  });
-  if (error) throw error;
-  return (data as ChoiceDistributionRow[]) ?? [];
+  return apiFetch<ChoiceDistributionRow[]>(`/api/games/questions/${questionId}/distribution`);
 }
 
 export interface AnswerMatrixRow {
@@ -471,9 +412,5 @@ export interface AnswerMatrixRow {
 
 /** Every player × question result — host only; backs the CSV export. */
 export async function getAnswerMatrix(competitionId: string): Promise<AnswerMatrixRow[]> {
-  const { data, error } = await getSupabase().rpc("game_answer_matrix", {
-    p_competition_id: competitionId,
-  });
-  if (error) throw error;
-  return (data as AnswerMatrixRow[]) ?? [];
+  return apiFetch<AnswerMatrixRow[]>(`/api/games/${competitionId}/matrix`);
 }

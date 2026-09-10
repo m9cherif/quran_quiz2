@@ -1,5 +1,3 @@
-import { getSupabase } from "@/lib/supabase/client";
-
 export interface GameAnalytics {
   game_id: string;
   code: string;
@@ -20,13 +18,16 @@ export interface GameAnalytics {
   }>;
 }
 
+async function callJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, init);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body?.error || "Request failed");
+  return body as T;
+}
+
 /** Owner-scoped analytics for one game (avg score/accuracy, response time, most-missed). */
 export async function getGameAnalytics(competitionId: string): Promise<GameAnalytics> {
-  const { data, error } = await getSupabase().rpc("game_analytics", {
-    p_competition_id: competitionId,
-  });
-  if (error) throw error;
-  return data as GameAnalytics;
+  return callJson<GameAnalytics>(`/api/analytics/games/${encodeURIComponent(competitionId)}`);
 }
 
 export interface HistoryRow {
@@ -57,14 +58,10 @@ export interface HostOverview {
 
 /** Cross-game totals for the signed-in host (owner-scoped, one round trip). */
 export async function getHostOverview(): Promise<HostOverview> {
-  const { data, error } = await getSupabase().rpc("host_overview");
-  if (error) throw error;
-  return data as HostOverview;
+  return callJson<HostOverview>("/api/analytics/host-overview");
 }
 
 /** Signed-in user's own game history (linked participant rows only). */
 export async function getMyHistory(): Promise<HistoryRow[]> {
-  const { data, error } = await getSupabase().rpc("my_history");
-  if (error) throw error;
-  return (data as HistoryRow[]) ?? [];
+  return (await callJson<HistoryRow[]>("/api/analytics/history")) ?? [];
 }

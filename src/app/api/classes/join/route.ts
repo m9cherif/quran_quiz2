@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { classMembers, classes } from "@/lib/db/schema";
 import { getSessionUserFromCookies } from "@/lib/db/session";
-import { toClassRowJson } from "../_lib";
+import { dupKeyCode, toClassRowJson } from "../_lib";
 
 export const runtime = "nodejs";
 
@@ -39,8 +39,10 @@ export async function POST(request: Request) {
     await db.insert(classMembers).values({ classId: row.id, profileId: user.id });
   } catch (err: unknown) {
     // Composite PK (class_id, profile_id) — already a member is a no-op
-    // success, same as the old `on conflict do nothing`.
-    const code = (err as { code?: string })?.code;
+    // success, same as the old `on conflict do nothing`. Drizzle wraps the
+    // driver error, so the mysql2 error code can be on the wrapper or on
+    // its `cause`.
+    const code = dupKeyCode(err);
     if (code !== "ER_DUP_ENTRY") throw err;
   }
 

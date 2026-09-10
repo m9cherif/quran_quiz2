@@ -26,7 +26,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const user = await getSessionUserFromCookies();
     if (!isOwner(competition, user?.id)) throw new GameError("42501", "Only the game host can view question stats");
 
-    const rows = (await db.execute(sql`
+    const [rows] = (await db.execute(sql`
       SELECT
         q.position AS position_number,
         q.text AS text,
@@ -41,7 +41,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       WHERE q.competition_id = ${competitionId}
       GROUP BY q.id, q.position, q.text, q.duration_seconds
       ORDER BY q.position
-    `)) as unknown as StatRow[];
+    `)) as unknown as [StatRow[], unknown];
 
     return NextResponse.json(
       rows.map((r) => ({

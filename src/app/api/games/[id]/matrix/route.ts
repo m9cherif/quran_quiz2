@@ -27,7 +27,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const user = await getSessionUserFromCookies();
     if (!isOwner(competition, user?.id)) throw new GameError("42501", "Only the game host can export results");
 
-    const rows = (await db.execute(sql`
+    const [rows] = (await db.execute(sql`
       SELECT
         p.display_name AS display_name,
         q.position AS position_number,
@@ -42,7 +42,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       LEFT JOIN choices ch ON ch.id = a.choice_id
       WHERE p.competition_id = ${competitionId} AND q.competition_id = ${competitionId}
       ORDER BY p.display_name, q.position
-    `)) as unknown as MatrixRow[];
+    `)) as unknown as [MatrixRow[], unknown];
 
     return NextResponse.json(
       rows.map((r) => ({

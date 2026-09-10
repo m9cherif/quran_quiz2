@@ -31,7 +31,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
     if (!authorized) throw new GameError("42501", "Not authorized");
 
-    const rows = (await db.execute(sql`
+    const [rows] = (await db.execute(sql`
       SELECT
         p.team AS team,
         COUNT(DISTINCT p.id) AS players,
@@ -42,7 +42,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       WHERE p.competition_id = ${competitionId} AND p.team IS NOT NULL
       GROUP BY p.team
       ORDER BY total_points DESC
-    `)) as unknown as TeamRow[];
+    `)) as unknown as [TeamRow[], unknown];
 
     return NextResponse.json(
       rows.map((r) => ({

@@ -6,6 +6,7 @@ import { newId } from "@/lib/db/id";
 import { getSessionUserFromCookies } from "@/lib/db/session";
 import { isClassMember, isClassOwner } from "@/lib/db/classMembership";
 import { emit } from "@/lib/realtime/bus";
+import { dupKeyCode } from "../../_lib";
 
 export const runtime = "nodejs";
 
@@ -117,8 +118,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       profileId: user.id,
     });
   } catch (err: unknown) {
-    const code = (err as { code?: string })?.code;
-    if (code === "ER_DUP_ENTRY") {
+    if (dupKeyCode(err) === "ER_DUP_ENTRY") {
       return NextResponse.json(
         { error: "That display name is already taken in this game", code: "23505" },
         { status: 409 }

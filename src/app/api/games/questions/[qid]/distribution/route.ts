@@ -28,7 +28,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ qid
       throw new GameError("42501", "Only the game host can read the answer spread");
     }
 
-    const rows = (await db.execute(sql`
+    const [rows] = (await db.execute(sql`
       SELECT ch.id AS choice_id, ch.text AS choice_text, ch.position AS position_number,
         COUNT(a.id) AS votes, ch.is_correct AS is_correct
       FROM choices ch
@@ -36,7 +36,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ qid
       WHERE ch.question_id = ${qid}
       GROUP BY ch.id, ch.text, ch.position, ch.is_correct
       ORDER BY ch.position
-    `)) as unknown as DistributionRow[];
+    `)) as unknown as [DistributionRow[], unknown];
 
     return NextResponse.json(
       rows.map((r) => ({

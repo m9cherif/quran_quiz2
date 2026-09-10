@@ -5,6 +5,9 @@ import { choices, competitions, questions } from "@/lib/db/schema";
 type QuestionRow = typeof questions.$inferSelect;
 type CompetitionRow = typeof competitions.$inferSelect;
 
+/** Accepts either a plain Db or a transaction handle (db.transaction's `tx`) — both expose `.select()`. */
+type Queryable = Pick<Db, "select">;
+
 export interface GradeInput {
   choiceId: string | null;
   answerText: string | null;
@@ -30,7 +33,7 @@ function round1(n: number): number {
  * is_correct/points/bonus_points.
  */
 export async function computeAnswerGrade(
-  tx: Db,
+  tx: Queryable,
   question: QuestionRow,
   competition: CompetitionRow,
   input: GradeInput

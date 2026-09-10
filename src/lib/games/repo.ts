@@ -17,6 +17,19 @@ export async function getParticipantById(id: string, db: Db = getDb()) {
   return rows[0] ?? null;
 }
 
+/**
+ * Resolves a participant by access token alone, with no competition id to
+ * scope by. Used only where the caller (e.g. listChoices) genuinely has no
+ * competition id in hand — access_token is index-backed but not the
+ * identity boundary resolveParticipant() uses, so prefer that whenever a
+ * competition id is already known.
+ */
+export async function getParticipantByToken(token: string | null, db: Db = getDb()) {
+  if (!token) return null;
+  const rows = await db.select().from(participants).where(eq(participants.accessToken, token)).limit(1);
+  return rows[0] ?? null;
+}
+
 /** Ports is_class_member(class_id, profile_id). */
 export async function isClassMember(classId: string, profileId: string, db: Db = getDb()) {
   const rows = await db
