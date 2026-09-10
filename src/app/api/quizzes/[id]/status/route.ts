@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { competitions } from "@/lib/db/schema";
 import { getSessionUserFromCookies } from "@/lib/db/session";
+import { emit } from "@/lib/realtime/bus";
 
 export const runtime = "nodejs";
 
@@ -45,5 +46,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   await db.update(competitions).set({ status }).where(eq(competitions.id, id));
+  emit(id, { type: "status-changed", payload: { status } });
   return NextResponse.json({ ok: true });
 }
