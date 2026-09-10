@@ -1,4 +1,3 @@
-import { getSupabase } from "@/lib/supabase/client";
 import type {
   Competition,
   CompetitionDifficulty,
@@ -8,6 +7,25 @@ import type {
   QuizQuestionFull,
   QuizSummary,
 } from "@/types/database";
+
+/**
+ * Thin fetch wrapper for the /api/quizzes/* routes (src/app/api/quizzes/**),
+ * which replace the old Postgres RPCs/REST calls one-for-one — see each
+ * route file for the RPC it ports. `credentials: "same-origin"` carries the
+ * qq_session cookie along, same as every other browser->API call in this app.
+ */
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    ...init,
+    credentials: "same-origin",
+    headers: init?.body ? { "Content-Type": "application/json", ...(init.headers ?? {}) } : init?.headers,
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error((body as { error?: string })?.error || `Request failed (${response.status})`);
+  }
+  return body as T;
+}
 
 export interface QuizMetaInput {
   name: string;
@@ -77,22 +95,26 @@ export interface OrderingQuestionInput {
 
 /** Save an ordering question; the answer key never reaches the browser. */
 export async function saveOrderingQuestion(input: OrderingQuestionInput): Promise<string> {
-  const { data, error } = await getSupabase().rpc("save_ordering_question", {
-    p_competition_id: input.competitionId,
-    p_position: input.position,
-    p_text: input.text,
-    p_items: input.items as never,
-    p_question_id: input.questionId ?? null,
-    p_duration_seconds: input.durationSeconds,
-    p_points: input.points,
-    p_negative_points: input.negativePoints,
-    p_explanation: input.explanation,
-    p_hint: input.hint,
-    p_surah_number: input.surahNumber ?? null,
-    p_ayah_number: input.ayahNumber ?? null,
-  });
-  if (error) throw error;
-  return data as string;
+  const { id } = await apiFetch<{ id: string }>(
+    `/api/quizzes/${encodeURIComponent(input.competitionId)}/questions/save-ordering`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        questionId: input.questionId ?? null,
+        position: input.position,
+        text: input.text,
+        items: input.items,
+        durationSeconds: input.durationSeconds,
+        points: input.points,
+        negativePoints: input.negativePoints,
+        explanation: input.explanation,
+        hint: input.hint,
+        surahNumber: input.surahNumber ?? null,
+        ayahNumber: input.ayahNumber ?? null,
+      }),
+    }
+  );
+  return id;
 }
 
 export interface QuestionListItem {
@@ -113,93 +135,80 @@ export interface QuestionListItem {
 
 /** Quiz library (draft competitions owned by the caller). */
 export async function listMyQuizzes(): Promise<QuizSummary[]> {
-  const { data, error } = await getSupabase().rpc("list_my_quizzes");
-  if (error) throw error;
-  return (data as QuizSummary[]) ?? [];
+  return apiFetch<QuizSummary[]>("/api/quizzes");
 }
 
 export async function createQuiz(input: QuizMetaInput): Promise<Pick<Competition, "id" | "code">> {
-  const { data: sessionUser } = await getSupabase().auth.getUser();
-  const { data, error } = await getSupabase()
-    .from("competitions")
-    .insert([{ ...input, owner_id: sessionUser?.user?.id ?? null } as never])
-    .select("id, code")
-    .single();
-  if (error) throw error;
-  return data as Pick<Competition, "id" | "code">;
+  return apiFetch<Pick<Competition, "id" | "code">>("/api/quizzes", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function getQuiz(id: string): Promise<Competition | null> {
-  const { data, error } = await getSupabase()
-    .from("competitions")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  return data as Competition | null;
+  const { quiz } = await apiFetch<{ quiz: Competition | null }>(
+    `/api/quizzes/${encodeURIComponent(id)}`
+  );
+  return quiz;
 }
 
 export async function updateQuizMeta(
   id: string,
   patch: Partial<QuizMetaInput>
 ): Promise<void> {
-  const { error } = await getSupabase().from("competitions").update(patch as never).eq("id", id);
-  if (error) throw error;
+  await apiFetch(`/api/quizzes/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
 }
 
-/** Moves a game to the given lifecycle status (owner only, via RLS). */
+/** Moves a game to the given lifecycle status (owner only). */
 export async function setQuizStatus(
   id: string,
   status: "waiting" | "running" | "paused" | "finished" | "cancelled" | "draft" | "scheduled"
 ): Promise<void> {
-  const { error } = await getSupabase().from("competitions").update({ status }).eq("id", id);
-  if (error) throw error;
+  await apiFetch(`/api/quizzes/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
 }
 
-/** Hard-deletes a quiz and its children (FKs cascade). Drafts only. */
+/** Hard-deletes a quiz and its children. Drafts only (owner-enforced). */
 export async function deleteQuiz(id: string): Promise<void> {
-  const { error } = await getSupabase().from("competitions").delete().eq("id", id);
-  if (error) throw error;
+  await apiFetch(`/api/quizzes/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export async function archiveQuiz(id: string): Promise<void> {
-  const { error } = await getSupabase().rpc("archive_quiz", { p_competition_id: id });
-  if (error) throw error;
+  await apiFetch(`/api/quizzes/${encodeURIComponent(id)}/archive`, { method: "POST" });
 }
 
 /** Snapshot-copies a quiz (own questions + choices) and returns the new id. */
 export async function duplicateQuiz(id: string): Promise<string> {
-  const { data, error } = await getSupabase().rpc("duplicate_quiz", { p_competition_id: id });
-  if (error) throw error;
-  return data as string;
+  const { id: newId } = await apiFetch<{ id: string }>(
+    `/api/quizzes/${encodeURIComponent(id)}/duplicate`,
+    { method: "POST" }
+  );
+  return newId;
 }
 
-/** Questions list without hidden columns (REST-safe for the editor sidebar). */
+/** Questions list without hidden columns (safe for the editor sidebar). */
 export async function listQuizQuestions(competitionId: string): Promise<QuestionListItem[]> {
-  const { data, error } = await getSupabase()
-    .from("questions")
-    .select(
-      "id, competition_id, position, text, type, duration_seconds, points, negative_points, surah_number, ayah_number, page_number, juz_number, hizb_number"
-    )
-    .eq("competition_id", competitionId)
-    .order("position", { ascending: true });
-  if (error) throw error;
-  return (data as QuestionListItem[]) ?? [];
+  return apiFetch<QuestionListItem[]>(
+    `/api/quizzes/${encodeURIComponent(competitionId)}/questions`
+  );
 }
 
 /**
  * Whole deck incl. hidden columns in one owner-scoped call.
- * The editor used to issue one get_question_full per question (N+1); on a
+ * The editor used to issue one get_question_full round trip per question (N+1); on a
  * 40-question quiz that was 41 round trips before the first paint.
  */
 export async function getQuizQuestionsFull(
   competitionId: string
 ): Promise<Array<QuizQuestionFull & { started_at: string | null }>> {
-  const { data, error } = await getSupabase().rpc("get_quiz_questions_full", {
-    p_competition_id: competitionId,
-  });
-  if (error) throw error;
-  return (data as Array<QuizQuestionFull & { started_at: string | null }>) ?? [];
+  return apiFetch<Array<QuizQuestionFull & { started_at: string | null }>>(
+    `/api/quizzes/${encodeURIComponent(competitionId)}/full`
+  );
 }
 
 export interface PageWordsInput {
@@ -222,93 +231,83 @@ export interface PageWordsInput {
 }
 
 /**
- * Save a "hidden words on a page" exercise. The RPC shuffles the chips and
- * derives the solution server-side, so the answer key never round-trips
- * through the browser.
+ * Save a "hidden words on a page" exercise. The server shuffles the chips and
+ * derives the solution, so the answer key never round-trips through the browser.
  */
 export async function savePageWordsQuestion(input: PageWordsInput): Promise<string> {
-  const { data, error } = await getSupabase().rpc("save_page_words_question", {
-    p_competition_id: input.competitionId,
-    p_question_id: input.questionId ?? null,
-    p_position: input.position,
-    p_page_number: input.pageNumber,
-    p_word_locations: input.wordLocations as never,
-    p_words: input.words as never,
-    p_duration_seconds: input.durationSeconds,
-    p_points: input.points,
-    p_negative_points: input.negativePoints,
-    p_explanation: input.explanation,
-    p_surah_number: input.surahNumber ?? null,
-    p_ayah_number: input.ayahNumber ?? null,
-    p_juz_number: input.juzNumber ?? null,
-    p_hizb_number: input.hizbNumber ?? null,
-  });
-  if (error) throw error;
-  return data as string;
+  const { id } = await apiFetch<{ id: string }>(
+    `/api/quizzes/${encodeURIComponent(input.competitionId)}/questions/save-page-words`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        questionId: input.questionId ?? null,
+        position: input.position,
+        pageNumber: input.pageNumber,
+        wordLocations: input.wordLocations,
+        words: input.words,
+        durationSeconds: input.durationSeconds,
+        points: input.points,
+        negativePoints: input.negativePoints,
+        explanation: input.explanation,
+        surahNumber: input.surahNumber ?? null,
+        ayahNumber: input.ayahNumber ?? null,
+        juzNumber: input.juzNumber ?? null,
+        hizbNumber: input.hizbNumber ?? null,
+      }),
+    }
+  );
+  return id;
 }
 
 /** Create a full quiz (questions + choices) from an exported JSON payload. */
 export async function importQuiz(payload: unknown): Promise<string> {
-  const { data, error } = await getSupabase().rpc("import_quiz", {
-    p_payload: payload as never,
+  const { id } = await apiFetch<{ id: string }>("/api/quizzes/import", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
-  if (error) throw error;
-  return data as string;
+  return id;
 }
 
-/** Full question incl. hidden columns — RPC-scoped to the owner. */
+/** Full question incl. hidden columns — owner-scoped. */
 export async function getQuestionFull(questionId: string): Promise<QuizQuestionFull> {
-  const { data, error } = await getSupabase().rpc("get_question_full", {
-    p_question_id: questionId,
-  });
-  if (error) throw error;
-  return data as QuizQuestionFull;
+  return apiFetch<QuizQuestionFull>(`/api/quizzes/questions/${encodeURIComponent(questionId)}/full`);
 }
 
 /** Atomic save of a question + its choices (owner only, server-validated). */
 export async function saveQuestion(input: SaveQuestionInput): Promise<string> {
-  const { data, error } = await getSupabase().rpc("save_question", {
-    p_competition_id: input.competitionId,
-    p_question_id: input.questionId ?? null,
-    p_position: input.position,
-    p_text: input.text,
-    p_type: input.type,
-    p_duration_seconds: input.durationSeconds,
-    p_points: input.points,
-    p_negative_points: input.negativePoints,
-    p_explanation: input.explanation,
-    p_correct_answer_text: input.correctAnswerText,
-    p_surah_number: input.surahNumber,
-    p_ayah_number: input.ayahNumber,
-    p_page_number: input.pageNumber,
-    p_juz_number: input.juzNumber,
-    p_hizb_number: input.hizbNumber,
-    p_choices: input.choices,
-    p_audio_url: input.audioUrl ?? null,
-    p_hint: input.hint ?? null,
-  });
-  if (error) throw error;
-  return data as string;
+  const { id } = await apiFetch<{ id: string }>(
+    `/api/quizzes/${encodeURIComponent(input.competitionId)}/questions/save`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        questionId: input.questionId ?? null,
+        position: input.position,
+        text: input.text,
+        type: input.type,
+        durationSeconds: input.durationSeconds,
+        points: input.points,
+        negativePoints: input.negativePoints,
+        explanation: input.explanation,
+        correctAnswerText: input.correctAnswerText,
+        surahNumber: input.surahNumber,
+        ayahNumber: input.ayahNumber,
+        pageNumber: input.pageNumber,
+        juzNumber: input.juzNumber,
+        hizbNumber: input.hizbNumber,
+        choices: input.choices,
+        audioUrl: input.audioUrl ?? null,
+        hint: input.hint ?? null,
+      }),
+    }
+  );
+  return id;
 }
 
 export async function deleteQuestion(questionId: string): Promise<void> {
-  const { error } = await getSupabase().from("questions").delete().eq("id", questionId);
-  if (error) throw error;
+  await apiFetch(`/api/quizzes/questions/${encodeURIComponent(questionId)}`, { method: "DELETE" });
 }
 
 /** Live games (non-draft competitions owned by the caller). */
 export async function listMyLiveGames(): Promise<QuizSummary[]> {
-  const { data: session } = await getSupabase().auth.getUser();
-  if (!session.user) return [];
-  const { data, error } = await getSupabase()
-    .from("competitions")
-    .select(
-      "id, code, name, description, status, visibility, cover_url, language, category, difficulty, default_points, default_negative_points, speed_bonus_enabled, created_at, updated_at"
-    )
-    .eq("owner_id", session.user.id)
-    .not("status", "eq", "draft")
-    .is("archived_at", null)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data as QuizSummary[]) ?? [];
+  return apiFetch<QuizSummary[]>("/api/quizzes/live");
 }

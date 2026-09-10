@@ -1,51 +1,8 @@
-import { createClient, type SupabaseClient, type Session } from "@supabase/supabase-js";
-import { toSupabasePhone } from "@/lib/auth/phoneNumber";
-
-let serviceClient: SupabaseClient | null = null;
-
-/**
- * Server-only Supabase client (service role).
- * Never import from client components — the key lives in a non-NEXT_PUBLIC_
- * env var and would not be transmitted to the browser even accidentally,
- * but keeping this module out of client bundles is the real guarantee.
- */
-export function getServiceClient(): SupabaseClient {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error("Server-only Supabase env vars are missing (SUPABASE_SERVICE_ROLE_KEY).");
-  }
-  if (!serviceClient) {
-    serviceClient = createClient(url, key, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-  }
-  return serviceClient;
-}
-
-/**
- * Who is calling, verified from the bearer token the client sends (same
- * pattern as src/lib/series/session.ts's userFromRequest) — and whether
- * that person's profile is an admin. Every admin-only API route starts by
- * calling this rather than trusting anything the client claims about itself.
- */
-export async function adminFromRequest(request: Request): Promise<string | null> {
-  const token = request.headers.get("authorization")?.replace(/^Bearer /i, "");
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!token || !url || !anonKey) return null;
-
-  const anon = createClient(url, anonKey, { auth: { persistSession: false } });
-  const { data, error } = await anon.auth.getUser(token);
-  if (error || !data.user) return null;
-
-  const { data: profile } = await getServiceClient()
-    .from("profiles")
-    .select("role")
-    .eq("id", data.user.id)
-    .maybeSingle();
-  return profile?.role === "admin" ? data.user.id : null;
-}
+import { eq } from "drizzle-orm";
+import { getDb } from "@/lib/db/client";
+import { users } from "@/lib/db/schema";
+import { newId } from "@/lib/db/id";
+import { createSession } from "@/lib/db/session";
 
 export interface NewAccountInput {
   name: string;
@@ -56,91 +13,62 @@ export interface NewAccountInput {
 }
 
 /**
- * Creates an auth user with the role placed in app_metadata — the only
- * metadata a client cannot edit. The public.profiles row is created by the
- * handle_new_user trigger. Roles are never taken from client-claimable data.
+ * Creates the account directly — no separate auth-provider identity to
+ * create first, since sessions are our own now. The role is decided here,
+ * on the server, from data the client cannot reach (see /api/auth/register),
+ * same guarantee Supabase's app_metadata gave, just without needing a
+ * metadata layer to keep it in.
  */
 export async function createUserAccount(input: NewAccountInput) {
-  const client = getServiceClient();
-  const { data, error } = await client.auth.admin.createUser({
-    // A phone account has no address and an email account has no number;
-    // sending an empty string for the other one makes Supabase reject it.
-    ...(input.email
-      ? { email: input.email, email_confirm: true }
-      : { phone: input.phone, phone_confirm: true }),
-    // Nobody signs in with a password any more — a code is emailed instead —
-    // but the account still needs one, and it must be unguessable rather than
-    // absent or shared.
-    password: crypto.randomUUID() + crypto.randomUUID(),
-    app_metadata: { role: input.role },
-    user_metadata: { name: input.name },
+  const db = getDb();
+
+  if (input.email) {
+    const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, input.email)).limit(1);
+    if (existing[0]) throw new Error("An account already uses this email address");
+  }
+  if (input.phone) {
+    const existing = await db.select({ id: users.id }).from(users).where(eq(users.phone, input.phone)).limit(1);
+    if (existing[0]) throw new Error("An account already uses this phone number");
+  }
+
+  const id = newId();
+  await db.insert(users).values({
+    id,
+    email: input.email ?? null,
+    phone: input.phone ?? null,
+    name: input.name,
+    role: input.role,
   });
-  if (error) throw error;
-
-  // The handle_new_user trigger may fire before app_metadata is visible in
-  // raw_app_meta_data (async metadata write), which would leave the profile
-  // with the default 'student' role. Set it explicitly here (service role
-  // bypasses RLS; profile.role is immutable by clients).
-  const { error: updateError } = await client
-    .from("profiles")
-    .update({ role: input.role })
-    .eq("id", data.user.id);
-  if (updateError) throw updateError;
-
-  return data.user;
+  return { id };
 }
 
 /**
- * Mint a Supabase session for a number Bird Verify has just confirmed.
+ * Mint a session for a number Bird Verify (or the SMS gateway / Telegram
+ * fallback) has just confirmed. Call this only after that provider answered
+ * "verified" — everything upstream of it is what stands between a stranger
+ * and someone else's account.
  *
- * Call this only after Bird answered `verified`. It grants a session on the
- * strength of a phone number alone, so anything upstream of it is what stands
- * between a stranger and someone else's account.
- *
- * Why it is written this way. Once an external service has done the proving,
- * Supabase offers no "give me a session for this user": `generateLink` covers
- * email only, and the admin API has nothing for phone. What it does support is
- * signing in with a phone and a password — so the server, which is the only
- * party that ever sees it, sets a fresh random password and immediately spends
- * it. The password is rotated on every sign-in, is never sent to the browser,
- * and is never the same twice, which leaves it a one-time credential in all
- * but name. No SMS is sent by this: a password sign-in does not send one.
- *
- * Returns null when no account holds the number. Signing in never creates one,
- * because the role is decided once, on the server, when the account is made.
+ * Returns null when no account holds the number: signing in never creates
+ * one, the role is decided once, at registration.
  */
-export async function createPhoneSession(phone: string): Promise<Session | null> {
-  const admin = getServiceClient();
+export async function createPhoneSession(phone: string) {
+  const db = getDb();
+  // phone arrives already normalised (E.164, with the leading '+') by
+  // src/lib/auth/phoneNumber.ts's normalizePhone — the same form it's stored
+  // in, so no reformatting needed here.
+  const rows = await db.select({ id: users.id }).from(users).where(eq(users.phone, phone)).limit(1);
+  const user = rows[0];
+  if (!user) return null;
+  const session = await createSession(user.id);
+  return { ...session, userId: user.id };
+}
 
-  const { data: userId, error: lookupError } = await admin.rpc("auth_user_id_for_phone", {
-    p_phone: phone,
-  });
-  if (lookupError) throw lookupError;
-  if (!userId) return null;
-
-  const password = `${crypto.randomUUID()}${crypto.randomUUID()}`;
-  const { error: passwordError } = await admin.auth.admin.updateUserById(userId as string, {
-    password,
-  });
-  if (passwordError) throw passwordError;
-
-  // A separate, short-lived client on the anon key. Signing in on the service
-  // client would store the new session on it, and every later admin call would
-  // then go out as that user instead of as the service role.
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) {
-    throw new Error("Supabase env vars are missing (NEXT_PUBLIC_SUPABASE_URL/ANON_KEY).");
-  }
-  const signIn = createClient(url, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const { data, error } = await signIn.auth.signInWithPassword({
-    // Supabase keeps the number without its plus and matches on what it kept.
-    phone: toSupabasePhone(phone),
-    password,
-  });
-  if (error) throw error;
-  return data.session;
+/** Mint a session for an email address just confirmed via /api/auth/email/check. */
+export async function createEmailSession(email: string) {
+  const db = getDb();
+  const rows = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+  const user = rows[0];
+  if (!user) return null;
+  const session = await createSession(user.id);
+  return { ...session, userId: user.id };
 }

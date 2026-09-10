@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { checkPhoneVerification, type VerifyFailure } from "@/lib/auth/verify";
 import { normalizePhone, redactPhone } from "@/lib/auth/phoneNumber";
 import { createPhoneSession } from "@/lib/auth/server";
+import { sessionCookieOptions } from "@/lib/db/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,25 +84,19 @@ export async function POST(request: Request) {
       break;
   }
 
-  // The provider has confirmed a number. Everything from here is Supabase's
-  // side — and the number signed in is the provider's, not the browser's: a
-  // correct code must open the account it was sent to and no other.
+  // The provider has confirmed a number, and the number signed in is the
+  // provider's, not the browser's: a correct code must open the account it
+  // was sent to and no other.
   try {
     const session = await createPhoneSession(outcome.phone);
     if (!session) {
       // The account went away between asking for the code and typing it.
       return NextResponse.json({ ok: false, reason: "no_account" }, { status: 404 });
     }
-    // The browser puts these straight into the Supabase client. They are the
-    // same tokens verifyOtp would have handed it, over the same TLS, and they
-    // are the whole reason this response is never cached.
-    return NextResponse.json({
-      ok: true,
-      session: {
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-      },
-    });
+    const response = NextResponse.json({ ok: true, userId: session.userId });
+    const cookie = sessionCookieOptions(session.expiresAt);
+    response.cookies.set(cookie.name, session.token, cookie);
+    return response;
   } catch (err) {
     console.error(
       `[verify] verified ${redactPhone(outcome.phone)} but could not start a session:`,

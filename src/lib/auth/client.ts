@@ -1,8 +1,7 @@
-import { getSupabase } from "@/lib/supabase/client";
 import { DEFAULT_COUNTRY_CODE, normalizePhone } from "@/lib/auth/phoneNumber";
 import type { ProfileRole } from "@/types/database";
 
-/** Public profile shape exposed to the UI (never the JWT or tokens). */
+/** Public profile shape exposed to the UI. */
 export interface AuthProfile {
   id: string;
   name: string;
@@ -10,15 +9,15 @@ export interface AuthProfile {
   avatar_url: string | null;
 }
 
-/** Fetch the caller's own profile (RLS: self-select only). */
-export async function getProfile(userId: string): Promise<AuthProfile | null> {
-  const { data, error } = await getSupabase()
-    .from("profiles")
-    .select("id, name, role, avatar_url")
-    .eq("id", userId)
-    .maybeSingle();
-  if (error) return null;
-  return (data as AuthProfile) ?? null;
+/** Current session's profile, from the qq_session cookie — userId is unused now (kept for call-site compatibility) but the cookie is always what's actually read. */
+export async function getProfile(_userId: string): Promise<AuthProfile | null> {
+  try {
+    const response = await fetch("/api/auth/me");
+    const data = await response.json().catch(() => ({}));
+    return data?.user ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -53,11 +52,8 @@ export function identify(input: string): Identity | null {
 
 /**
  * Everything either half of the sign-in can go wrong with, in one vocabulary.
- *
- * The two halves fail in different languages: Supabase returns a sentence to
- * be read, Bird returns a named reason. Both are translated into this list at
- * the edge, so the screens carry one mapping from reason to message instead of
- * one per provider.
+ * Both channels now go through the same kind of route (start/check, our own
+ * server owning the code), so both answer in this same shape.
  */
 export type SignInIssue =
   | "no_account"
@@ -76,16 +72,11 @@ export type SignInIssue =
   | "unknown";
 
 export type CodeResult =
-  /**
-   * `channel` is the one the provider actually used, and null for email.
-   * `reference` is how that provider names the verification, when it names one
-   * at all — opaque here, handed straight back on the check.
-   */
   | { ok: true; channel: string | null; reference: string | null }
   | { ok: false; issue: SignInIssue };
 
-/** What the phone routes answer with, mapped onto the vocabulary above. */
-const PHONE_ISSUES: Record<string, SignInIssue> = {
+/** What either /start route answers with, mapped onto the vocabulary above. */
+const ISSUES: Record<string, SignInIssue> = {
   no_account: "no_account",
   invalid_number: "invalid_number",
   malformed_request: "unknown",
@@ -103,14 +94,7 @@ const PHONE_ISSUES: Record<string, SignInIssue> = {
   check_failed: "check_failed",
 };
 
-/** Read a Supabase auth error, which only ever arrives as prose. */
-function issueFromSupabase(message: string): SignInIssue {
-  if (/signups not allowed|not found|no user/i.test(message)) return "no_account";
-  if (/rate|limit|seconds/i.test(message)) return "too_many_codes";
-  return "unknown";
-}
-
-async function callPhoneRoute(path: string, body: unknown): Promise<CodeResult> {
+async function callRoute(path: string, body: unknown): Promise<CodeResult> {
   let payload: {
     ok?: boolean;
     reason?: string;
@@ -131,111 +115,71 @@ async function callPhoneRoute(path: string, body: unknown): Promise<CodeResult> 
     // The request never landed: no network, or the site is being redeployed.
     return { ok: false, issue: "network_error" };
   }
-  return { ok: false, issue: PHONE_ISSUES[payload?.reason ?? ""] ?? "unknown" };
+  return { ok: false, issue: ISSUES[payload?.reason ?? ""] ?? "unknown" };
 }
 
 /**
- * Send a code to whichever the identity is.
+ * Send a code to whichever the identity is. Both channels are now the same
+ * shape of flow — this server makes the code, stores only a salted hash, and
+ * delivers it (SMS via Bird Verify, email via SMTP) — so this just picks the
+ * matching route.
  *
- * The two channels are genuinely different flows, not one flow with a
- * parameter. An address goes to Supabase, which makes the code, mails it and
- * later checks it. A number goes to Bird Verify by way of this site's own
- * server, and Bird does all three.
- *
- * Bird owns the code for numbers precisely so that Supabase does not: calling
- * `signInWithOtp({ phone })` here would have Supabase mint a second code, and
- * only one of the two would open the door. What Supabase keeps either way is
- * the session — see /api/auth/phone/check.
- *
- * `shouldCreateUser: false` on the email side, and an existence check on the
- * phone side, say the same thing: signing in never creates an account, because
- * the role is decided once, on the server, when the account is made.
+ * Signing in never creates an account: both /start routes 404 on an address
+ * or number that never registered, because the role is decided once, on the
+ * server, when the account is made.
  */
 export async function sendSignInCode(identity: Identity): Promise<CodeResult> {
-  if (identity.channel === "phone") {
-    return callPhoneRoute("/api/auth/phone/start", { phone: identity.value });
-  }
-
-  const { error } = await getSupabase().auth.signInWithOtp({
-    email: identity.value,
-    options: { shouldCreateUser: false },
-  });
-  return error
-    ? { ok: false, issue: issueFromSupabase(error.message ?? "") }
-    : { ok: true, channel: null, reference: null };
+  const path = identity.channel === "phone" ? "/api/auth/phone/start" : "/api/auth/email/start";
+  const field = identity.channel === "phone" ? "phone" : "email";
+  return callRoute(path, { [field]: identity.value });
 }
 
 /**
- * "It never came": send a fresh code by some other means.
- *
- * A carrier that dropped one text will drop the next one too, so offering only
- * "send it again" leaves the person pressing a button that cannot work. Bird
- * keeps an ordered plan of ways to reach a number — a Tunisian mobile has
- * WhatsApp and Telegram behind the SMS — and this steps to the next one.
- *
- * Codes already sent stay valid, so a text that turns up late is still usable.
- * Email has no second channel: there is only the one address.
+ * "It never came." A carrier that swallowed one text will swallow the next,
+ * so resending is not the answer — another channel is. Only phone numbers
+ * have a next channel to try (Bird Verify's own channel plan, or the next
+ * provider in VERIFY_PROVIDER); email has just the one address.
  */
 export async function advanceSignInChannel(identity: Identity): Promise<CodeResult> {
   if (identity.channel !== "phone") return { ok: false, issue: "no_next_channel" };
-  return callPhoneRoute("/api/auth/phone/start", { phone: identity.value, advance: true });
+  return callRoute("/api/auth/phone/start", { phone: identity.value, advance: true });
 }
 
 export type VerifyResult = { ok: true; userId: string } | { ok: false; issue: SignInIssue };
 
 /**
- * Exchange the code for a session.
- *
- * The phone side comes back with the session rather than setting it: the
- * tokens are minted on the server, after Bird confirms, and `setSession` is
- * what hands them to the Supabase client the rest of the app already uses. By
- * the time either branch returns, a signed-in client is a signed-in client and
- * nothing downstream can tell which channel produced it.
+ * Exchange the code for a session. The matching /check route verifies the
+ * code server-side and, on success, sets the qq_session cookie directly on
+ * its response — there's nothing left for the client to do with the result
+ * beyond reading the userId back.
  */
 export async function verifySignInCode(
   identity: Identity,
   token: string,
   reference: string | null = null
 ): Promise<VerifyResult> {
-  if (identity.channel === "phone") {
-    let payload: {
-      ok?: boolean;
-      reason?: string;
-      session?: { access_token: string; refresh_token: string };
-    };
-    try {
-      const response = await fetch("/api/auth/phone/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: identity.value, code: token, reference }),
-      });
-      payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload?.ok || !payload.session) {
-        return { ok: false, issue: PHONE_ISSUES[payload?.reason ?? ""] ?? "unknown" };
-      }
-    } catch {
-      return { ok: false, issue: "network_error" };
+  const path = identity.channel === "phone" ? "/api/auth/phone/check" : "/api/auth/email/check";
+  const field = identity.channel === "phone" ? "phone" : "email";
+  let payload: { ok?: boolean; reason?: string; userId?: string };
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: identity.value, code: token, reference }),
+    });
+    payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload?.ok || !payload.userId) {
+      return { ok: false, issue: ISSUES[payload?.reason ?? ""] ?? "unknown" };
     }
-
-    const { data, error } = await getSupabase().auth.setSession(payload.session);
-    if (error || !data?.user) return { ok: false, issue: "unknown" };
-    return { ok: true, userId: data.user.id };
+  } catch {
+    return { ok: false, issue: "network_error" };
   }
-
-  const { data, error } = await getSupabase().auth.verifyOtp({
-    email: identity.value,
-    token,
-    type: "email",
-  });
-  // Supabase answers "Token has expired or is invalid" for both a wrong code
-  // and an old one, so telling them apart here would be a fiction.
-  if (error || !data?.user) return { ok: false, issue: "code_wrong" };
-  return { ok: true, userId: data.user.id };
+  return { ok: true, userId: payload.userId };
 }
 
-/** Sign out and clear the persisted session. */
+/** Sign out and clear the session cookie. */
 export async function signOut() {
-  return getSupabase().auth.signOut();
+  await fetch("/api/auth/logout", { method: "POST" });
 }
 
 export type { ProfileRole };

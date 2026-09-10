@@ -1,6 +1,8 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import { eq } from "drizzle-orm";
+import { getDb } from "@/lib/db/client";
+import { phoneVerifications } from "@/lib/db/schema";
 import { redactPhone } from "@/lib/auth/phoneNumber";
-import { getServiceClient } from "@/lib/auth/server";
 import type { CheckOutcome, StartOutcome, VerifyFailure } from "@/lib/auth/verifyTypes";
 
 /**
@@ -98,17 +100,18 @@ async function deliver(phone: string, text: string): Promise<VerifyFailure | nul
  * code outstanding, and asking for a new one immediately retires the old.
  */
 export async function startGatewayVerification(phone: string): Promise<StartOutcome> {
-  const db = getServiceClient();
+  const db = getDb();
 
   // The screen counts down 60 seconds; enforcing the same here means a caller
   // that skips the screen cannot spend the phone's SMS allowance any faster.
-  const { data: existing } = await db
-    .from("phone_verifications")
-    .select("created_at")
-    .eq("phone", phone)
-    .maybeSingle();
-  if (existing?.created_at) {
-    const age = Date.now() - new Date(existing.created_at as string).getTime();
+  const existingRows = await db
+    .select({ createdAt: phoneVerifications.createdAt })
+    .from(phoneVerifications)
+    .where(eq(phoneVerifications.phone, phone))
+    .limit(1);
+  const existing = existingRows[0];
+  if (existing?.createdAt) {
+    const age = Date.now() - existing.createdAt.getTime();
     if (age < RESEND_COOLDOWN_MS) return { status: "failed", reason: "too_many_requests" };
   }
 
@@ -118,19 +121,17 @@ export async function startGatewayVerification(phone: string): Promise<StartOutc
   const salt = randomBytes(16).toString("hex");
   const expiresAt = new Date(Date.now() + CODE_TTL_MS);
 
-  const { error } = await db.from("phone_verifications").upsert(
-    {
-      phone,
-      code_hash: hashCode(code, salt),
-      salt,
-      attempts: 0,
-      expires_at: expiresAt.toISOString(),
-      created_at: new Date().toISOString(),
-    },
-    { onConflict: "phone" }
-  );
-  if (error) {
-    console.error(`[verify] could not store a code for ${redactPhone(phone)}: ${error.message}`);
+  try {
+    await db
+      .insert(phoneVerifications)
+      .values({ phone, codeHash: hashCode(code, salt), salt, attempts: 0, expiresAt })
+      .onDuplicateKeyUpdate({
+        set: { codeHash: hashCode(code, salt), salt, attempts: 0, expiresAt, createdAt: new Date() },
+      });
+  } catch (err) {
+    console.error(
+      `[verify] could not store a code for ${redactPhone(phone)}: ${err instanceof Error ? err.message : err}`
+    );
     return { status: "failed", reason: "provider_error" };
   }
 
@@ -139,7 +140,7 @@ export async function startGatewayVerification(phone: string): Promise<StartOutc
   const failure = await deliver(phone, `Quran Quiz verification code: ${code}`);
   if (failure) {
     // The stored code is useless now; leaving it would block the resend.
-    await db.from("phone_verifications").delete().eq("phone", phone);
+    await db.delete(phoneVerifications).where(eq(phoneVerifications.phone, phone));
     return { status: "failed", reason: failure };
   }
 
@@ -160,48 +161,45 @@ export async function checkGatewayVerification(
   phone: string,
   code: string
 ): Promise<CheckOutcome> {
-  const db = getServiceClient();
+  const db = getDb();
 
-  const { data, error } = await db
-    .from("phone_verifications")
-    .select("code_hash, salt, attempts, expires_at")
-    .eq("phone", phone)
-    .maybeSingle();
-
-  if (error) {
-    console.error(`[verify] could not read the code for ${redactPhone(phone)}: ${error.message}`);
+  let row: typeof phoneVerifications.$inferSelect | undefined;
+  try {
+    const rows = await db
+      .select()
+      .from(phoneVerifications)
+      .where(eq(phoneVerifications.phone, phone))
+      .limit(1);
+    row = rows[0];
+  } catch (err) {
+    console.error(
+      `[verify] could not read the code for ${redactPhone(phone)}: ${err instanceof Error ? err.message : err}`
+    );
     return { status: "failed", reason: "provider_error" };
   }
   // Never asked for, already used, or cleaned up: all one situation.
-  if (!data) return { status: "no_verification" };
+  if (!row) return { status: "no_verification" };
 
-  const row = data as {
-    code_hash: string;
-    salt: string;
-    attempts: number;
-    expires_at: string;
-  };
-
-  if (new Date(row.expires_at).getTime() < Date.now()) {
-    await db.from("phone_verifications").delete().eq("phone", phone);
+  if (row.expiresAt.getTime() < Date.now()) {
+    await db.delete(phoneVerifications).where(eq(phoneVerifications.phone, phone));
     return { status: "expired" };
   }
   if (row.attempts >= MAX_ATTEMPTS) {
-    await db.from("phone_verifications").delete().eq("phone", phone);
+    await db.delete(phoneVerifications).where(eq(phoneVerifications.phone, phone));
     return { status: "attempts_exhausted" };
   }
 
-  if (!matches(row.code_hash, hashCode(code, row.salt))) {
+  if (!matches(row.codeHash, hashCode(code, row.salt))) {
     const attempts = row.attempts + 1;
-    await db.from("phone_verifications").update({ attempts }).eq("phone", phone);
+    await db.update(phoneVerifications).set({ attempts }).where(eq(phoneVerifications.phone, phone));
     if (attempts >= MAX_ATTEMPTS) {
-      await db.from("phone_verifications").delete().eq("phone", phone);
+      await db.delete(phoneVerifications).where(eq(phoneVerifications.phone, phone));
       return { status: "attempts_exhausted" };
     }
     return { status: "incorrect", attemptsRemaining: MAX_ATTEMPTS - attempts };
   }
 
   // Spent. A code that opened a session must never open a second one.
-  await db.from("phone_verifications").delete().eq("phone", phone);
+  await db.delete(phoneVerifications).where(eq(phoneVerifications.phone, phone));
   return { status: "verified", phone };
 }
