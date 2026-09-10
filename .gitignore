@@ -38,6 +38,7 @@ yarn-error.log*
 
 # migration data exports — real user data, never commit
 scripts/migrate/data/
+scripts/migrate/hostinger-import.sql
 
 # Claude Code local tooling state (subagent worktrees, local settings)
 .claude/
