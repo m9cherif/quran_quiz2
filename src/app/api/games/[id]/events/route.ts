@@ -50,7 +50,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         }
       };
 
-      // @ts-expect-error — Next.js's Request in a route handler does carry signal.
       _request.signal?.addEventListener("abort", close);
     },
   });
