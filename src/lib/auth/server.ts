@@ -23,12 +23,36 @@ export function getServiceClient(): SupabaseClient {
   return serviceClient;
 }
 
+/**
+ * Who is calling, verified from the bearer token the client sends (same
+ * pattern as src/lib/series/session.ts's userFromRequest) — and whether
+ * that person's profile is an admin. Every admin-only API route starts by
+ * calling this rather than trusting anything the client claims about itself.
+ */
+export async function adminFromRequest(request: Request): Promise<string | null> {
+  const token = request.headers.get("authorization")?.replace(/^Bearer /i, "");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!token || !url || !anonKey) return null;
+
+  const anon = createClient(url, anonKey, { auth: { persistSession: false } });
+  const { data, error } = await anon.auth.getUser(token);
+  if (error || !data.user) return null;
+
+  const { data: profile } = await getServiceClient()
+    .from("profiles")
+    .select("role")
+    .eq("id", data.user.id)
+    .maybeSingle();
+  return profile?.role === "admin" ? data.user.id : null;
+}
+
 export interface NewAccountInput {
   name: string;
   /** Exactly one of these — the account is reached by whichever was given. */
   email?: string;
   phone?: string;
-  role: "host" | "student";
+  role: "host" | "student" | "admin";
 }
 
 /**

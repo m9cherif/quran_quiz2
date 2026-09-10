@@ -22,6 +22,7 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
 const ROLES = [
   { value: "host", label: "auth.iAmHost", description: "auth.hostDescription" },
   { value: "student", label: "auth.iAmStudent", description: "auth.studentDescription" },
+  { value: "admin", label: "auth.iAmAdmin", description: "auth.adminDescription" },
 ];
 
 const RESEND_SECONDS = 60;
@@ -40,6 +41,7 @@ export default function RegisterPage() {
   const [contact, setContact] = useState("");
   const [identity, setIdentity] = useState(null);
   const [role, setRole] = useState("host");
+  const [adminKey, setAdminKey] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -79,6 +81,10 @@ export default function RegisterPage() {
       setError(t("auth.contactInvalid"));
       return;
     }
+    if (role === "admin" && !adminKey.trim()) {
+      setError(t("auth.adminKeyRequired"));
+      return;
+    }
     setIdentity(who);
 
     setIsLoading(true);
@@ -90,6 +96,7 @@ export default function RegisterPage() {
           name: name.trim(),
           [who.channel]: who.value,
           role,
+          ...(role === "admin" ? { adminKey: adminKey.trim() } : {}),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -186,7 +193,13 @@ export default function RegisterPage() {
       const profile = await getProfile(result.userId);
       if (profile) dispatch(setUser(profile));
       dispatch(setAuthStatus("authenticated"));
-      router.push(profile?.role === "host" ? "/host/quizzes" : "/student/dashboard");
+      router.push(
+        profile?.role === "admin"
+          ? "/admin"
+          : profile?.role === "host"
+            ? "/host/quizzes"
+            : "/student/dashboard"
+      );
     } catch (err) {
       console.error("Verifying the code failed:", err);
       setError(t("auth.serverUnreachable"));
@@ -237,6 +250,18 @@ export default function RegisterPage() {
               ))}
             </div>
           </fieldset>
+
+          {role === "admin" && (
+            <Input
+              label={t("auth.adminKey")}
+              required
+              autoComplete="off"
+              placeholder={t("auth.adminKeyPlaceholder")}
+              value={adminKey}
+              onChange={(e) => setAdminKey(e.target.value)}
+              hint={t("auth.adminKeyHint")}
+            />
+          )}
 
           <Input
             label={t("auth.name")}

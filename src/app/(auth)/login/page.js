@@ -144,7 +144,13 @@ export default function LoginPage() {
       const profile = await getProfile(result.userId);
       if (profile) dispatch(setUser(profile));
       dispatch(setAuthStatus("authenticated"));
-      router.push(profile?.role === "host" ? "/host/quizzes" : "/student/dashboard");
+      router.push(
+        profile?.role === "admin"
+          ? "/admin"
+          : profile?.role === "host"
+            ? "/host/quizzes"
+            : "/student/dashboard"
+      );
     } catch (err) {
       console.error("Verifying the sign-in code failed:", err);
       setError(t("auth.serverUnreachable"));
