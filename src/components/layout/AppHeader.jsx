@@ -35,6 +35,12 @@ const NAV = {
     { href: "/student/classes", labelKey: "nav.classes" },
     { href: "/join", labelKey: "nav.joinGame" },
   ],
+  admin: [
+    { href: "/admin", labelKey: "nav.adminOverview" },
+    { href: "/admin/users", labelKey: "nav.adminUsers" },
+    { href: "/admin/competitions", labelKey: "nav.adminCompetitions" },
+    { href: "/host/quizzes", labelKey: "nav.myQuizzes" },
+  ],
 };
 
 /**
@@ -49,6 +55,12 @@ export function AppHeader({ variant = "public" }) {
   const user = useSelector((state) => state.user.user);
 
   const links = NAV[variant] ?? NAV.public;
+  // Admin can reach the host/student areas too (RequireUser lets it through),
+  // but only those areas' own nav is shown by variant — add a way back.
+  const withAdminLink =
+    variant !== "admin" && variant !== "public" && user?.role === "admin"
+      ? [...links, { href: "/admin", labelKey: "nav.adminOverview" }]
+      : links;
 
   const logout = async () => {
     try {
@@ -68,7 +80,7 @@ export function AppHeader({ variant = "public" }) {
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex" aria-label={t("nav.main")}>
-          {links.map((link) => (
+          {withAdminLink.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -155,7 +167,7 @@ export function AppHeader({ variant = "public" }) {
               <ThemeToggle />
               <LocaleSwitcher />
             </li>
-            {links.map((link) => (
+            {withAdminLink.map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}
