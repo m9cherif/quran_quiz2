@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { getServiceClient } from "@/lib/auth/server";
+import { getDb } from "@/lib/db/client";
+import { seriesAttempts } from "@/lib/db/schema";
+import { newId } from "@/lib/db/id";
 import { pickWords, wordCount } from "@/lib/series/format";
 import { getSeries, pageWords } from "@/lib/series/source";
 import { seedFor, userFromRequest } from "@/lib/series/session";
@@ -34,29 +36,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `Page ${exercise.page} has no annotations` }, { status: 409 });
   }
 
-  const db = getServiceClient();
-  const { data: attempt, error } = await db
-    .from("series_attempts")
-    .insert({
-      series_id: id,
-      profile_id: profileId,
-      exercise_num: index + 1,
+  const db = getDb();
+  const attemptId = newId();
+  try {
+    await db.insert(seriesAttempts).values({
+      id: attemptId,
+      seriesId: id,
+      profileId,
+      exerciseNum: index + 1,
       page: Number(exercise.page),
-      ecrire_mot: Boolean(exercise.ecrire_mot),
+      ecrireMot: Boolean(exercise.ecrire_mot),
       total: wordCount(exercise),
-      max_score: 100,
-    })
-    .select("id")
-    .single();
-  if (error) {
-    console.error("[series] could not start:", error.message);
+      maxScore: 100,
+    });
+  } catch (err) {
+    console.error("[series] could not start:", err instanceof Error ? err.message : err);
     return NextResponse.json({ error: "Could not start" }, { status: 500 });
   }
 
-  const chosen = pickWords(exercise, page, seedFor(attempt.id, index));
+  const chosen = pickWords(exercise, page, seedFor(attemptId, index));
 
   return NextResponse.json({
-    attemptId: attempt.id,
+    attemptId,
     num: index + 1,
     page: Number(exercise.page),
     diff: Number(exercise.diff) || 0,

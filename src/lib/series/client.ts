@@ -1,19 +1,11 @@
-import { getSupabase } from "@/lib/supabase/client";
-
 /**
  * The browser's side of the series API.
  *
- * Every call carries the caller's own Supabase token, because the server
- * decides who is asking from the token and never from the body: an attempt is
- * only ever marked for the person whose session opened it.
+ * No token to attach any more: the qq_session cookie is sent automatically
+ * with every same-origin fetch, and the server reads the caller's identity
+ * from it — an attempt is only ever marked for the person whose session
+ * opened it.
  */
-async function authorized(): Promise<HeadersInit> {
-  const { data } = await getSupabase().auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) throw new Error("Sign in first");
-  return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
-}
-
 async function unwrap(response: Response) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body?.error || `Request failed (${response.status})`);
@@ -66,7 +58,7 @@ export async function startExercise(seriesId: string, num: number): Promise<Star
   return unwrap(
     await fetch(`/api/series/${encodeURIComponent(seriesId)}/start`, {
       method: "POST",
-      headers: await authorized(),
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ num }),
     })
   );
@@ -98,7 +90,7 @@ export async function submitExercise(
   return unwrap(
     await fetch(`/api/series/${encodeURIComponent(seriesId)}/submit`, {
       method: "POST",
-      headers: await authorized(),
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ attemptId, answers, seconds }),
     })
   );
@@ -121,36 +113,23 @@ export interface Attempt {
 
 /** The signed-in student's own marked attempts, newest first. */
 export async function myAttempts(): Promise<Attempt[]> {
-  const { data, error } = await getSupabase()
-    .from("series_attempts")
-    .select(
-      "id, series_id, profile_id, exercise_num, page, score, answered, total, errors, seconds, started_at, finished_at"
-    )
-    .not("finished_at", "is", null)
-    .order("finished_at", { ascending: false })
-    .limit(400);
-  if (error) throw error;
-  return (data as Attempt[]) ?? [];
+  return unwrap(await fetch("/api/series/mine"));
 }
 
 /**
  * Marked attempts for a set of students.
  *
- * No class id is passed: the teacher policy on series_attempts already limits
- * the rows to members of classes this account owns, so asking for a stranger's
- * id returns nothing rather than someone else's marks.
+ * No class id is passed: the server already limits the rows to members of
+ * classes this account owns, so asking for a stranger's id returns nothing
+ * rather than someone else's marks.
  */
 export async function attemptsForStudents(profileIds: string[]): Promise<Attempt[]> {
   if (profileIds.length === 0) return [];
-  const { data, error } = await getSupabase()
-    .from("series_attempts")
-    .select(
-      "id, series_id, profile_id, exercise_num, page, score, answered, total, errors, seconds, started_at, finished_at"
-    )
-    .in("profile_id", profileIds)
-    .not("finished_at", "is", null)
-    .order("finished_at", { ascending: false })
-    .limit(1000);
-  if (error) throw error;
-  return (data as Attempt[]) ?? [];
+  return unwrap(
+    await fetch("/api/series/students", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileIds }),
+    })
+  );
 }

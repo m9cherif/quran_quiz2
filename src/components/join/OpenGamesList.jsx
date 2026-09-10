@@ -4,17 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { getSupabase } from "@/lib/supabase/client";
 import { listOpenGames } from "@/services/games";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /**
  * OpenGamesList — pick a live game instead of typing its code.
  *
- * Kept in step with reality by subscribing to the competitions table: a game
- * opened in another room appears here within a moment, and one that starts or
- * is locked disappears. A student who cannot read the code off a projector at
- * the back of the class can still get in.
+ * There is no competition id to scope a realtime subscription to here — any
+ * game anywhere can open or close — and the SSE bus is deliberately
+ * per-competition, so there is no global channel to listen on. A 5s poll is
+ * the sole, primary mechanism: this list is cheap to compute and isn't shown
+ * on a hot path, so polling alone is the simplest correct fix.
  */
 export default function OpenGamesList({ onPick, selectedCode }) {
   const { t } = useI18n();
@@ -28,21 +28,8 @@ export default function OpenGamesList({ onPick, selectedCode }) {
 
   useEffect(() => {
     refresh();
-
-    // Any change to a competition can add or remove a joinable game, so the
-    // simplest correct reaction is to re-read the (small, indexed) list.
-    const channel = getSupabase()
-      .channel("open-games")
-      .on("postgres_changes", { event: "*", schema: "public", table: "competitions" }, refresh)
-      .subscribe();
-
-    // Realtime is hidden from anonymous readers on some rows; poll as a floor.
-    const poll = setInterval(refresh, 15000);
-
-    return () => {
-      getSupabase().removeChannel(channel);
-      clearInterval(poll);
-    };
+    const poll = setInterval(refresh, 5000);
+    return () => clearInterval(poll);
   }, [refresh]);
 
   if (games === null) {

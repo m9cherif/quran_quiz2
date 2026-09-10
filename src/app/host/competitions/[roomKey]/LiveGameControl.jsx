@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 import Textarea from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
-import { getSupabase } from "@/lib/supabase/client";
+import { useRealtimeEvents } from "@/lib/realtime/useRealtimeEvents";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import {
   deleteQuiz,
@@ -56,6 +56,7 @@ import {
   getQuestionStats,
   listGameQuestions,
   listParticipants,
+  nudgeGame,
 } from "@/services/games";
 import JoinQr from "@/components/host/JoinQr";
 import { downloadTextFile, slugify, toCsv } from "@/lib/export";
@@ -74,7 +75,7 @@ function emptyNewQuestion() {
     items: ["", ""],
     // page_words only — PageWordsEditor reads these snake_case fields.
     page_number: DEFAULT_PAGE,
-    regions: [],
+    word_locations: [],
     words: [],
     choices: [
       { text: "", position: 1, isCorrect: false },
@@ -136,8 +137,6 @@ export default function LiveGameControl({ roomKey }) {
   const [teamStandings, setTeamStandings] = useState([]);
   const [distribution, setDistribution] = useState([]);
   const [showDistribution, setShowDistribution] = useState(false);
-  const channelRef = useRef(null);
-  const roomChannelRef = useRef(null);
   const boardTimerRef = useRef(null);
   const autoAdvanceRef = useRef(null);
 
@@ -194,82 +193,86 @@ export default function LiveGameControl({ roomKey }) {
     };
   }, [roomKey, loadAll]);
 
-  // Realtime: game status, question timing, answers, players.
+  // Clock tick — unrelated to the realtime channel.
   useEffect(() => {
     if (state !== "ready" || !game) return;
-    const client = getSupabase();
-    const channel = client.channel(`control-${game.id}`);
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [state, game]);
 
-    channel
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "competitions", filter: `id=eq.${game.id}` },
-        (payload) => {
-          setGame((prev) => ({ ...prev, ...payload.new }));
-          if (payload.new.status === "finished" || payload.new.status === "cancelled") {
+  useEffect(() => {
+    return () => {
+      if (boardTimerRef.current) {
+        clearTimeout(boardTimerRef.current);
+        boardTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Realtime: game status, question timing, answers, players.
+  useRealtimeEvents(
+    game?.id,
+    (event) => {
+      switch (event?.type) {
+        case "status-changed": {
+          const status = event.payload.status;
+          setGame((prev) => (prev ? { ...prev, status } : prev));
+          if (status === "finished" || status === "cancelled") {
             getQuestionStats(game.id)
               .then(setQuestionStats)
               .catch(() => {});
           }
+          break;
         }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "questions", filter: `competition_id=eq.${game.id}` },
-        (payload) => {
-          const updated = payload.new;
-          setQuestions((prev) =>
-            prev.map((q) => (q.id === updated.id ? { ...q, ...updated } : q))
-          );
-          if (updated.started_at && updated.ends_at) {
-            getHostQuestionFull(updated.id)
-              .then(setReveal)
-              .catch(() => setReveal(null));
-          }
+        case "question-started":
+        case "question-ended":
+        case "question-updated":
+        case "deck-updated": {
+          // These payloads are partial (see src/lib/realtime/bus.ts consumers)
+          // — re-fetch the deck rather than merging fields. A full re-fetch is
+          // already fresh and correctly ordered by position, so no client-side
+          // merge/sort is needed.
+          listGameQuestions(game.id)
+            .then((items) => {
+              setQuestions(items);
+              const active = items.find((q) => q.started_at && q.ends_at);
+              if (active) {
+                getHostQuestionFull(active.id)
+                  .then(setReveal)
+                  .catch(() => setReveal(null));
+              }
+            })
+            .catch(() => {});
+          break;
         }
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "questions", filter: `competition_id=eq.${game.id}` },
-        (payload) => {
-          // Adding a question reloads the whole list and also arrives here as a
-          // realtime insert. Whichever lands second used to append a second
-          // copy, and the duplicate then showed up in the deck, in "question N
-          // of M", and in the results. The row is merged, not stacked, and the
-          // list stays in reading order however it arrived.
-          setQuestions((prev) => {
-            const next = prev.some((q) => q.id === payload.new.id)
-              ? prev.map((q) => (q.id === payload.new.id ? { ...q, ...payload.new } : q))
-              : [...prev, payload.new];
-            return [...next].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-          });
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "participants", filter: `competition_id=eq.${game.id}` },
-        (payload) => {
-          // Same race for a player joining: the roster is refetched elsewhere,
-          // so an unguarded append shows the same student twice.
+        case "participant-joined": {
+          // The payload IS the full row.
+          const row = event.payload;
           setParticipants((prev) =>
-            prev.some((p) => p.id === payload.new.id)
-              ? prev.map((p) => (p.id === payload.new.id ? { ...p, ...payload.new } : p))
-              : [...prev, payload.new]
+            prev.some((p) => p.id === row.id) ? prev.map((p) => (p.id === row.id ? { ...p, ...row } : p)) : [...prev, row]
           );
+          break;
         }
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "participants", filter: `competition_id=eq.${game.id}` },
-        (payload) => {
-          setParticipants((prev) => prev.filter((p) => p.id !== payload.old.id));
+        case "participant-left": {
+          setParticipants((prev) => prev.filter((p) => p.id !== event.payload.participant_id));
+          break;
         }
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "answers", filter: `competition_id=eq.${game.id}` },
-        (payload) => {
-          const row = payload.new;
+        case "participant-updated": {
+          const { participant_id: participantId, shuffled, ...changes } = event.payload;
+          if (!participantId && shuffled) {
+            // Every participant's team changed at once — re-fetch the roster.
+            listParticipants(game.id)
+              .then(setParticipants)
+              .catch(() => {});
+          } else if (participantId) {
+            setParticipants((prev) =>
+              prev.map((p) => (p.id === participantId ? { ...p, ...changes } : p))
+            );
+          }
+          break;
+        }
+        case "answer-received": {
+          const row = event.payload;
           // Keep the graded result, not just "answered": for page and ordering
           // questions there is no choice to count, so correctness is the only
           // meaningful live signal.
@@ -289,31 +292,14 @@ export default function LiveGameControl({ roomKey }) {
               .then(setLeaderboard)
               .catch(() => {});
           }, 800);
+          break;
         }
-      )
-      .subscribe();
-
-    channelRef.current = channel;
-
-    const roomChannel = client
-      .channel(`room-${game.id}`)
-      .on("broadcast", { event: "deck-updated" }, () => {})
-      .subscribe();
-    roomChannelRef.current = roomChannel;
-
-    const timer = setInterval(() => setNow(Date.now()), 500);
-    return () => {
-      clearInterval(timer);
-      if (boardTimerRef.current) {
-        clearTimeout(boardTimerRef.current);
-        boardTimerRef.current = null;
+        default:
+          break;
       }
-      client.removeChannel(channel);
-      client.removeChannel(roomChannel);
-      channelRef.current = null;
-      roomChannelRef.current = null;
-    };
-  }, [state, game]);
+    },
+    state === "ready" && Boolean(game)
+  );
 
   const current = useMemo(
     () =>
@@ -369,9 +355,7 @@ export default function LiveGameControl({ roomKey }) {
             : "lobby";
 
   const nudgeStudents = () => {
-    roomChannelRef.current
-      ?.send({ type: "broadcast", event: "deck-updated", payload: {} })
-      .catch(() => {});
+    if (game?.id) nudgeGame(game.id).catch(() => {});
   };
 
   // Deep link students can scan or paste; origin is only known in the browser.
@@ -767,13 +751,13 @@ export default function LiveGameControl({ roomKey }) {
     // Page exercises carry no question text: the page and its boxes are the
     // question, so they validate (and save) through their own path.
     if (q.type === "page_words") {
-      const regions = q.regions ?? [];
+      const wordLocations = q.word_locations ?? [];
       const words = q.words ?? [];
-      if (regions.length === 0) {
+      if (wordLocations.length === 0) {
         setAddError(t("pw.needBox"));
         return;
       }
-      if (words.length !== regions.length || words.some((w) => !String(w ?? "").trim())) {
+      if (words.length !== wordLocations.length || words.some((w) => !String(w ?? "").trim())) {
         setAddError(t("pw.incomplete"));
         return;
       }
@@ -793,7 +777,7 @@ export default function LiveGameControl({ roomKey }) {
           ayahNumber: null,
           juzNumber: null,
           hizbNumber: null,
-          regions,
+          wordLocations,
           words: words.map((w, i) => ({ text: w, region: i })),
         });
         toast({ title: t("host.questionAdded"), variant: "success" });

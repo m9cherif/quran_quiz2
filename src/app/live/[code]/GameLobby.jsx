@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
-import { getSupabase } from "@/lib/supabase/client";
+import { useRealtimeEvents } from "@/lib/realtime/useRealtimeEvents";
 import { getGameByCode, gameParticipantCount, getMyParticipant, updatePresence } from "@/services/games";
 import { removeParticipant } from "@/store/Slices/participantSlice";
 import Button from "@/components/ui/Button";
@@ -82,34 +82,29 @@ export default function GameLobby({ code }) {
     return () => clearInterval(heartbeat);
   }, [accessToken, competitionId, game, expired]);
 
-  useEffect(() => {
-    if (!competitionId || !game || expired) return;
-
-    const redirectByStatus = (status) => {
+  const redirectByStatus = useCallback(
+    (status) => {
       if (status === "running") router.push(`/live/${code}/question`);
       else if (status === "finished") router.push(`/live/${code}/result`);
       else if (status === "cancelled") setExpired(true);
-    };
+    },
+    [router, code]
+  );
 
-    const channel = getSupabase()
-      .channel(`lobby-status-${competitionId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "competitions",
-          filter: `id=eq.${competitionId}`,
-        },
-        (payload) => {
-          const status = payload?.new?.status;
-          if (status) {
-            setGame((prev) => (prev ? { ...prev, status } : prev));
-            redirectByStatus(status);
-          }
-        }
-      )
-      .subscribe();
+  // Push notification; the 5s poll below is the documented fallback.
+  useRealtimeEvents(
+    competitionId,
+    (event) => {
+      if (event?.type !== "status-changed") return;
+      const status = event.payload.status;
+      setGame((prev) => (prev ? { ...prev, status } : prev));
+      redirectByStatus(status);
+    },
+    Boolean(competitionId && game && !expired)
+  );
+
+  useEffect(() => {
+    if (!competitionId || !game || expired) return;
 
     const poll = setInterval(async () => {
       try {
@@ -127,12 +122,8 @@ export default function GameLobby({ code }) {
       }
     }, 5000);
 
-    return () => {
-      channel.unsubscribe();
-      clearInterval(poll);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [competitionId, game, expired]);
+    return () => clearInterval(poll);
+  }, [competitionId, game, expired, code, redirectByStatus]);
 
   if (expired) {
     return (

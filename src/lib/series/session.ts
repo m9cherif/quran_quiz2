@@ -1,20 +1,14 @@
-import { createClient } from "@supabase/supabase-js";
+import { getSessionUser, tokenFromRequest } from "@/lib/db/session";
 
 /**
  * Who is asking.
  *
- * The identity comes from the caller's own Supabase session, never from the
+ * The identity comes from the caller's own qq_session cookie, never from the
  * request body — a body can claim to be anyone.
  */
 export async function userFromRequest(request: Request): Promise<string | null> {
-  const token = request.headers.get("authorization")?.replace(/^Bearer /i, "");
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!token || !url || !anon) return null;
-
-  const client = createClient(url, anon, { auth: { persistSession: false } });
-  const { data, error } = await client.auth.getUser(token);
-  return error ? null : (data.user?.id ?? null);
+  const session = await getSessionUser(tokenFromRequest(request));
+  return session?.id ?? null;
 }
 
 /**

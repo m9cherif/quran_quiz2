@@ -1,5 +1,3 @@
-import { getSupabase } from "@/lib/supabase/client";
-
 export interface ClassRow {
   id: string;
   code: string;
@@ -30,54 +28,61 @@ export interface ClassMember {
   joined_at: string;
 }
 
+/** Error thrown on a non-ok response, carrying the old Postgres errcode (see the /api/classes routes) so callers can still switch on `err.code`. */
+async function callJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, init);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(body?.error || "Request failed") as Error & { code?: string };
+    err.code = body?.code;
+    throw err;
+  }
+  return body as T;
+}
+
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
 /** Create a class (host). Returns the new class incl. its join code. */
 export async function createClass(name: string, description?: string | null): Promise<ClassRow> {
-  const { data, error } = await getSupabase().rpc("create_class", {
-    p_name: name.trim(),
-    p_description: description?.trim() || null,
+  return callJson<ClassRow>("/api/classes", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ name: name.trim(), description: description?.trim() || null }),
   });
-  if (error) throw error;
-  return data as ClassRow;
 }
 
 /** Host's own classes with counts. */
 export async function listMyClasses(): Promise<ClassSummary[]> {
-  const { data, error } = await getSupabase().rpc("list_my_classes");
-  if (error) throw error;
-  return (data as ClassSummary[]) ?? [];
+  return (await callJson<ClassSummary[]>("/api/classes")) ?? [];
 }
 
 /** Archive a class (owner); it stops accepting new members. */
 export async function archiveClass(classId: string): Promise<void> {
-  const { error } = await getSupabase().rpc("archive_class", { p_class_id: classId });
-  if (error) throw error;
+  await callJson(`/api/classes/${encodeURIComponent(classId)}/archive`, { method: "POST" });
 }
 
 /** Join a class by code (student). Idempotent. */
 export async function joinClass(code: string): Promise<ClassRow> {
-  const { data, error } = await getSupabase().rpc("join_class", { p_code: code.trim().toUpperCase() });
-  if (error) throw error;
-  return data as ClassRow;
+  return callJson<ClassRow>("/api/classes/join", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ code: code.trim().toUpperCase() }),
+  });
 }
 
 /** Leave a class (student). */
 export async function leaveClass(classId: string): Promise<void> {
-  const { error } = await getSupabase().rpc("leave_class", { p_class_id: classId });
-  if (error) throw error;
+  await callJson(`/api/classes/${encodeURIComponent(classId)}/leave`, { method: "POST" });
 }
 
 /** Classes the signed-in user joined (active only). */
 export async function myClasses(): Promise<MyClassRow[]> {
-  const { data, error } = await getSupabase().rpc("my_classes");
-  if (error) throw error;
-  return (data as MyClassRow[]) ?? [];
+  return (await callJson<MyClassRow[]>("/api/classes/joined")) ?? [];
 }
 
 /** Members of a class (owner or member). */
 export async function listClassMembers(classId: string): Promise<ClassMember[]> {
-  const { data, error } = await getSupabase().rpc("list_class_members", { p_class_id: classId });
-  if (error) throw error;
-  return (data as ClassMember[]) ?? [];
+  return (await callJson<ClassMember[]>(`/api/classes/${encodeURIComponent(classId)}/members`)) ?? [];
 }
 
 export interface ClassGameRow {
@@ -94,11 +99,7 @@ export interface ClassGameRow {
 
 /** Games run for a class — visible to its members without a code. */
 export async function listClassGames(classId: string): Promise<ClassGameRow[]> {
-  const { data, error } = await getSupabase().rpc("list_class_games", {
-    p_class_id: classId,
-  });
-  if (error) throw error;
-  return (data as ClassGameRow[]) ?? [];
+  return (await callJson<ClassGameRow[]>(`/api/classes/${encodeURIComponent(classId)}/games`)) ?? [];
 }
 
 /**
@@ -106,12 +107,11 @@ export async function listClassGames(classId: string): Promise<ClassGameRow[]> {
  * the lock and late-join switches that gate the public code path.
  */
 export async function joinClassGame(competitionId: string, displayName: string) {
-  const { data, error } = await getSupabase().rpc("join_class_game", {
-    p_competition_id: competitionId,
-    p_display_name: displayName.trim(),
+  return callJson(`/api/classes/${encodeURIComponent(competitionId)}/games`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ competitionId, displayName: displayName.trim() }),
   });
-  if (error) throw error;
-  return data;
 }
 
 export interface ClassLeaderboardRow {
@@ -125,18 +125,12 @@ export interface ClassLeaderboardRow {
 
 /** Standings across every game attached to a class (owner only). */
 export async function classLeaderboard(classId: string): Promise<ClassLeaderboardRow[]> {
-  const { data, error } = await getSupabase().rpc("class_leaderboard", {
-    p_class_id: classId,
-  });
-  if (error) throw error;
-  return (data as ClassLeaderboardRow[]) ?? [];
+  return (await callJson<ClassLeaderboardRow[]>(`/api/classes/${encodeURIComponent(classId)}/leaderboard`)) ?? [];
 }
 
 /** Remove a member (owner). */
 export async function removeClassMember(classId: string, profileId: string): Promise<void> {
-  const { error } = await getSupabase().rpc("remove_class_member", {
-    p_class_id: classId,
-    p_profile_id: profileId,
+  await callJson(`/api/classes/${encodeURIComponent(classId)}/members/${encodeURIComponent(profileId)}`, {
+    method: "DELETE",
   });
-  if (error) throw error;
 }

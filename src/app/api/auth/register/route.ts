@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db/client";
+import { adminKeys } from "@/lib/db/schema";
 import { normalizePhone } from "@/lib/auth/phoneNumber";
-import { createUserAccount, getServiceClient } from "@/lib/auth/server";
+import { createUserAccount } from "@/lib/auth/server";
 
 export const runtime = "nodejs";
 
@@ -21,21 +24,18 @@ const ROLES = new Set(["host", "student", "admin"]);
  */
 async function adminKeyExists(key: string): Promise<boolean> {
   const hash = createHash("sha256").update(key).digest("hex");
-  const { count, error } = await getServiceClient()
-    .from("admin_keys")
-    .select("id", { count: "exact", head: true })
-    .eq("key_hash", hash);
-  if (error) throw error;
-  return (count ?? 0) > 0;
+  const rows = await getDb().select({ id: adminKeys.id }).from(adminKeys).where(eq(adminKeys.keyHash, hash)).limit(1);
+  return rows.length > 0;
 }
 
 async function spendAdminKey(key: string): Promise<void> {
   const hash = createHash("sha256").update(key).digest("hex");
-  const { error } = await getServiceClient().from("admin_keys").delete().eq("key_hash", hash);
-  if (error) {
+  try {
+    await getDb().delete(adminKeys).where(eq(adminKeys.keyHash, hash));
+  } catch (err) {
     // The account is already created at this point — worth knowing about,
     // not worth failing the request over.
-    console.error("Could not spend the admin key after account creation:", error);
+    console.error("Could not spend the admin key after account creation:", err);
   }
 }
 

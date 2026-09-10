@@ -16,7 +16,6 @@ import {
   verifySignInCode,
 } from "@/lib/auth/client";
 import { SIGN_IN_MESSAGE_KEYS } from "@/lib/auth/messages";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 /** Both senders refuse a second code inside a minute — Supabase by its own
@@ -66,10 +65,6 @@ export default function LoginPage() {
   const requestCode = async (e) => {
     e?.preventDefault();
     setError("");
-    if (!isSupabaseConfigured()) {
-      setError(t("auth.notConfigured"));
-      return;
-    }
     const who = identify(contact);
     if (!who) {
       setError(t("auth.contactInvalid"));

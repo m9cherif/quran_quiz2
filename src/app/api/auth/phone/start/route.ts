@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import {
   advancePhoneVerification,
@@ -5,7 +6,8 @@ import {
   type VerifyFailure,
 } from "@/lib/auth/verify";
 import { normalizePhone, redactPhone } from "@/lib/auth/phoneNumber";
-import { getServiceClient } from "@/lib/auth/server";
+import { getDb } from "@/lib/db/client";
+import { users } from "@/lib/db/schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,11 +60,8 @@ export async function POST(request: Request) {
   // would send a real SMS to anything shaped like a phone number.
   let userId: string | null = null;
   try {
-    const { data, error } = await getServiceClient().rpc("auth_user_id_for_phone", {
-      p_phone: phone,
-    });
-    if (error) throw error;
-    userId = (data as string | null) ?? null;
+    const rows = await getDb().select({ id: users.id }).from(users).where(eq(users.phone, phone)).limit(1);
+    userId = rows[0]?.id ?? null;
   } catch (err) {
     console.error(
       `[verify] could not look up ${redactPhone(phone)}:`,
