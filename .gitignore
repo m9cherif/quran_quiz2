@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# migration data exports — real user data, never commit
+scripts/migrate/data/
+
 # Claude Code local tooling state (subagent worktrees, local settings)
 .claude/
 
