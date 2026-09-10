@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
-import { getSupabase } from "@/lib/supabase/client";
+import { useRealtimeEvents } from "@/lib/realtime/useRealtimeEvents";
 import {
   getGameByCode,
   getMyParticipant,
@@ -186,73 +186,33 @@ export default function GameQuestion({ code }) {
     };
   }, [game, code, status, competitionId, accessToken, loadDeck]);
 
-  // ---------- realtime: questions + competitions ----------
-  useEffect(() => {
-    if (!game || !competitionId) return;
-    const client = getSupabase();
-    const roomChannel = client
-      .channel(`room-${competitionId}`)
-      .on("broadcast", { event: "deck-updated" }, () => {
-        setNowEpoch(Date.now());
-        loadDeck();
-      })
-      .subscribe();
-    const channel = client
-      .channel(`student-game-${competitionId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "competitions",
-          filter: `id=eq.${competitionId}`,
-        },
-        (payload) => {
-          const nextStatus = payload?.new?.status;
-          if (nextStatus) {
-            setStatus(nextStatus);
-            setGame((prev) => (prev ? { ...prev, status: nextStatus } : prev));
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "questions",
-          filter: `competition_id=eq.${competitionId}`,
-        },
-        (payload) => {
-          const id = payload?.new?.id;
-          if (!id) return;
-          setQuestions((prev) => {
-            const next = prev.map((q) => (q.id === id ? { ...q, ...payload.new } : q));
-            return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
-          });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "questions",
-          filter: `competition_id=eq.${competitionId}`,
-        },
-        (payload) => {
-          if (!payload?.new?.id) return;
-          setQuestions((prev) =>
-            prev.some((q) => q.id === payload.new.id) ? prev : [...prev, payload.new]
-          );
-        }
-      )
-      .subscribe();
-    return () => {
-      channel.unsubscribe();
-      roomChannel.unsubscribe();
-    };
-  }, [competitionId, game, loadDeck]);
+  // ---------- realtime: status + deck ----------
+  // These payloads are partial (see src/lib/realtime/bus.ts consumers) —
+  // question-* events are a "something changed, go re-fetch" signal, not
+  // data to merge field-by-field, so every one of them just re-loads the
+  // deck. This is a speed optimization on top of the 8s poll above, which
+  // stays as the always-correct fallback.
+  useRealtimeEvents(
+    competitionId,
+    (event) => {
+      switch (event?.type) {
+        case "status-changed":
+          setStatus(event.payload.status);
+          setGame((prev) => (prev ? { ...prev, status: event.payload.status } : prev));
+          break;
+        case "question-started":
+        case "question-ended":
+        case "question-updated":
+        case "deck-updated":
+          setNowEpoch(Date.now());
+          loadDeck();
+          break;
+        default:
+          break;
+      }
+    },
+    Boolean(game)
+  );
 
   // Celebrate a correct answer once the result is known, and tick the last
   // five seconds so heads come up before the window shuts.

@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getSupabase } from "@/lib/supabase/client";
+import { useRealtimeEvents } from "@/lib/realtime/useRealtimeEvents";
 
 /**
- * useCall — a classroom voice/video room built on plain WebRTC, with Supabase
- * Realtime broadcast carrying the signalling. No media server and no third
- * party: the host is the hub and every student holds exactly one peer
+ * useCall — a classroom voice/video room built on plain WebRTC, with the SSE
+ * realtime bus + a presence primitive carrying the signalling and roster
+ * (replacing Supabase Realtime broadcast + presence). No media server and no
+ * third party: the host is the hub and every student holds exactly one peer
  * connection to them (a star, not a mesh), which is what a class actually
  * needs — students hear the teacher, not each other's background noise.
  *
@@ -18,12 +19,27 @@ import { getSupabase } from "@/lib/supabase/client";
  * Connectivity: STUN handles ordinary networks, and TURN relays the traffic
  * when a firewall blocks peer-to-peer. Both come from /api/turn, which keeps
  * the provider API key server-side and mints short-lived credentials.
+ *
+ * Signalling: POSTs to /api/games/[id]/call/signal, delivered to every other
+ * listener on the competition's SSE stream as a "call-signal" event — the
+ * same fire-and-forget, no-delivery-confirmation contract the old broadcast
+ * channel had.
+ *
+ * Roster/presence: the generic heartbeat+TTL primitive
+ * (src/lib/realtime/presence.ts) under room id `call-${competitionId}`, a
+ * namespace independent of the game presence room. A closed tab or crashed
+ * browser is detected by that TTL expiring, not by anything client-side —
+ * exactly replacing what Supabase Presence's socket-close detection gave for
+ * free.
  */
 import { getIceConfig } from "./iceServers";
 
 const FALLBACK_ICE = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
 ];
+
+const HEARTBEAT_MS = 8000;
+const ROSTER_POLL_MS = 4000;
 
 const randomId = () =>
   (globalThis.crypto?.randomUUID?.() ?? `id-${Math.random().toString(36).slice(2)}`).slice(0, 12);
@@ -37,10 +53,10 @@ export function useCall({ competitionId, role, displayName, enabled }) {
   const [error, setError] = useState("");
   const [peers, setPeers] = useState([]); // [{ id, name, stream, role }]
   /**
-   * Who is in the call right now, from Realtime Presence — independent of
-   * whether media has negotiated yet. This is what survives a refresh: the
-   * roster is re-synced on subscribe, so a reloaded page shows everyone
-   * immediately instead of an empty call.
+   * Who is in the call right now, from the presence primitive — independent
+   * of whether media has negotiated yet. This is what survives a refresh:
+   * the roster is polled right away on join, so a reloaded page shows
+   * everyone immediately instead of an empty call.
    */
   const [roster, setRoster] = useState([]);
   /** Last thing the host did to this device: micOn|micOff|camOn|camOff. */
@@ -50,18 +66,30 @@ export function useCall({ competitionId, role, displayName, enabled }) {
   const iceServersRef = useRef(FALLBACK_ICE);
   const [relaySource, setRelaySource] = useState("");
   const localStreamRef = useRef(null);
-  const channelRef = useRef(null);
   const pcsRef = useRef(new Map()); // peerId -> RTCPeerConnection
   const namesRef = useRef(new Map());
   const dialingRef = useRef(new Set()); // offers in flight, so nobody is dialled twice
+  const joinedRef = useRef(false);
+  const micOnRef = useRef(micOn);
+  const camOnRef = useRef(camOn);
+  const roleRef = useRef(role);
+  const displayNameRef = useRef(displayName);
+  roleRef.current = role;
+  displayNameRef.current = displayName;
 
-  const send = useCallback((event, payload) => {
-    channelRef.current?.send({
-      type: "broadcast",
-      event,
-      payload: { ...payload, from: selfIdRef.current, role, name: displayName },
-    });
-  }, [role, displayName]);
+  const send = useCallback(
+    (event, payload) => {
+      fetch(`/api/games/${competitionId}/call/signal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event,
+          payload: { ...payload, from: selfIdRef.current, role, name: displayName },
+        }),
+      }).catch(() => {});
+    },
+    [competitionId, role, displayName]
+  );
 
   const dropPeer = useCallback((peerId) => {
     const pc = pcsRef.current.get(peerId);
@@ -131,26 +159,103 @@ export function useCall({ competitionId, role, displayName, enabled }) {
     [dropPeer, role, send]
   );
 
+  const touchPresence = useCallback(
+    (meta) => {
+      fetch(`/api/rooms/${encodeURIComponent(`call-${competitionId}`)}/presence`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: selfIdRef.current, meta }),
+      }).catch(() => {});
+    },
+    [competitionId]
+  );
+
   const leave = useCallback(() => {
     send("bye", {});
     for (const id of Array.from(pcsRef.current.keys())) dropPeer(id);
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
-    if (channelRef.current) {
-      getSupabase().removeChannel(channelRef.current);
-      channelRef.current = null;
+    try {
+      fetch(`/api/rooms/${encodeURIComponent(`call-${competitionId}`)}/presence`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: selfIdRef.current }),
+        keepalive: true,
+      });
+    } catch {
+      // Best-effort — the TTL in presence.ts is the real fallback.
     }
     setPeers([]);
     setRoster([]);
     setJoined(false);
+    joinedRef.current = false;
     setHostNotice("");
-  }, [dropPeer, send]);
+  }, [competitionId, dropPeer, send]);
 
   /** Keep the roster's mic/camera badges honest as the toggles are used. */
   useEffect(() => {
-    if (!joined || !channelRef.current) return;
-    channelRef.current.track({ name: displayName, role, micOn, camOn }).catch(() => {});
-  }, [joined, micOn, camOn, displayName, role]);
+    micOnRef.current = micOn;
+    camOnRef.current = camOn;
+    if (!joined) return;
+    touchPresence({ name: displayName, role, micOn, camOn });
+  }, [joined, micOn, camOn, displayName, role, touchPresence]);
+
+  /** Dial anyone already in the roster the host hasn't dialled yet (host only). */
+  const dialPresentPeers = useCallback(
+    (people) => {
+      if (roleRef.current !== "host") return;
+      for (const person of people) {
+        if (person.self || person.role === "host") continue;
+        if (pcsRef.current.has(person.id) || dialingRef.current.has(person.id)) continue;
+        dialingRef.current.add(person.id);
+        const pc = peerFor(person.id, person.role);
+        pc.createOffer()
+          .then((offer) => pc.setLocalDescription(offer))
+          .then(() => send("offer", { to: person.id, sdp: pc.localDescription }))
+          .catch(() => dropPeer(person.id))
+          .finally(() => dialingRef.current.delete(person.id));
+      }
+    },
+    [dropPeer, peerFor, send]
+  );
+
+  const rosterKeysRef = useRef(new Set());
+  const fetchRoster = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/rooms/${encodeURIComponent(`call-${competitionId}`)}/presence`);
+      if (!res.ok) return;
+      const entries = await res.json();
+      const people = entries.map((entry) => {
+        const meta = entry.meta ?? {};
+        return {
+          id: entry.key,
+          name: meta.name ?? "",
+          role: meta.role ?? "student",
+          micOn: meta.micOn !== false,
+          camOn: Boolean(meta.camOn),
+          self: entry.key === selfIdRef.current,
+        };
+      });
+      setRoster(people);
+      for (const person of people) namesRef.current.set(person.id, person.name);
+
+      // Anyone who dropped out of a fresh snapshot vs. the previous one is
+      // gone (TTL expired, tab closed) — same effect as Presence's "leave"
+      // event, no separate event type needed.
+      const currentKeys = new Set(people.map((p) => p.id));
+      for (const prevKey of rosterKeysRef.current) {
+        if (!currentKeys.has(prevKey) && prevKey !== selfIdRef.current) dropPeer(prevKey);
+      }
+      rosterKeysRef.current = currentKeys;
+
+      // A host that reloads has no peer connections left; dial whoever is
+      // already sitting in the call rather than waiting for them to
+      // re-announce (they will not — they never left).
+      dialPresentPeers(people);
+    } catch {
+      // Poll again on the next tick.
+    }
+  }, [competitionId, dialPresentPeers, dropPeer]);
 
   const join = useCallback(async () => {
     if (joined || connecting || !competitionId) return;
@@ -180,60 +285,90 @@ export function useCall({ competitionId, role, displayName, enabled }) {
       setMicOn(true);
       setCamOn(false);
 
-      const channel = getSupabase().channel(`call-${competitionId}`, {
-        config: {
-          broadcast: { self: false },
-          presence: { key: selfIdRef.current },
-        },
-      });
+      rosterKeysRef.current = new Set();
+      touchPresence({ name: displayName, role, micOn: true, camOn: false, joinedAt: Date.now() });
+      send("hello", {});
+      await fetchRoster();
 
-      channel
-        .on("broadcast", { event: "hello" }, async ({ payload }) => {
-          if (!payload?.from || payload.from === selfIdRef.current) return;
+      setJoined(true);
+      joinedRef.current = true;
+    } catch (err) {
+      console.error("Call join failed:", err);
+      setError(err?.name === "NotAllowedError" ? "denied" : "failed");
+    } finally {
+      setConnecting(false);
+    }
+  }, [competitionId, connecting, displayName, fetchRoster, joined, role, send, touchPresence]);
+
+  // Signalling dispatch: one SSE subscription instead of five separate
+  // Supabase broadcast listeners, gated so it only listens while in a call.
+  useRealtimeEvents(
+    competitionId,
+    (event) => {
+      if (event?.type !== "call-signal" || !joinedRef.current) return;
+      const { event: signalEvent, payload } = event.payload ?? {};
+      if (!payload) return;
+
+      switch (signalEvent) {
+        case "hello": {
+          if (!payload.from || payload.from === selfIdRef.current) return;
           namesRef.current.set(payload.from, payload.name ?? "");
           // The host dials the newcomer; students never call each other.
-          if (role !== "host" || payload.role === "host") return;
-          const pc = peerFor(payload.from, payload.role);
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          send("offer", { to: payload.from, sdp: pc.localDescription });
-        })
-        .on("broadcast", { event: "offer" }, async ({ payload }) => {
-          if (payload?.to !== selfIdRef.current) return;
+          if (roleRef.current !== "host" || payload.role === "host") return;
+          {
+            const pc = peerFor(payload.from, payload.role);
+            pc.createOffer()
+              .then((offer) => pc.setLocalDescription(offer))
+              .then(() => send("offer", { to: payload.from, sdp: pc.localDescription }))
+              .catch(() => dropPeer(payload.from));
+          }
+          return;
+        }
+        case "offer": {
+          if (payload.to !== selfIdRef.current) return;
           namesRef.current.set(payload.from, payload.name ?? "");
-          const pc = peerFor(payload.from, payload.role);
-          await pc.setRemoteDescription(payload.sdp);
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          send("answer", { to: payload.from, sdp: pc.localDescription });
-        })
-        .on("broadcast", { event: "answer" }, async ({ payload }) => {
-          if (payload?.to !== selfIdRef.current) return;
-          const pc = pcsRef.current.get(payload.from);
-          // Accept the answer whenever we are waiting for one — including the
-          // second time round after an ICE restart.
-          if (pc && pc.signalingState === "have-local-offer") {
-            await pc.setRemoteDescription(payload.sdp);
+          {
+            const pc = peerFor(payload.from, payload.role);
+            pc.setRemoteDescription(payload.sdp)
+              .then(() => pc.createAnswer())
+              .then((answer) => pc.setLocalDescription(answer))
+              .then(() => send("answer", { to: payload.from, sdp: pc.localDescription }))
+              .catch(() => {});
           }
-        })
-        .on("broadcast", { event: "ice" }, async ({ payload }) => {
-          if (payload?.to !== selfIdRef.current) return;
-          const pc = pcsRef.current.get(payload.from);
-          if (!pc || !payload.candidate) return;
-          try {
-            await pc.addIceCandidate(payload.candidate);
-          } catch {
-            // A candidate arriving before the description is expected noise.
+          return;
+        }
+        case "answer": {
+          if (payload.to !== selfIdRef.current) return;
+          {
+            const pc = pcsRef.current.get(payload.from);
+            // Accept the answer whenever we are waiting for one — including
+            // the second time round after an ICE restart.
+            if (pc && pc.signalingState === "have-local-offer") {
+              pc.setRemoteDescription(payload.sdp).catch(() => {});
+            }
           }
-        })
-        .on("broadcast", { event: "bye" }, ({ payload }) => {
-          if (payload?.from) dropPeer(payload.from);
-        })
-        .on("broadcast", { event: "host-control" }, ({ payload }) => {
+          return;
+        }
+        case "ice": {
+          if (payload.to !== selfIdRef.current) return;
+          {
+            const pc = pcsRef.current.get(payload.from);
+            if (!pc || !payload.candidate) return;
+            pc.addIceCandidate(payload.candidate).catch(() => {
+              // A candidate arriving before the description is expected noise.
+            });
+          }
+          return;
+        }
+        case "bye": {
+          if (payload.from) dropPeer(payload.from);
+          return;
+        }
+        case "host-control": {
           // The host drives this device's mic/camera. Addressed to one
           // student or to "all". The change is always announced on screen —
           // a camera must never light up without the person seeing why.
-          if (payload?.to !== selfIdRef.current && payload?.to !== "all") return;
+          if (payload.to !== selfIdRef.current && payload.to !== "all") return;
           if (payload.role !== "host") return;
 
           const stream = localStreamRef.current;
@@ -259,67 +394,38 @@ export function useCall({ competitionId, role, displayName, enabled }) {
                 ? "micOn"
                 : "micOff"
           );
-        });
+          return;
+        }
+        default:
+          return;
+      }
+    },
+    joined
+  );
 
-      // Presence is the roster; broadcast is only the signalling.
-      channel
-        .on("presence", { event: "sync" }, () => {
-          const state = channel.presenceState();
-          const people = Object.entries(state).map(([key, entries]) => {
-            const meta = entries[entries.length - 1] ?? {};
-            return {
-              id: key,
-              name: meta.name ?? "",
-              role: meta.role ?? "student",
-              micOn: meta.micOn !== false,
-              camOn: Boolean(meta.camOn),
-              self: key === selfIdRef.current,
-            };
-          });
-          setRoster(people);
-          for (const person of people) namesRef.current.set(person.id, person.name);
+  // Presence: heartbeat while joined, and poll the roster (also refetched on
+  // an SSE "presence" nudge below).
+  useEffect(() => {
+    if (!joined) return undefined;
+    const timer = setInterval(() => {
+      touchPresence({ name: displayNameRef.current, role: roleRef.current, micOn: micOnRef.current, camOn: camOnRef.current });
+    }, HEARTBEAT_MS);
+    return () => clearInterval(timer);
+  }, [joined, touchPresence]);
 
-          // A host that reloads has no peer connections left; dial whoever is
-          // already sitting in the call rather than waiting for them to
-          // re-announce (they will not — they never left).
-          if (role !== "host") return;
-          for (const person of people) {
-            if (person.self || person.role === "host") continue;
-            if (pcsRef.current.has(person.id) || dialingRef.current.has(person.id)) continue;
-            dialingRef.current.add(person.id);
-            const pc = peerFor(person.id, person.role);
-            pc.createOffer()
-              .then((offer) => pc.setLocalDescription(offer))
-              .then(() => send("offer", { to: person.id, sdp: pc.localDescription }))
-              .catch(() => dropPeer(person.id))
-              .finally(() => dialingRef.current.delete(person.id));
-          }
-        })
-        .on("presence", { event: "leave" }, ({ key }) => {
-          // Covers refreshes and closed tabs: no "bye" is sent then.
-          if (key) dropPeer(key);
-        });
+  useEffect(() => {
+    if (!joined) return undefined;
+    const timer = setInterval(fetchRoster, ROSTER_POLL_MS);
+    return () => clearInterval(timer);
+  }, [joined, fetchRoster]);
 
-      channel.subscribe(async (status) => {
-        if (status !== "SUBSCRIBED") return;
-        await channel.track({
-          name: displayName,
-          role,
-          micOn: true,
-          camOn: false,
-          joinedAt: Date.now(),
-        });
-        send("hello", {});
-      });
-      channelRef.current = channel;
-      setJoined(true);
-    } catch (err) {
-      console.error("Call join failed:", err);
-      setError(err?.name === "NotAllowedError" ? "denied" : "failed");
-    } finally {
-      setConnecting(false);
-    }
-  }, [competitionId, connecting, dropPeer, joined, peerFor, role, send]);
+  useRealtimeEvents(
+    competitionId,
+    (event) => {
+      if (event?.type === "presence" && joinedRef.current) fetchRoster();
+    },
+    joined
+  );
 
   const toggleMic = useCallback(() => {
     const tracks = localStreamRef.current?.getAudioTracks() ?? [];

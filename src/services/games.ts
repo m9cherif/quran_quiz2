@@ -117,6 +117,15 @@ export async function endQuestion(questionId: string): Promise<void> {
   await apiFetch(`/api/games/questions/${questionId}/end`, { method: "POST" });
 }
 
+/**
+ * Host-only "something about the deck changed, go re-fetch" nudge — replaces
+ * the old raw Supabase broadcast("deck-updated") sent after adding a
+ * question, toggling calls_enabled, or as a general just-in-case signal.
+ */
+export async function nudgeGame(competitionId: string): Promise<void> {
+  await apiFetch(`/api/games/${competitionId}/nudge`, { method: "POST" });
+}
+
 /** Remaining ms from a server timestamp; clamped at 0 when expired. */
 export function remainingMs(endsAt: string, now: number = Date.now()): number {
   return Math.max(0, new Date(endsAt).getTime() - now);
